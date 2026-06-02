@@ -237,6 +237,17 @@ export default function AddListing() {
                 )}
               />
 
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">İlan Görseli (URL, Opsiyonel)</label>
+                <Input
+                  value={form.watch("applyUrl") ? "" : ""}
+                  placeholder="https://resim.com/foto.jpg"
+                  className="glass-card border-white/10"
+                  {...form.register("companyLogoUrl" as any)}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">Boş bırakırsanız ilan başlığına göre otomatik resim atanır.</p>
+              </div>
+
               <Button
                 type="submit"
                 disabled={createMutation.isPending}
