@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, X, Send, Maximize2, Zap, Bot } from "lucide-react";
+import { MessageCircle, X, Send, Maximize2, Zap, Bot, Shield, Star } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "wouter";
 import { io, Socket } from "socket.io-client";
@@ -14,6 +14,72 @@ function formatTime(iso: string) {
 interface SystemMsg { id: number; type: "join" | "welcome"; text: string; createdAt: string; }
 type AnyMsg = (ChatMessage & { isBot?: boolean }) | SystemMsg;
 function isSystem(m: AnyMsg): m is SystemMsg { return "type" in m; }
+
+/* ── Role badge ─────────────────────────────────────────── */
+function RoleBadge({ role }: { role: string }) {
+  if (role === "admin") {
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-full ml-1 shrink-0"
+        style={{
+          background: "linear-gradient(90deg,#ef4444,#f97316,#ef4444)",
+          backgroundSize: "200% 100%",
+          animation: "role-slide 2s linear infinite",
+          color: "#fff",
+          boxShadow: "0 0 8px rgba(239,68,68,0.6)",
+        }}
+      >
+        <Shield className="w-2 h-2 inline" />
+        YÖNETİCİ
+      </span>
+    );
+  }
+  if (role === "moderator") {
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-full ml-1 shrink-0"
+        style={{
+          background: "linear-gradient(90deg,#3b82f6,#06b6d4,#3b82f6)",
+          backgroundSize: "200% 100%",
+          animation: "role-slide 2.5s linear infinite",
+          color: "#fff",
+          boxShadow: "0 0 8px rgba(59,130,246,0.6)",
+        }}
+      >
+        <Star className="w-2 h-2 inline" />
+        MODERATÖR
+      </span>
+    );
+  }
+  return (
+    <span className="text-[8px] font-medium text-white/25 ml-1 shrink-0">Üye</span>
+  );
+}
+
+/* ── User avatar ─────────────────────────────────────────── */
+function UserAvatar({ src, username, role }: { src?: string | null; username: string; role: string }) {
+  const ringColor =
+    role === "admin" ? "rgba(239,68,68,0.8)" :
+    role === "moderator" ? "rgba(59,130,246,0.8)" :
+    "rgba(255,255,255,0.12)";
+
+  return (
+    <div
+      className="w-7 h-7 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-[10px] font-bold text-white"
+      style={{
+        boxShadow: `0 0 0 2px ${ringColor}`,
+        background: src ? "transparent" : "linear-gradient(135deg,#4F46E5,#7C3AED)",
+        flexShrink: 0,
+      }}
+    >
+      {src ? (
+        <img src={src} alt={username} className="w-full h-full object-cover" />
+      ) : (
+        username.substring(0, 2).toUpperCase()
+      )}
+    </div>
+  );
+}
 
 export function ChatBubble() {
   const { user } = useAuth();
@@ -34,7 +100,6 @@ export function ChatBubble() {
     setTimeout(() => setPulse(false), 600);
   }, []);
 
-  // Load initial messages
   useEffect(() => {
     fetch("/api/chat/messages?limit=30", {
       headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
@@ -44,44 +109,24 @@ export function ChatBubble() {
       .catch(() => {});
   }, []);
 
-  // Socket.io
   useEffect(() => {
     const s = io({ path: "/ws" });
     setSocket(s);
-
-    if (user?.id) {
-      s.emit("authenticate", { userId: user.id });
-    }
+    if (user?.id) s.emit("authenticate", { userId: user.id });
 
     s.on("chat:message", (msg: ChatMessage) => {
       addMsg(msg);
       if (!open) setUnread(n => n + 1);
     });
-
     s.on("chat:delete", ({ id }: { id: number }) => {
-      setMessages(prev => prev.filter(m => !isSystem(m) && m.id !== id));
+      setMessages(prev => prev.filter(m => !isSystem(m) && (m as ChatMessage).id !== id));
     });
-
     s.on("chat:join", ({ username }: { username: string }) => {
-      const sys: SystemMsg = {
-        id: Date.now(),
-        type: "join",
-        text: `${username} sohbete katıldı`,
-        createdAt: new Date().toISOString(),
-      };
-      addMsg(sys);
+      addMsg({ id: Date.now(), type: "join", text: `${username} sohbete katıldı`, createdAt: new Date().toISOString() });
     });
-
     s.on("chat:welcome", ({ message }: { message: string }) => {
-      const sys: SystemMsg = {
-        id: Date.now() + 1,
-        type: "welcome",
-        text: message,
-        createdAt: new Date().toISOString(),
-      };
-      addMsg(sys);
+      addMsg({ id: Date.now() + 1, type: "welcome", text: message, createdAt: new Date().toISOString() });
     });
-
     return () => { s.disconnect(); };
   }, [user?.id]);
 
@@ -117,7 +162,15 @@ export function ChatBubble() {
 
   return (
     <>
-      {/* Floating button — fully right aligned */}
+      {/* role-slide keyframe injected inline */}
+      <style>{`
+        @keyframes role-slide {
+          0%   { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+      `}</style>
+
+      {/* Floating button */}
       <motion.button
         onClick={() => setOpen(o => !o)}
         whileHover={{ scale: 1.08 }}
@@ -127,7 +180,7 @@ export function ChatBubble() {
         className="fixed bottom-24 right-4 z-50 w-14 h-14 rounded-2xl shadow-2xl flex items-center justify-center"
         style={{
           background: "linear-gradient(135deg,#4F46E5,#7C3AED)",
-          boxShadow: "0 8px 32px rgba(79,70,229,0.5), 0 0 0 1px rgba(255,255,255,0.1)"
+          boxShadow: "0 8px 32px rgba(79,70,229,0.5), 0 0 0 1px rgba(255,255,255,0.1)",
         }}
       >
         <AnimatePresence mode="wait">
@@ -165,12 +218,14 @@ export function ChatBubble() {
               backdropFilter: "blur(20px)",
               border: "1px solid rgba(255,255,255,0.08)",
               boxShadow: "0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(79,70,229,0.2)",
-              maxHeight: 480,
+              maxHeight: 500,
             }}
           >
             {/* Header */}
-            <div className="flex items-center gap-3 px-4 py-3.5 shrink-0"
-              style={{ background: "linear-gradient(135deg,rgba(79,70,229,0.9),rgba(124,58,237,0.9))", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <div
+              className="flex items-center gap-3 px-4 py-3.5 shrink-0"
+              style={{ background: "linear-gradient(135deg,rgba(79,70,229,0.9),rgba(124,58,237,0.9))", borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+            >
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
                 <MessageCircle className="w-4 h-4 text-white" />
               </div>
@@ -192,7 +247,7 @@ export function ChatBubble() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0" style={{ maxHeight: 340 }}>
+            <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0" style={{ maxHeight: 360 }}>
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-24 gap-2">
                   <MessageCircle className="w-8 h-8 text-white/10" />
@@ -200,14 +255,10 @@ export function ChatBubble() {
                 </div>
               ) : (
                 messages.map(msg => {
+                  /* ─── System messages ─── */
                   if (isSystem(msg)) {
                     return (
-                      <motion.div
-                        key={msg.id}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex justify-center"
-                      >
+                      <motion.div key={msg.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex justify-center">
                         {msg.type === "join" ? (
                           <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] font-medium px-3 py-1 rounded-full">
                             <Zap className="w-2.5 h-2.5" />
@@ -230,42 +281,71 @@ export function ChatBubble() {
                   const isMe = user?.id === chatMsg.userId;
                   const isBot = chatMsg.isBot || chatMsg.userId === 0;
 
+                  /* ─── Bot message ─── */
                   if (isBot) {
                     return (
-                      <motion.div key={chatMsg.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
-                        <div className="max-w-[90%] bg-cyan-500/10 border border-cyan-500/20 rounded-2xl rounded-tl-sm px-3 py-2 text-xs">
+                      <motion.div key={chatMsg.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-2">
+                        <div className="w-7 h-7 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                          <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                        </div>
+                        <div className="max-w-[82%] bg-cyan-500/10 border border-cyan-500/20 rounded-2xl rounded-tl-sm px-3 py-2 text-xs">
                           <div className="flex items-center gap-1 mb-0.5">
-                            <Bot className="w-2.5 h-2.5 text-cyan-400" />
                             <span className="text-[9px] font-bold text-cyan-400">GuvenlikBot</span>
+                            <span className="text-[8px] text-cyan-400/50">· Bot</span>
                           </div>
                           <p className="break-words text-foreground/90 leading-relaxed">{chatMsg.content}</p>
-                          <p className="text-[9px] text-muted-foreground mt-0.5">{formatTime(chatMsg.createdAt)}</p>
+                          <p className="text-[9px] text-white/25 mt-0.5">{formatTime(chatMsg.createdAt)}</p>
                         </div>
                       </motion.div>
                     );
                   }
 
+                  /* ─── Regular user message ─── */
                   return (
-                    <motion.div key={chatMsg.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                      className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs ${
-                        isMe ? "text-white rounded-br-sm" : "rounded-bl-sm"
-                      }`} style={isMe
-                        ? { background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }
-                        : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.06)" }
-                      }>
-                        {!isMe && (
-                          <p className={`text-[9px] font-bold mb-0.5 ${chatMsg.userNameAnimated ? "animate-rainbow" : ""}`}
-                            style={chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: chatMsg.userNameColor } : {}}>
-                            <span style={!chatMsg.userNameColor ? { color: "#94a3b8" } : {}}>
-                              {chatMsg.username}
-                            </span>
-                            {chatMsg.userRole === "admin" && <span className="ml-1 text-red-400 font-black">[A]</span>}
-                            {chatMsg.userRole === "moderator" && <span className="ml-1 text-blue-400 font-black">[M]</span>}
-                          </p>
-                        )}
-                        <p className="break-words leading-relaxed">{chatMsg.content}</p>
-                        <p className={`text-[9px] mt-0.5 ${isMe ? "text-white/40" : "text-white/30"}`}>{formatTime(chatMsg.createdAt)}</p>
+                    <motion.div
+                      key={chatMsg.id}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}
+                    >
+                      {/* Avatar — always shown */}
+                      <UserAvatar
+                        src={chatMsg.userAvatarUrl}
+                        username={chatMsg.username}
+                        role={chatMsg.userRole ?? "user"}
+                      />
+
+                      {/* Bubble */}
+                      <div className={`flex flex-col max-w-[75%] ${isMe ? "items-end" : "items-start"}`}>
+                        {/* Name row — shown for everyone (including "me") */}
+                        <div className="flex items-center flex-wrap gap-0.5 mb-1 px-1">
+                          {isMe ? (
+                            <span className="text-[9px] font-bold text-white/40">Sen</span>
+                          ) : (
+                            <>
+                              <span
+                                className={`text-[10px] font-bold leading-tight ${chatMsg.userNameAnimated ? "animate-rainbow" : ""}`}
+                                style={chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: chatMsg.userNameColor } : !chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: "#94a3b8" } : {}}
+                              >
+                                {chatMsg.username}
+                              </span>
+                              <RoleBadge role={chatMsg.userRole ?? "user"} />
+                            </>
+                          )}
+                        </div>
+
+                        {/* Bubble body */}
+                        <div
+                          className={`rounded-2xl px-3 py-2 text-xs ${isMe ? "rounded-br-sm text-white" : "rounded-bl-sm"}`}
+                          style={
+                            isMe
+                              ? { background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }
+                              : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.06)" }
+                          }
+                        >
+                          <p className="break-words leading-relaxed">{chatMsg.content}</p>
+                          <p className={`text-[9px] mt-0.5 ${isMe ? "text-white/40" : "text-white/25"}`}>{formatTime(chatMsg.createdAt)}</p>
+                        </div>
                       </div>
                     </motion.div>
                   );
@@ -299,7 +379,8 @@ export function ChatBubble() {
                     disabled={!content.trim() || sending}
                     whileTap={{ scale: 0.9 }}
                     className="w-9 h-9 rounded-xl flex items-center justify-center disabled:opacity-30 shrink-0 transition-opacity"
-                    style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }}>
+                    style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }}
+                  >
                     <Send className="w-3.5 h-3.5 text-white" />
                   </motion.button>
                 </div>
