@@ -18,16 +18,14 @@ function isSystem(m: AnyMsg): m is SystemMsg { return "type" in m; }
 /* ── Role badge ─────────────────────────────────────────── */
 function RoleBadge({ role }: { role: string }) {
   if (role === "admin") return (
-    <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-red-400/70 shrink-0">
-      <Shield className="w-2 h-2" />yönetici
-    </span>
+    <span className="text-[8px] font-semibold tracking-wide" style={{ color: "rgba(248,113,113,0.75)" }}>admin</span>
   );
   if (role === "moderator") return (
-    <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-blue-400/70 shrink-0">
-      <Star className="w-2 h-2" />mod
-    </span>
+    <span className="text-[8px] font-semibold tracking-wide" style={{ color: "rgba(96,165,250,0.75)" }}>mod</span>
   );
-  return null;
+  return (
+    <span className="text-[8px] font-medium" style={{ color: "rgba(148,163,184,0.45)" }}>üye</span>
+  );
 }
 
 /* ── User avatar ─────────────────────────────────────────── */
@@ -341,7 +339,7 @@ export function ChatBubble() {
                         role={chatMsg.userRole ?? "user"}
                       />
                       <div className={`flex flex-col max-w-[75%] ${isMe ? "items-end" : "items-start"}`}>
-                        <div className="flex items-center flex-wrap gap-0.5 mb-1 px-1">
+                        <div className="flex flex-col mb-1 px-1">
                           {isMe ? (
                             <span className="text-[9px] font-bold text-white/40">Sen</span>
                           ) : (

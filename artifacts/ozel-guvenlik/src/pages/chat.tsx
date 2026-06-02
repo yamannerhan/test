@@ -21,12 +21,14 @@ interface UserSuggestion { id: number; username: string; displayName?: string | 
 /* ── Role badge ─────────────────────────────────────────────── */
 function RoleBadge({ role }: { role: string }) {
   if (role === "admin") return (
-    <span className="text-[8px] font-semibold text-red-400/70 ml-0.5">yönetici</span>
+    <span className="text-[8px] font-semibold tracking-wide" style={{ color: "rgba(248,113,113,0.75)" }}>admin</span>
   );
   if (role === "moderator") return (
-    <span className="text-[8px] font-semibold text-blue-400/70 ml-0.5">mod</span>
+    <span className="text-[8px] font-semibold tracking-wide" style={{ color: "rgba(96,165,250,0.75)" }}>mod</span>
   );
-  return null;
+  return (
+    <span className="text-[8px] font-medium" style={{ color: "rgba(148,163,184,0.45)" }}>üye</span>
+  );
 }
 
 /* ── Swipeable row ────────────────────────────────────────────── */
@@ -203,8 +205,8 @@ export default function Chat() {
             </div>
 
             <div className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-              {/* Name */}
-              <div className="flex items-center flex-wrap gap-0.5 mb-1 px-1">
+              {/* Name + badge */}
+              <div className="flex flex-col mb-1 px-1">
                 {isMe ? (
                   <span className="text-[9px] text-white/30">Sen</span>
                 ) : (
