@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { useGetListing, useToggleListingLike, useToggleListingFavorite, getGetListingQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { useParams, Link } from "wouter";
@@ -10,6 +10,28 @@ import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { getListingImage } from "@/lib/listing-image";
+
+// Renders description with masked contact info placeholders as lock badges
+function MaskedDescription({ text }: { text: string }) {
+  const parts = text.split("[GİRİŞ_GEREKLİ]");
+  if (parts.length === 1) return <span className="whitespace-pre-wrap">{text}</span>;
+  return (
+    <span className="whitespace-pre-wrap">
+      {parts.map((part, i) => (
+        <React.Fragment key={i}>
+          {part}
+          {i < parts.length - 1 && (
+            <Link href="/giris">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 border border-primary/30 text-primary text-[11px] font-semibold mx-0.5 cursor-pointer hover:bg-primary/20 transition-colors">
+                <Lock className="w-2.5 h-2.5" /> Giriş yap
+              </span>
+            </Link>
+          )}
+        </React.Fragment>
+      ))}
+    </span>
+  );
+}
 
 export default function ListingDetail() {
   const { id } = useParams();
@@ -173,8 +195,8 @@ export default function ListingDetail() {
           {listing.description && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mt-5">
               <h3 className="text-base font-bold mb-2 px-1">İş Tanımı</h3>
-              <div className="glass-card rounded-2xl p-4 text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                {listing.description}
+              <div className="glass-card rounded-2xl p-4 text-sm leading-relaxed text-foreground/90">
+                <MaskedDescription text={listing.description} />
               </div>
             </motion.div>
           )}

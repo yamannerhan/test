@@ -788,7 +788,7 @@ function parseListingText(raw: string): Record<string, string> {
   });
   const description = descLines.join("\n").trim();
 
-  return { title, company, city, district, salary, workType, description, contactPhone, contactName, applyUrl };
+  return { title, company: company || "Belirtilmedi", city, district, salary, workType, description, contactPhone, contactName, applyUrl };
 }
 
 router.post("/admin/listings/parse", authMiddleware, requireAdmin, async (req, res): Promise<void> => {

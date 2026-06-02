@@ -5,21 +5,64 @@ import { authMiddleware, optionalAuthMiddleware, requireAdmin } from "../middlew
 
 const router = Router();
 
+// Regex patterns for masking contact info in descriptions
+const PHONE_MASK_RE = /(?:0|\+90)[\s\-]?(?:\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}|\d{3}[\s\-]?\d{7})/g;
+// Only label words that are typically followed by a PERSON NAME (not phone numbers)
+const NAME_AFTER_LABEL_RE = /(?:^|[\s\n])(?:iletişim|irtibat|yetkili|sorumlu|koordinatör|temsilci)\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20})/gim;
+
+function maskContactInfo(text: string): string {
+  // Replace phone numbers
+  let s = text.replace(PHONE_MASK_RE, "[GİRİŞ_GEREKLİ]");
+  // Replace person name (capture group 1) after contact labels, keep label prefix
+  s = s.replace(NAME_AFTER_LABEL_RE, (full, name: string) =>
+    full.slice(0, full.lastIndexOf(name)) + "[GİRİŞ_GEREKLİ]"
+  );
+  return s;
+}
+
+function hasSensitiveInfo(text: string | null, applyUrl: string | null): boolean {
+  if (!text && !applyUrl) return false;
+  if (applyUrl?.startsWith("tel:")) return true;
+  if (text) {
+    const hasPhone = PHONE_MASK_RE.test(text);
+    PHONE_MASK_RE.lastIndex = 0;
+    const hasName = NAME_AFTER_LABEL_RE.test(text);
+    NAME_AFTER_LABEL_RE.lastIndex = 0;
+    if (hasPhone || hasName) return true;
+  }
+  return false;
+}
+
 function formatListing(listing: typeof listingsTable.$inferSelect, userId?: number, likedIds?: Set<number>, favIds?: Set<number>, authorUsername?: string | null) {
+  const isAuth = userId != null;
+  const rawDesc = listing.description;
+  const rawApplyUrl = listing.applyUrl;
+
+  // Mask sensitive info for unauthenticated users
+  const description = rawDesc ? (isAuth ? rawDesc : maskContactInfo(rawDesc)) : null;
+  const applyUrl = rawApplyUrl
+    ? (isAuth ? rawApplyUrl : (rawApplyUrl.startsWith("tel:") || rawApplyUrl.startsWith("http") ? "auth_required" : rawApplyUrl))
+    : null;
+
+  // Reset regex state after use
+  PHONE_MASK_RE.lastIndex = 0;
+  NAME_AFTER_LABEL_RE.lastIndex = 0;
+
   return {
     id: listing.id,
     title: listing.title,
-    company: listing.company,
+    company: listing.company || "Belirtilmedi",
     city: listing.city,
     salary: listing.salary,
     workType: listing.workType,
-    description: listing.description,
+    description,
     requirements: listing.requirements,
     status: listing.status,
     viewCount: listing.viewCount,
     likeCount: listing.likeCount,
     isFeatured: listing.isFeatured,
-    applyUrl: listing.applyUrl,
+    applyUrl,
+    contactInfoMasked: !isAuth && hasSensitiveInfo(rawDesc, rawApplyUrl),
     companyLogoUrl: listing.companyLogoUrl,
     authorId: listing.authorId,
     authorUsername: authorUsername ?? null,
