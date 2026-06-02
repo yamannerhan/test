@@ -2,7 +2,7 @@ import React from "react";
 import { BottomNav } from "./bottom-nav";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "wouter";
-import { Bell, ShieldAlert } from "lucide-react";
+import { Bell, ShieldCheck } from "lucide-react";
 import { useGetOnlineCount, getGetOnlineCountQueryKey } from "@workspace/api-client-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -13,21 +13,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-20">
-      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-white/10">
+      <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-xl border-b border-white/10 shadow-[0_2px_24px_rgba(79,70,229,0.15)]">
         <div className="flex items-center justify-between px-4 h-14 max-w-md mx-auto">
-          <Link href="/" className="flex items-center space-x-2">
-            <ShieldAlert className="w-6 h-6 text-primary" />
-            <span className="font-bold text-lg bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+          <Link href="/" className="flex items-center space-x-2 group">
+            <div className="relative">
+              <ShieldCheck className="w-7 h-7 text-primary drop-shadow-[0_0_8px_rgba(79,70,229,0.8)]" />
+            </div>
+            <span className="font-extrabold text-xl tracking-tight logo-gradient animate-logo-glow">
               ÖzelGüvenlik
             </span>
+            <span className="text-[10px] font-semibold text-accent/80 tracking-widest uppercase hidden sm:block">.Online</span>
           </Link>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-1.5 text-xs font-medium text-muted-foreground">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-2.5 py-1 text-xs font-semibold text-green-400">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
               <span>{onlineData?.count || 0} Online</span>
             </div>
             {isAdmin && (
-              <Link href="/admin" className="text-destructive hover:text-destructive/80 transition-colors">
+              <Link href="/admin" className="text-xs font-bold text-destructive hover:text-destructive/80 bg-destructive/10 px-2.5 py-1 rounded-full border border-destructive/20 transition-colors">
                 Admin
               </Link>
             )}

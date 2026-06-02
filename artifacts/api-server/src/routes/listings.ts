@@ -25,6 +25,7 @@ function formatListing(listing: typeof listingsTable.$inferSelect, userId?: numb
     authorUsername: authorUsername ?? null,
     isLikedByMe: userId != null && likedIds != null ? likedIds.has(listing.id) : false,
     isFavoritedByMe: userId != null && favIds != null ? favIds.has(listing.id) : false,
+    expiresAt: listing.expiresAt ? listing.expiresAt.toISOString() : null,
     createdAt: listing.createdAt.toISOString(),
   };
 }

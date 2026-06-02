@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useCreateListing } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { useLocation } from "wouter";
@@ -12,6 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
+import { Calendar, Clock, Infinity } from "lucide-react";
 
 const listingSchema = z.object({
   title: z.string().min(5, "Başlık en az 5 karakter olmalıdır."),
@@ -31,11 +32,13 @@ export default function AddListing() {
   const { toast } = useToast();
   const createMutation = useCreateListing();
   const { user } = useAuth();
+  const [isTimed, setIsTimed] = useState(false);
+  const [expiresAt, setExpiresAt] = useState("");
 
   const form = useForm<ListingFormValues>({
     resolver: zodResolver(listingSchema),
-    defaultValues: { 
-      title: "", company: "", city: "", workType: "", salary: "", description: "", requirements: "", applyUrl: "" 
+    defaultValues: {
+      title: "", company: "", city: "", workType: "", salary: "", description: "", requirements: "", applyUrl: ""
     },
   });
 
@@ -47,29 +50,32 @@ export default function AddListing() {
 
   const onSubmit = async (values: ListingFormValues) => {
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         ...values,
         salary: values.salary || null,
         requirements: values.requirements || null,
         applyUrl: values.applyUrl || null,
       };
-      await createMutation.mutateAsync({ data: payload });
+      if (isTimed && expiresAt) {
+        payload.expiresAt = new Date(expiresAt).toISOString();
+      }
+      await createMutation.mutateAsync({ data: payload as any });
       toast({ title: "İlan başarıyla eklendi", description: "Admin onayından sonra yayına alınacaktır." });
       setLocation("/ilanlar");
     } catch (error: any) {
-      toast({ 
-        title: "Hata", 
-        description: error?.message || "İlan eklenirken bir hata oluştu.", 
-        variant: "destructive" 
+      toast({
+        title: "Hata",
+        description: error?.message || "İlan eklenirken bir hata oluştu.",
+        variant: "destructive"
       });
     }
   };
 
   return (
     <Layout>
-      <div className="p-4 space-y-6">
-        <h1 className="text-2xl font-bold">İlan Ekle</h1>
-        <div className="glass-card rounded-2xl p-6">
+      <div className="p-4 space-y-5">
+        <h1 className="text-xl font-bold">İlan Ekle</h1>
+        <div className="glass-card rounded-2xl p-5">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -85,13 +91,13 @@ export default function AddListing() {
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="company"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Şirket/Proje Adı</FormLabel>
+                      <FormLabel>Şirket Adı</FormLabel>
                       <FormControl>
                         <Input placeholder="Şirket A.Ş." className="glass-card border-white/10" {...field} />
                       </FormControl>
@@ -114,7 +120,7 @@ export default function AddListing() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="workType"
@@ -145,12 +151,48 @@ export default function AddListing() {
                     <FormItem>
                       <FormLabel>Maaş (Opsiyonel)</FormLabel>
                       <FormControl>
-                        <Input placeholder="Örn: 25.000 TL" className="glass-card border-white/10" {...field} />
+                        <Input placeholder="25.000 TL" className="glass-card border-white/10" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+              </div>
+
+              <div>
+                <FormLabel className="mb-2 block">İlan Süresi</FormLabel>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsTimed(false)}
+                    className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-all ${!isTimed ? "border-primary bg-primary/20 text-primary-foreground" : "border-white/10 text-muted-foreground hover:border-white/20"}`}
+                  >
+                    <Infinity className="w-4 h-4" />
+                    Süresiz
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsTimed(true)}
+                    className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-all ${isTimed ? "border-accent bg-accent/20 text-accent" : "border-white/10 text-muted-foreground hover:border-white/20"}`}
+                  >
+                    <Clock className="w-4 h-4" />
+                    Süreli
+                  </button>
+                </div>
+                {isTimed && (
+                  <div className="mt-3">
+                    <label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" /> Bitiş Tarihi
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={expiresAt}
+                      onChange={e => setExpiresAt(e.target.value)}
+                      min={new Date().toISOString().slice(0, 16)}
+                      className="w-full glass-card border border-white/10 rounded-xl px-3 py-2 text-sm bg-transparent text-foreground"
+                    />
+                  </div>
+                )}
               </div>
 
               <FormField
@@ -174,7 +216,7 @@ export default function AddListing() {
                   <FormItem>
                     <FormLabel>İş Tanımı</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="İş detaylarını buraya yazın..." className="glass-card border-white/10 min-h-[120px]" {...field} />
+                      <Textarea placeholder="İş detaylarını buraya yazın..." className="glass-card border-white/10 min-h-[100px]" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -195,10 +237,10 @@ export default function AddListing() {
                 )}
               />
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={createMutation.isPending}
-                className="w-full bg-gradient-to-r from-primary to-secondary text-white shadow-lg mt-4"
+                className="w-full bg-gradient-to-r from-primary to-secondary text-white shadow-lg mt-2"
               >
                 {createMutation.isPending ? "Ekleniyor..." : "İlanı Gönder"}
               </Button>

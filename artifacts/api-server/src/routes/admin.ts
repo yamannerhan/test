@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, usersTable, listingsTable, chatMessagesTable, notificationsTable, announcementsTable, adminSettingsTable, bannedWordsTable } from "@workspace/db";
-import { eq, desc, ilike, and, sql } from "drizzle-orm";
+import { db, usersTable, listingsTable, chatMessagesTable, notificationsTable, announcementsTable, adminSettingsTable, bannedWordsTable, bannersTable } from "@workspace/db";
+import { eq, desc, ilike, and, sql, asc } from "drizzle-orm";
 import { authMiddleware, requireAdmin } from "../middlewares/auth";
 import { onlineSockets } from "./chat";
 
@@ -194,6 +194,156 @@ router.delete("/admin/banned-words/:id", authMiddleware, requireAdmin, async (re
 
   await db.delete(bannedWordsTable).where(eq(bannedWordsTable.id, id));
   res.sendStatus(204);
+});
+
+// ─── Admin Listings ───────────────────────────────────────────────────────────
+router.get("/admin/listings", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const page = Math.max(1, parseInt(String(req.query["page"] ?? "1"), 10));
+  const limit = 20;
+  const offset = (page - 1) * limit;
+  const status = req.query["status"] as string | undefined;
+
+  const conditions = status ? [eq(listingsTable.status, status)] : [];
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [listings, countResult] = await Promise.all([
+    db.select().from(listingsTable).where(whereClause).orderBy(desc(listingsTable.createdAt)).limit(limit).offset(offset),
+    db.select({ count: sql<number>`count(*)::int` }).from(listingsTable).where(whereClause),
+  ]);
+
+  res.json({
+    listings: listings.map(l => ({
+      id: l.id,
+      title: l.title,
+      company: l.company,
+      city: l.city,
+      salary: l.salary,
+      workType: l.workType,
+      status: l.status,
+      isFeatured: l.isFeatured,
+      likeCount: l.likeCount,
+      expiresAt: l.expiresAt?.toISOString() ?? null,
+      createdAt: l.createdAt.toISOString(),
+    })),
+    total: countResult[0]?.count ?? 0,
+  });
+});
+
+router.post("/admin/listings", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const { title, company, city, workType, salary, description, requirements, applyUrl, isFeatured, expiresAt } = req.body as Record<string, unknown>;
+
+  if (!title || !company || !city || !workType) {
+    res.status(400).json({ error: "Başlık, şirket, şehir ve çalışma şekli zorunludur" });
+    return;
+  }
+
+  const [listing] = await db.insert(listingsTable).values({
+    title: String(title),
+    company: String(company),
+    city: String(city),
+    workType: String(workType),
+    salary: salary ? String(salary) : null,
+    description: description ? String(description) : null,
+    requirements: requirements ? String(requirements) : null,
+    applyUrl: applyUrl ? String(applyUrl) : null,
+    isFeatured: Boolean(isFeatured),
+    status: "active",
+    expiresAt: expiresAt ? new Date(String(expiresAt)) : null,
+    authorId: (req as any).user?.id ?? null,
+  }).returning();
+
+  res.status(201).json({ id: listing!.id, title: listing!.title, status: listing!.status });
+});
+
+router.patch("/admin/listings/:id/status", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params["id"]) ? req.params["id"][0] : req.params["id"];
+  const id = parseInt(rawId ?? "", 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+
+  const { status, isFeatured } = req.body as { status?: string; isFeatured?: boolean };
+  const updates: Partial<typeof listingsTable.$inferInsert> = {};
+  if (status && ["active", "pending", "rejected"].includes(status)) updates.status = status;
+  if (isFeatured !== undefined) updates.isFeatured = Boolean(isFeatured);
+
+  await db.update(listingsTable).set(updates).where(eq(listingsTable.id, id));
+  res.json({ success: true });
+});
+
+router.delete("/admin/listings/:id", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params["id"]) ? req.params["id"][0] : req.params["id"];
+  const id = parseInt(rawId ?? "", 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+
+  await db.delete(listingsTable).where(eq(listingsTable.id, id));
+  res.sendStatus(204);
+});
+
+// ─── Banners ──────────────────────────────────────────────────────────────────
+router.get("/admin/banners", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {
+  const banners = await db.select().from(bannersTable).orderBy(asc(bannersTable.sortOrder), desc(bannersTable.createdAt));
+  res.json(banners.map(b => ({
+    id: b.id,
+    title: b.title,
+    imageUrl: b.imageUrl,
+    linkUrl: b.linkUrl,
+    isActive: b.isActive,
+    sortOrder: b.sortOrder,
+    createdAt: b.createdAt.toISOString(),
+  })));
+});
+
+router.post("/admin/banners", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const { title, imageUrl, linkUrl, isActive, sortOrder } = req.body as Record<string, unknown>;
+  if (!imageUrl) { res.status(400).json({ error: "Resim URL zorunludur" }); return; }
+
+  const [banner] = await db.insert(bannersTable).values({
+    title: title ? String(title) : null,
+    imageUrl: String(imageUrl),
+    linkUrl: linkUrl ? String(linkUrl) : null,
+    isActive: isActive !== false,
+    sortOrder: sortOrder ? parseInt(String(sortOrder), 10) : 0,
+  }).returning();
+
+  res.status(201).json({ id: banner!.id, imageUrl: banner!.imageUrl, isActive: banner!.isActive });
+});
+
+router.patch("/admin/banners/:id", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params["id"]) ? req.params["id"][0] : req.params["id"];
+  const id = parseInt(rawId ?? "", 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+
+  const { title, imageUrl, linkUrl, isActive, sortOrder } = req.body as Record<string, unknown>;
+  const updates: Partial<typeof bannersTable.$inferInsert> = {};
+  if (title !== undefined) updates.title = title ? String(title) : null;
+  if (imageUrl !== undefined) updates.imageUrl = String(imageUrl);
+  if (linkUrl !== undefined) updates.linkUrl = linkUrl ? String(linkUrl) : null;
+  if (isActive !== undefined) updates.isActive = Boolean(isActive);
+  if (sortOrder !== undefined) updates.sortOrder = parseInt(String(sortOrder), 10);
+
+  await db.update(bannersTable).set(updates).where(eq(bannersTable.id, id));
+  res.json({ success: true });
+});
+
+router.delete("/admin/banners/:id", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params["id"]) ? req.params["id"][0] : req.params["id"];
+  const id = parseInt(rawId ?? "", 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+
+  await db.delete(bannersTable).where(eq(bannersTable.id, id));
+  res.sendStatus(204);
+});
+
+// ─── Public banners endpoint ───────────────────────────────────────────────────
+router.get("/banners", async (_req, res): Promise<void> => {
+  const banners = await db.select().from(bannersTable)
+    .where(eq(bannersTable.isActive, true))
+    .orderBy(asc(bannersTable.sortOrder), desc(bannersTable.createdAt));
+  res.json(banners.map(b => ({
+    id: b.id,
+    title: b.title,
+    imageUrl: b.imageUrl,
+    linkUrl: b.linkUrl,
+  })));
 });
 
 export default router;

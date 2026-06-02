@@ -11,13 +11,14 @@ export const listingsTable = pgTable("listings", {
   workType: text("work_type").notNull().default("Tam Zamanlı"),
   description: text("description"),
   requirements: text("requirements"),
-  status: text("status").notNull().default("active"), // active | pending | rejected
+  status: text("status").notNull().default("active"),
   viewCount: integer("view_count").notNull().default(0),
   likeCount: integer("like_count").notNull().default(0),
   isFeatured: boolean("is_featured").notNull().default(false),
   applyUrl: text("apply_url"),
   companyLogoUrl: text("company_logo_url"),
   authorId: integer("author_id"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
