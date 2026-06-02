@@ -1,0 +1,2 @@
+- [ÖzelGüvenlik Query Hook Pattern](ozelguvenlik-hooks.md) — generated hooks require explicit `queryKey: getGetXxxQueryKey()` or TypeScript errors occur
+- [Socket.io /ws Path](ozelguvenlik-socketio.md) — Socket.io uses `/ws` path; must be listed in api-server artifact.toml paths for proxy to forward WS
