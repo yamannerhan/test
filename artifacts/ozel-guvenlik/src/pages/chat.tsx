@@ -12,7 +12,8 @@ import type { ChatMessage } from "@workspace/api-client-react";
 function getToken() { return localStorage.getItem("auth_token") ?? ""; }
 
 interface SystemMsg { id: number; type: "join" | "welcome"; text: string; createdAt: string; }
-type ExtMsg = ChatMessage & { displayName?: string | null; isFake?: boolean };
+type Reaction = { emoji: string; userId: number; username: string; displayName: string | null };
+type ExtMsg = ChatMessage & { displayName?: string | null; isFake?: boolean; reactions?: Reaction[] };
 type AnyMsg = ExtMsg | SystemMsg;
 function isSystem(m: AnyMsg): m is SystemMsg { return "type" in m; }
 
@@ -62,6 +63,7 @@ export default function Chat() {
   const [sending, setSending] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<UserSuggestion[]>([]);
+  const [activeMsg, setActiveMsg] = useState<number | null>(null);
 
   const { data: initialData, isLoading } = useGetChatMessages({ limit: 50 });
 
@@ -85,6 +87,11 @@ export default function Chat() {
     });
     s.on("chat:welcome", ({ message }: { message: string }) => {
       addMsg({ id: Date.now() + 1, type: "welcome", text: message, createdAt: new Date().toISOString() });
+    });
+    s.on("chat:react", ({ messageId, reactions }: { messageId: number; reactions: Reaction[] }) => {
+      setMessages(prev => prev.map(m =>
+        !isSystem(m) && (m as ExtMsg).id === messageId ? { ...(m as ExtMsg), reactions } : m
+      ));
     });
     return () => { s.disconnect(); };
   }, [user?.id]);
@@ -119,6 +126,17 @@ export default function Chat() {
     setMentionQuery(null);
     setSuggestions([]);
     inputRef.current?.focus();
+  };
+
+  const handleReact = async (msgId: number, emoji: string) => {
+    if (!user) return;
+    try {
+      await fetch(`/api/chat/messages/${msgId}/react`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ emoji }),
+      });
+    } catch {}
   };
 
   const handleSend = async (e: React.FormEvent) => {
@@ -187,10 +205,20 @@ export default function Chat() {
       </motion.div>
     );
 
+    const msgReactions: Reaction[] = chatMsg.reactions ?? [];
+    const reactionGroups = msgReactions.reduce((acc, r) => {
+      acc[r.emoji] = acc[r.emoji] ?? [];
+      acc[r.emoji]!.push(r);
+      return acc;
+    }, {} as Record<string, Reaction[]>);
+    const isActive = activeMsg === chatMsg.id;
+    const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+
     return (
       <SwipeableMessage key={chatMsg.id} onReply={() => setReplyTo(chatMsg)}>
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-          className={`flex px-2 ${isMe ? "justify-end" : "justify-start"} group`}>
+          className={`flex flex-col px-2 ${isMe ? "items-end" : "items-start"} group`}
+          onClick={() => setActiveMsg(isActive ? null : chatMsg.id)}>
           <div className={`flex max-w-[85%] ${isMe ? "flex-row-reverse" : "flex-row"} items-end gap-2`}>
             {/* Avatar */}
             <div className="w-8 h-8 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-[10px] font-bold text-white"
@@ -242,16 +270,55 @@ export default function Chat() {
                       : <span key={i}>{part}</span>
                   )}
                 </p>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className={`text-[10px] ${isMe ? "text-white/40" : "text-white/30"}`}>
-                    {new Date(chatMsg.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                  <button onClick={() => setReplyTo(chatMsg)}
-                    className="text-[10px] text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline-flex items-center gap-0.5">
-                    <CornerUpLeft className="w-2.5 h-2.5" /> Yanıtla
-                  </button>
-                </div>
+                <span className={`text-[10px] mt-1 block ${isMe ? "text-white/40" : "text-white/30"}`}>
+                  {new Date(chatMsg.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
+                </span>
               </div>
+
+              {/* Emoji reactions display */}
+              {Object.entries(reactionGroups).length > 0 && (
+                <div className={`flex flex-wrap gap-1 mt-1.5 px-1 ${isMe ? "justify-end" : "justify-start"}`}>
+                  {Object.entries(reactionGroups).map(([emoji, users]) => (
+                    <button key={emoji}
+                      onClick={e => { e.stopPropagation(); handleReact(chatMsg.id, emoji); }}
+                      className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-all active:scale-95 ${
+                        users.some(r => r.userId === user?.id)
+                          ? "bg-primary/20 border-primary/50 text-primary"
+                          : "bg-white/5 border-white/10 text-foreground/70 hover:bg-white/10"
+                      }`}>
+                      <span>{emoji}</span><span className="font-medium">{users.length}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Action bar (tap to open) */}
+              <AnimatePresence>
+                {isActive && (
+                  <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: -4 }} transition={{ duration: 0.15 }}
+                    className={`flex items-center gap-1 mt-2 px-1 ${isMe ? "justify-end" : "justify-start"}`}
+                    onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-0.5 bg-[#1E293B] border border-white/10 rounded-2xl px-2 py-1.5 shadow-xl">
+                      {QUICK_EMOJIS.map(emoji => (
+                        <button key={emoji}
+                          onClick={() => handleReact(chatMsg.id, emoji)}
+                          className={`text-lg leading-none p-1 rounded-xl transition-all active:scale-90 hover:scale-110 hover:bg-white/10 ${
+                            msgReactions.some(r => r.userId === user?.id && r.emoji === emoji) ? "bg-primary/20" : ""
+                          }`}>
+                          {emoji}
+                        </button>
+                      ))}
+                      <div className="w-px h-5 bg-white/10 mx-1" />
+                      <button
+                        onClick={() => { setReplyTo(chatMsg); setActiveMsg(null); }}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-primary px-2 py-1 rounded-xl hover:bg-primary/10 transition-colors">
+                        <CornerUpLeft className="w-3 h-3" /> Yanıtla
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </motion.div>

@@ -1,14 +1,12 @@
 import { Router } from "express";
-import { db, chatMessagesTable, usersTable, adminSettingsTable } from "@workspace/db";
-import { eq, desc, and, lt } from "drizzle-orm";
+import { db, chatMessagesTable, usersTable, adminSettingsTable, chatReactionsTable } from "@workspace/db";
+import { eq, desc, and, lt, inArray } from "drizzle-orm";
 import { authMiddleware, optionalAuthMiddleware, requireAdmin } from "../middlewares/auth";
 
 const router = Router();
 
-// Shared online tracking (in-memory, resets on restart)
 export const onlineSockets = new Map<string, { userId?: number; joinedAt: Date }>();
 
-// Spam protection: userId -> last message timestamp
 const lastMessageAt = new Map<number, number>();
 
 function extractMentions(content: string): string[] {
@@ -21,7 +19,11 @@ function extractMentions(content: string): string[] {
   return [...new Set(mentions)];
 }
 
-async function formatMessage(msg: typeof chatMessagesTable.$inferSelect, userMap: Map<number, typeof usersTable.$inferSelect>) {
+async function formatMessage(
+  msg: typeof chatMessagesTable.$inferSelect,
+  userMap: Map<number, typeof usersTable.$inferSelect>,
+  reactionsMap?: Map<number, Array<{ emoji: string; userId: number; username: string; displayName: string | null }>>
+) {
   const user = userMap.get(msg.userId);
   let replyToUsername: string | null = null;
   let replyToContent: string | null = null;
@@ -50,6 +52,7 @@ async function formatMessage(msg: typeof chatMessagesTable.$inferSelect, userMap
     replyToContent,
     isPinned: msg.isPinned,
     mentions: extractMentions(msg.content),
+    reactions: reactionsMap?.get(msg.id) ?? [],
     createdAt: msg.createdAt.toISOString(),
   };
 }
@@ -70,14 +73,22 @@ router.get("/chat/messages", optionalAuthMiddleware, async (req, res): Promise<v
 
   messages.reverse();
 
-  const userIds = [...new Set(messages.map(m => m.userId).concat(messages.map(m => m.replyToId).filter(Boolean) as number[]))];
-  const users = userIds.length > 0 ? await db.select().from(usersTable).where(eq(usersTable.id, userIds[0]!)) : [];
-
-  // Fetch all needed users
   const allUsers = await db.select().from(usersTable);
   const userMap = new Map(allUsers.map(u => [u.id, u]));
 
-  const formatted = await Promise.all(messages.map(m => formatMessage(m, userMap)));
+  // Batch-fetch reactions for all messages
+  const msgIds = messages.map(m => m.id);
+  let reactionsMap = new Map<number, Array<{ emoji: string; userId: number; username: string; displayName: string | null }>>();
+  if (msgIds.length > 0) {
+    const allReactions = await db.select().from(chatReactionsTable).where(inArray(chatReactionsTable.messageId, msgIds));
+    for (const r of allReactions) {
+      const list = reactionsMap.get(r.messageId) ?? [];
+      list.push({ emoji: r.emoji, userId: r.userId, username: r.username, displayName: r.displayName ?? null });
+      reactionsMap.set(r.messageId, list);
+    }
+  }
+
+  const formatted = await Promise.all(messages.map(m => formatMessage(m, userMap, reactionsMap)));
   res.json(formatted);
 });
 
@@ -91,7 +102,6 @@ router.post("/chat/messages", authMiddleware, async (req, res): Promise<void> =>
     return;
   }
 
-  // Spam protection (skip for admin/moderator)
   if (req.user!.role === "user" && spamCooldown > 0) {
     const last = lastMessageAt.get(req.user!.id) ?? 0;
     const diffSec = (Date.now() - last) / 1000;
@@ -125,13 +135,52 @@ router.post("/chat/messages", authMiddleware, async (req, res): Promise<void> =>
   const userMap = new Map(allUsers.map(u => [u.id, u]));
   const formatted = await formatMessage(msg, userMap);
 
-  // Emit via socket if available
   const io = (req as unknown as { app: { get: (key: string) => unknown } }).app.get("io") as { emit: (event: string, data: unknown) => void } | null;
   if (io) {
     io.emit("chat:message", formatted);
   }
 
   res.status(201).json(formatted);
+});
+
+// Toggle emoji reaction
+router.post("/chat/messages/:id/react", authMiddleware, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params["id"]) ? req.params["id"][0] : req.params["id"];
+  const msgId = parseInt(rawId ?? "", 10);
+  if (isNaN(msgId)) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+
+  const { emoji } = req.body as { emoji?: string };
+  const ALLOWED = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+  if (!emoji || !ALLOWED.includes(emoji)) { res.status(400).json({ error: "Geçersiz emoji" }); return; }
+
+  const userId = req.user!.id;
+  const username = req.user!.username;
+  const displayName = req.user!.displayName ?? null;
+
+  const [existing] = await db.select().from(chatReactionsTable)
+    .where(and(
+      eq(chatReactionsTable.messageId, msgId),
+      eq(chatReactionsTable.userId, userId),
+      eq(chatReactionsTable.emoji, emoji)
+    )).limit(1);
+
+  if (existing) {
+    await db.delete(chatReactionsTable).where(eq(chatReactionsTable.id, existing.id));
+  } else {
+    await db.insert(chatReactionsTable).values({ messageId: msgId, userId, emoji, username, displayName });
+  }
+
+  const updatedReactions = await db.select().from(chatReactionsTable)
+    .where(eq(chatReactionsTable.messageId, msgId));
+
+  const reactions = updatedReactions.map(r => ({ emoji: r.emoji, userId: r.userId, username: r.username, displayName: r.displayName ?? null }));
+
+  const io = (req as unknown as { app: { get: (key: string) => unknown } }).app.get("io") as { emit: (event: string, data: unknown) => void } | null;
+  if (io) {
+    io.emit("chat:react", { messageId: msgId, reactions });
+  }
+
+  res.json({ reactions });
 });
 
 router.delete("/chat/messages/:id", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
