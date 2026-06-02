@@ -15,6 +15,7 @@ import AdminDashboard from "@/pages/admin";
 import AddListing from "@/pages/add-listing";
 import Notifications from "@/pages/notifications";
 import Favorites from "@/pages/favorites";
+import Destek from "@/pages/destek";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/ilanlar" component={Listings} />
       <Route path="/ilan/:id" component={ListingDetail} />
       <Route path="/sohbet" component={Chat} />
+      <Route path="/destek" component={Destek} />
       <Route path="/giris" component={Login} />
       <Route path="/kayit" component={Register} />
       <Route path="/profil/:username" component={Profile} />

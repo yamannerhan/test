@@ -3,6 +3,7 @@ import { db, usersTable, listingsTable, chatMessagesTable, notificationsTable, a
 import { eq, desc, ilike, and, sql, asc } from "drizzle-orm";
 import { authMiddleware, requireAdmin } from "../middlewares/auth";
 import { onlineSockets } from "./chat";
+import bcrypt from "bcryptjs";
 
 const router = Router();
 
@@ -92,6 +93,28 @@ router.post("/admin/users/:id/unban", authMiddleware, requireAdmin, async (req, 
 
   await db.update(usersTable).set({ isBanned: false, banReason: null, banExpiresAt: null }).where(eq(usersTable.id, id));
   res.json({ success: true, message: "Kullanıcının yasağı kaldırıldı" });
+});
+
+router.post("/admin/create-staff", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const { username, email, password, role } = req.body as { username?: string; email?: string; password?: string; role?: string };
+  if (!username || !email || !password) { res.status(400).json({ error: "Kullanıcı adı, e-posta ve şifre zorunludur" }); return; }
+  const allowedRoles = ["moderator", "admin"];
+  const targetRole = allowedRoles.includes(role ?? "") ? role! : "moderator";
+
+  const existing = await db.select({ id: usersTable.id }).from(usersTable)
+    .where(eq(usersTable.email, email)).limit(1);
+  if (existing.length > 0) { res.status(409).json({ error: "Bu e-posta zaten kullanılıyor" }); return; }
+
+  const existingUser = await db.select({ id: usersTable.id }).from(usersTable)
+    .where(eq(usersTable.username, username)).limit(1);
+  if (existingUser.length > 0) { res.status(409).json({ error: "Bu kullanıcı adı zaten kullanılıyor" }); return; }
+
+  const hash = await bcrypt.hash(password, 10);
+  const [created] = await db.insert(usersTable).values({
+    username, email, passwordHash: hash, role: targetRole,
+  }).returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role });
+
+  res.status(201).json({ success: true, user: created });
 });
 
 router.patch("/admin/users/:id/role", authMiddleware, requireAdmin, async (req, res): Promise<void> => {

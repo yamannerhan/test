@@ -10,7 +10,7 @@ import {
   Users, Briefcase, MessageSquare, Settings, Image, Plus, Trash2,
   ToggleLeft, ToggleRight, Star, StarOff, CheckCircle, XCircle, Clock,
   ChevronDown, ChevronUp, Calendar, Infinity, Headphones, ChevronLeft, Send,
-  Sparkles, Eye, RefreshCw, Phone, User, MapPin, Building2, Lock
+  Sparkles, Eye, RefreshCw, Phone, User, MapPin, Building2, Lock, Shield, Search
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -447,6 +447,157 @@ function SupportAdminSection({ apiCall, toast }: {
   );
 }
 
+interface AdminUser {
+  id: number; username: string; email: string; role: string;
+  isBanned: boolean; createdAt: string; avatarUrl: string | null;
+}
+
+function UserManagementSection({ apiCall, toast }: {
+  apiCall: (path: string, method: string, body?: unknown) => Promise<unknown>;
+  toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [search, setSearch] = useState("");
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [newMod, setNewMod] = useState({ username: "", email: "", password: "" });
+  const [creating, setCreating] = useState(false);
+
+  const searchUsers = async () => {
+    setLoading(true);
+    try {
+      const q = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+      const d = await apiCall(`/admin/users${q}`, "GET") as { users: AdminUser[] };
+      setUsers(d.users ?? []);
+    } catch {} finally { setLoading(false); }
+  };
+
+  useEffect(() => { searchUsers(); }, []);
+
+  const changeRole = async (id: number, role: string) => {
+    try {
+      await apiCall(`/admin/users/${id}/role`, "PATCH", { role });
+      toast({ title: "Rol güncellendi" });
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u));
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const banUser = async (id: number, isBanned: boolean) => {
+    try {
+      if (isBanned) {
+        await apiCall(`/admin/users/${id}/unban`, "POST");
+        setUsers(prev => prev.map(u => u.id === id ? { ...u, isBanned: false } : u));
+        toast({ title: "Yasak kaldırıldı" });
+      } else {
+        await apiCall(`/admin/users/${id}/ban`, "POST", { reason: "Admin tarafından engellendi" });
+        setUsers(prev => prev.map(u => u.id === id ? { ...u, isBanned: true } : u));
+        toast({ title: "Kullanıcı yasaklandı" });
+      }
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const createModerator = async () => {
+    if (!newMod.username.trim() || !newMod.email.trim() || !newMod.password.trim()) {
+      toast({ title: "Tüm alanlar zorunlu", variant: "destructive" }); return;
+    }
+    setCreating(true);
+    try {
+      await apiCall("/admin/create-staff", "POST", { ...newMod, role: "moderator" });
+      toast({ title: "Moderatör oluşturuldu" });
+      setNewMod({ username: "", email: "", password: "" });
+      searchUsers();
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+    finally { setCreating(false); }
+  };
+
+  const roleLabel: Record<string, string> = { admin: "Admin", moderator: "Moderatör", user: "Üye" };
+  const roleBg: Record<string, string> = { admin: "text-red-400 bg-red-500/20", moderator: "text-blue-400 bg-blue-500/20", user: "text-muted-foreground bg-white/10" };
+
+  return (
+    <Section title="Kullanıcı Yönetimi" icon={Users}>
+      <div className="space-y-4">
+        {/* Create moderator */}
+        <div className="bg-white/5 rounded-xl p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5 text-blue-400" /> Yeni Moderatör Ekle
+          </p>
+          <input value={newMod.username} onChange={e => setNewMod(m => ({ ...m, username: e.target.value }))}
+            placeholder="Kullanıcı adı" className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50" />
+          <input value={newMod.email} onChange={e => setNewMod(m => ({ ...m, email: e.target.value }))}
+            placeholder="E-posta" type="email" className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50" />
+          <input value={newMod.password} onChange={e => setNewMod(m => ({ ...m, password: e.target.value }))}
+            placeholder="Şifre" type="password" className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50" />
+          <button onClick={createModerator} disabled={creating}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+            style={{ background: "linear-gradient(135deg,#3B82F6,#2563EB)" }}>
+            {creating ? "Oluşturuluyor..." : "Moderatör Oluştur"}
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && searchUsers()}
+              placeholder="Kullanıcı ara..." className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50" />
+          </div>
+          <button onClick={searchUsers} disabled={loading}
+            className="px-3 py-2 rounded-xl text-xs font-semibold text-white disabled:opacity-50"
+            style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }}>
+            Ara
+          </button>
+        </div>
+
+        {/* User list */}
+        <div className="space-y-2">
+          {loading ? (
+            <div className="flex justify-center py-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>
+          ) : users.length === 0 ? (
+            <p className="text-xs text-center text-muted-foreground py-4">Kullanıcı bulunamadı</p>
+          ) : users.map(u => (
+            <div key={u.id} className={`bg-white/5 rounded-xl p-3 ${u.isBanned ? "opacity-60" : ""}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold shrink-0">
+                  {u.username.substring(0, 2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium truncate">{u.username}</p>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${roleBg[u.role] ?? "bg-white/10 text-muted-foreground"}`}>
+                      {roleLabel[u.role] ?? u.role}
+                    </span>
+                    {u.isBanned && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-destructive/20 text-destructive">Yasaklı</span>}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
+                </div>
+              </div>
+              {u.role !== "admin" && (
+                <div className="flex gap-1.5 flex-wrap">
+                  {u.role !== "moderator" ? (
+                    <button onClick={() => changeRole(u.id, "moderator")}
+                      className="text-[10px] px-2 py-1 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors flex items-center gap-0.5">
+                      <Shield className="w-3 h-3" /> Moderatör Yap
+                    </button>
+                  ) : (
+                    <button onClick={() => changeRole(u.id, "user")}
+                      className="text-[10px] px-2 py-1 bg-white/10 text-muted-foreground rounded-lg hover:bg-white/20 transition-colors flex items-center gap-0.5">
+                      <User className="w-3 h-3" /> Üye Yap
+                    </button>
+                  )}
+                  <button onClick={() => banUser(u.id, u.isBanned)}
+                    className={`text-[10px] px-2 py-1 rounded-lg transition-colors flex items-center gap-0.5 ml-auto ${u.isBanned ? "bg-green-500/20 text-green-400 hover:bg-green-500/30" : "bg-destructive/20 text-destructive hover:bg-destructive/30"}`}>
+                    {u.isBanned ? <><CheckCircle className="w-3 h-3" /> Yasağı Kaldır</> : <><XCircle className="w-3 h-3" /> Yasakla</>}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 export default function AdminDashboard() {
   const { user, isAdmin, isLoading } = useAuth();
   const { toast } = useToast();
@@ -824,6 +975,8 @@ export default function AdminDashboard() {
         </Section>
 
         <SupportAdminSection apiCall={apiCall} toast={toast} />
+
+        <UserManagementSection apiCall={apiCall} toast={toast} />
 
         <Section title="İlan Listesi" icon={Briefcase}>
           <div className="space-y-2">

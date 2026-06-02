@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Search, PlusSquare, MessageCircle, User } from "lucide-react";
+import { Home, Search, PlusSquare, Headphones, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function BottomNav() {
@@ -11,11 +11,11 @@ export function BottomNav() {
     { icon: Home, label: "Ana Sayfa", path: "/" },
     { icon: Search, label: "İlanlar", path: "/ilanlar" },
     { icon: PlusSquare, label: "Ekle", path: "/ilan-ekle" },
-    { icon: MessageCircle, label: "Sohbet", path: "/sohbet" },
-    { 
-      icon: User, 
-      label: "Profil", 
-      path: user ? `/profil/${user.username}` : "/giris" 
+    { icon: Headphones, label: "Destek", path: "/destek" },
+    {
+      icon: User,
+      label: "Profil",
+      path: user ? `/profil/${user.username}` : "/giris"
     },
   ];
 
@@ -24,10 +24,10 @@ export function BottomNav() {
       <div className="flex items-center justify-around h-16 max-w-md mx-auto px-4">
         {navItems.map((item) => {
           const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path));
-          
+
           return (
-            <Link 
-              key={item.path} 
+            <Link
+              key={item.path}
               href={item.path}
               className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-300 ${
                 isActive ? "text-accent" : "text-muted-foreground hover:text-foreground"
