@@ -77,6 +77,30 @@ interface ParsedListing {
   contactPhone: string; contactName: string; applyUrl: string;
 }
 
+// Field bileşeni SmartListingSection DIŞINDA tanımlanmalı —
+// içinde tanımlanırsa her render'da yeniden mount olur, focus kaybolur.
+function ParseField({ icon: Icon, label, value, onChange, required }: {
+  icon: React.ElementType; label: string; value: string;
+  onChange: (v: string) => void; required?: boolean;
+}) {
+  return (
+    <div>
+      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+        <Icon className="w-3 h-3" /> {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      <input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        autoComplete="off"
+        required={required}
+        className={`w-full bg-white/5 border rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors ${
+          required && !value.trim() ? "border-red-500/50" : "border-white/10"
+        }`}
+      />
+    </div>
+  );
+}
+
 function SmartListingSection({ apiCall, toast, refetchListings, refetchStats }: {
   apiCall: (path: string, method: string, body?: unknown) => Promise<unknown>;
   toast: (opts: { title: string; description?: string; variant?: "default" | "destructive" }) => void;
@@ -105,13 +129,20 @@ function SmartListingSection({ apiCall, toast, refetchListings, refetchStats }: 
 
   const publish = async () => {
     if (!parsed) return;
+    const missing: string[] = [];
+    if (!parsed.title.trim()) missing.push("İlan Başlığı");
+    if (!parsed.city.trim()) missing.push("Şehir (İl)");
+    if (!parsed.district.trim()) missing.push("İlçe");
+    if (missing.length > 0) {
+      toast({ title: "Zorunlu alanlar boş", description: missing.join(", ") + " doldurulmalıdır.", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
-      const city = parsed.city || (parsed.district ? "Belirtilmedi" : "Türkiye");
       await apiCall("/admin/listings", "POST", {
-        title: parsed.title || "İlan",
+        title: parsed.title,
         company: parsed.company || "Belirtilmedi",
-        city,
+        city: parsed.city,
         workType: parsed.workType || "Tam Zamanlı",
         salary: parsed.salary || null,
         description: [
@@ -126,28 +157,13 @@ function SmartListingSection({ apiCall, toast, refetchListings, refetchStats }: 
       });
       toast({ title: "İlan yayınlandı!" });
       setStep("done");
-      setRawText("");
-      setParsed(null);
-      setIsFeatured(false);
-      setIsTimed(false);
-      setExpiresAt("");
-      refetchListings();
-      refetchStats();
+      setRawText(""); setParsed(null); setIsFeatured(false); setIsTimed(false); setExpiresAt("");
+      refetchListings(); refetchStats();
       setTimeout(() => setStep("input"), 1500);
     } catch (e: any) {
       toast({ title: "Yayınlama başarısız", description: e.message, variant: "destructive" });
     } finally { setLoading(false); }
   };
-
-  const Field = ({ icon: Icon, label, value, onChange }: { icon: React.ElementType; label: string; value: string; onChange: (v: string) => void }) => (
-    <div>
-      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
-        <Icon className="w-3 h-3" /> {label}
-      </label>
-      <input value={value} onChange={e => onChange(e.target.value)}
-        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50" />
-    </div>
-  );
 
   return (
     <div className="glass-card rounded-2xl overflow-hidden">
@@ -168,7 +184,7 @@ function SmartListingSection({ apiCall, toast, refetchListings, refetchStats }: 
       <div className="p-4 space-y-3">
         {step === "input" ? (
           <>
-            <p className="text-xs text-muted-foreground">WhatsApp mesajı, Telegram gönderisi veya herhangi bir iş ilanı metnini yapıştırın. Yapay zeka otomatik olarak tüm bilgileri çıkaracak.</p>
+            <p className="text-xs text-muted-foreground">WhatsApp mesajı, Telegram gönderisi veya herhangi bir iş ilanı metnini yapıştırın. Bilgiler otomatik olarak çıkarılacak.</p>
             <textarea
               value={rawText}
               onChange={e => setRawText(e.target.value)}
@@ -176,31 +192,24 @@ function SmartListingSection({ apiCall, toast, refetchListings, refetchStats }: 
               rows={6}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none"
             />
-            <Button
-              onClick={parseText}
-              disabled={loading || !rawText.trim()}
-              className="w-full bg-gradient-to-r from-primary to-secondary text-white text-sm disabled:opacity-40"
-            >
-              {loading ? (
-                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Ayıklanıyor...</>
-              ) : (
-                <><Sparkles className="w-4 h-4 mr-2" /> AI ile Ayıkla</>
-              )}
+            <Button onClick={parseText} disabled={loading || !rawText.trim()}
+              className="w-full bg-gradient-to-r from-primary to-secondary text-white text-sm disabled:opacity-40">
+              {loading ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Ayıklanıyor...</> : <><Sparkles className="w-4 h-4 mr-2" /> Bilgileri Ayıkla</>}
             </Button>
           </>
         ) : step === "preview" && parsed ? (
           <>
             <div className="flex items-center gap-2 p-2.5 bg-green-500/10 rounded-xl text-xs text-green-400 font-medium">
-              <Eye className="w-3.5 h-3.5 shrink-0" /> Bilgiler ayıklandı — kontrol edip düzenleyebilirsiniz
+              <Eye className="w-3.5 h-3.5 shrink-0" /> Bilgiler ayıklandı — kontrol edip düzenleyebilirsiniz. <span className="text-red-400">* Zorunlu alan</span>
             </div>
             <div className="space-y-2">
-              <Field icon={Briefcase} label="İlan Başlığı" value={parsed.title} onChange={v => setParsed(p => p ? { ...p, title: v } : p)} />
+              <ParseField icon={Briefcase} label="İlan Başlığı" required value={parsed.title} onChange={v => setParsed(p => p ? { ...p, title: v } : p)} />
               <div className="grid grid-cols-2 gap-2">
-                <Field icon={Building2} label="Şirket" value={parsed.company} onChange={v => setParsed(p => p ? { ...p, company: v } : p)} />
-                <Field icon={MapPin} label="Şehir (İl)" value={parsed.city} onChange={v => setParsed(p => p ? { ...p, city: v } : p)} />
+                <ParseField icon={Building2} label="Şirket" value={parsed.company} onChange={v => setParsed(p => p ? { ...p, company: v } : p)} />
+                <ParseField icon={MapPin} label="Şehir (İl)" required value={parsed.city} onChange={v => setParsed(p => p ? { ...p, city: v } : p)} />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Field icon={MapPin} label="İlçe" value={parsed.district} onChange={v => setParsed(p => p ? { ...p, district: v } : p)} />
+                <ParseField icon={MapPin} label="İlçe" required value={parsed.district} onChange={v => setParsed(p => p ? { ...p, district: v } : p)} />
                 <div>
                   <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
                     <Briefcase className="w-3 h-3" /> Çalışma Tipi
@@ -214,7 +223,7 @@ function SmartListingSection({ apiCall, toast, refetchListings, refetchStats }: 
                   </select>
                 </div>
               </div>
-              <Field icon={Star} label="Maaş" value={parsed.salary} onChange={v => setParsed(p => p ? { ...p, salary: v } : p)} />
+              <ParseField icon={Star} label="Maaş" value={parsed.salary} onChange={v => setParsed(p => p ? { ...p, salary: v } : p)} />
               <div>
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
                   <MessageSquare className="w-3 h-3" /> Açıklama
@@ -223,12 +232,11 @@ function SmartListingSection({ apiCall, toast, refetchListings, refetchStats }: 
                   rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50 resize-none" />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Field icon={User} label="İletişim Kişisi" value={parsed.contactName} onChange={v => setParsed(p => p ? { ...p, contactName: v } : p)} />
-                <Field icon={Phone} label="Telefon" value={parsed.contactPhone} onChange={v => setParsed(p => p ? { ...p, contactPhone: v } : p)} />
+                <ParseField icon={User} label="İletişim Kişisi" value={parsed.contactName} onChange={v => setParsed(p => p ? { ...p, contactName: v } : p)} />
+                <ParseField icon={Phone} label="Telefon" value={parsed.contactPhone} onChange={v => setParsed(p => p ? { ...p, contactPhone: v } : p)} />
               </div>
-              <Field icon={CheckCircle} label="Başvuru / Telefon URL" value={parsed.applyUrl} onChange={v => setParsed(p => p ? { ...p, applyUrl: v } : p)} />
+              <ParseField icon={CheckCircle} label="Başvuru / Telefon URL" value={parsed.applyUrl} onChange={v => setParsed(p => p ? { ...p, applyUrl: v } : p)} />
 
-              {/* Yayınlama seçenekleri */}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setIsTimed(false)}
                   className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border text-xs font-medium transition-all ${!isTimed ? "border-primary bg-primary/20 text-primary" : "border-white/10 text-muted-foreground"}`}>
@@ -245,13 +253,9 @@ function SmartListingSection({ apiCall, toast, refetchListings, refetchStats }: 
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none" />
               )}
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={isFeatured} onChange={e => setIsFeatured(e.target.checked)}
-                  className="w-4 h-4 rounded accent-amber-400" />
-                <span className="text-sm flex items-center gap-1">
-                  <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> Öne çıkarılsın
-                </span>
+                <input type="checkbox" checked={isFeatured} onChange={e => setIsFeatured(e.target.checked)} className="w-4 h-4 rounded accent-amber-400" />
+                <span className="text-sm flex items-center gap-1"><Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> Öne çıkarılsın</span>
               </label>
-
               <Button onClick={publish} disabled={loading}
                 className="w-full bg-gradient-to-r from-primary to-secondary text-white text-sm disabled:opacity-40">
                 {loading ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Yayınlanıyor...</> : <><CheckCircle className="w-4 h-4 mr-2" /> İlanı Yayınla</>}

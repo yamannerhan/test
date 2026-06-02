@@ -236,17 +236,23 @@ function parseListingText(raw: string): Record<string, string> {
   const contactPhone = rawPhone ? rawPhone.replace(/^0/, "+90").replace(/^\+90(\d{10})$/, "+90$1") : "";
   const applyUrl = contactPhone ? `tel:${contactPhone}` : "";
 
-  // Contact name — patterns: "iletisim: Ad Soyad", "adı soyad:", "yetkili:", etc.
+  // Contact name — many Turkish formats
   let contactName = "";
+  const BAD_NAME_WORDS = ["güvenlik", "personel", "eleman", "firma", "şirket", "merkezi", "hizmet"];
+  const isGoodName = (s: string) => s.length >= 6 && !BAD_NAME_WORDS.some(w => s.toLowerCase().includes(w));
   const namePatterns = [
-    /(?:iletişim|yetkili|irtibat|sorumlu|müdür|bey|hanım|bay|bayan)\s*[:\-]?\s*([A-ZÇĞİÖŞÜa-zçğışöüİ]{2,}\s+[A-ZÇĞİÖŞÜa-zçğışöüİ]{2,}(?:\s+[A-ZÇĞİÖŞÜa-zçğışöüİ]{2,})?)/i,
+    // "iletişim/yetkili/irtibat: Ad Soyad"
+    /(?:iletişim|yetkili|irtibat|sorumlu|müdür|koordinatör|temsilci)\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,}\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,}(?:\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,})?)/i,
+    // "Ad Soyad:" or "İsim:" or "Adı Soyadı:"
+    /(?:ad\s*soyad|adı\s*soyadı|isim|ad)\s*[:\-]\s*([A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,}\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,})/i,
+    // "Ahmet Bey" / "Fatma Hanım"
     /([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,})\s+(?:bey|hanım|bay|bayan)/i,
+    // Name right before phone number on same segment
+    /([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,})\s+(?:0|\+90)/,
   ];
   for (const pat of namePatterns) {
     const m = text.match(pat);
-    if (m?.[1] && m[1].length > 4 && !m[1].toLowerCase().includes("güvenlik") && !m[1].toLowerCase().includes("personel")) {
-      contactName = m[1].trim(); break;
-    }
+    if (m?.[1] && isGoodName(m[1])) { contactName = m[1].trim(); break; }
   }
 
   // City — scan each word against known cities
@@ -280,20 +286,32 @@ function parseListingText(raw: string): Record<string, string> {
     }
   }
 
-  // Salary
+  // Salary — comprehensive Turkish patterns
   let salary = "";
-  const salaryPatterns = [
-    /(\d[\d\.\s]+)\s*[-–]\s*(\d[\d\.\s]+)\s*(?:bin\s*)?tl/i,
-    /(\d[\d\.\s]+)\s*(?:bin\s*)?tl\s*(?:maaş|ücret|aylık)/i,
-    /maaş\s*[:\-]?\s*(\d[\d\.\s]+\s*(?:bin\s*)?tl(?:\s*[-–]\s*\d[\d\.\s]+\s*(?:bin\s*)?tl)?)/i,
-    /ücret\s*[:\-]?\s*(\d[\d\.\s]+\s*(?:bin\s*)?tl(?:\s*[-–]\s*\d[\d\.\s]+\s*(?:bin\s*)?tl)?)/i,
+  const salaryPatterns: RegExp[] = [
+    // "maaş/ücret/aylık: NET 25.000 - 35.000 TL"
+    /(?:maaş|ücret|aylık)\s*[:\-]?\s*((?:net|brüt)?\s*\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?\s*(?:bin\s*)?(?:tl|₺)?)/i,
+    // "NET 25.000 TL" or "BRÜT 30.000 - 40.000 TL"
+    /(?:net|brüt)\s+(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)\s*(?:bin\s*)?(?:tl|₺)/i,
+    // Range: "25.000 - 35.000 TL" or "25000–35000₺"
+    /(\d[\d\.]+)\s*[-–]\s*(\d[\d\.]+)\s*(?:bin\s*)?(?:tl|₺)/i,
+    // "25.000 TL maaş" or "35.000₺ ücret"
+    /(\d[\d\.]{3,})\s*(?:bin\s*)?(?:tl|₺)\s*(?:maaş|ücret|aylık)?/i,
+    // "25 bin TL" / "30 bin ₺"
+    /(\d{2,3})\s*bin\s*(?:tl|₺)/i,
+    // "₺25.000" prefix style
+    /₺\s*(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)/i,
   ];
+  function normalizeSalary(raw: string): string {
+    let s = raw.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+    s = s.charAt(0).toUpperCase() + s.slice(1);
+    if (!/tl|₺/i.test(s)) s += " TL";
+    return s;
+  }
   for (const pat of salaryPatterns) {
     const m = text.match(pat);
     if (m) {
-      salary = m[0].replace(/\n/g, " ").trim();
-      salary = salary.charAt(0).toUpperCase() + salary.slice(1);
-      if (!salary.toLowerCase().includes("tl")) salary += " TL";
+      salary = normalizeSalary(m[0]);
       break;
     }
   }
