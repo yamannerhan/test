@@ -110,7 +110,7 @@ router.post("/chat/messages", authMiddleware, async (req, res): Promise<void> =>
   // Emit via socket if available
   const io = (req as unknown as { app: { get: (key: string) => unknown } }).app.get("io") as { emit: (event: string, data: unknown) => void } | null;
   if (io) {
-    io.emit("new_message", formatted);
+    io.emit("chat:message", formatted);
   }
 
   res.status(201).json(formatted);
@@ -125,7 +125,7 @@ router.delete("/chat/messages/:id", authMiddleware, requireAdmin, async (req, re
 
   const io = (req as unknown as { app: { get: (key: string) => unknown } }).app.get("io") as { emit: (event: string, data: unknown) => void } | null;
   if (io) {
-    io.emit("message_deleted", { id });
+    io.emit("chat:delete", { id });
   }
 
   res.sendStatus(204);

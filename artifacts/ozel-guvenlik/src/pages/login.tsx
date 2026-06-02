@@ -33,8 +33,11 @@ export default function Login() {
   const onSubmit = async (values: LoginFormValues) => {
     try {
       const response = await loginMutation.mutateAsync({ data: values });
-      // Invalidate getMe to update the user in context
-      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      // Save JWT token so every subsequent API request includes it
+      if (response?.token) {
+        localStorage.setItem("auth_token", response.token);
+      }
+      await queryClient.invalidateQueries();
       toast({ title: "Giriş başarılı", description: "Yönlendiriliyorsunuz..." });
       setLocation("/");
     } catch (error: any) {

@@ -33,8 +33,11 @@ export default function Register() {
 
   const onSubmit = async (values: RegisterFormValues) => {
     try {
-      await registerMutation.mutateAsync({ data: values });
-      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      const response = await registerMutation.mutateAsync({ data: values });
+      if (response?.token) {
+        localStorage.setItem("auth_token", response.token);
+      }
+      await queryClient.invalidateQueries();
       toast({ title: "Kayıt başarılı", description: "Yönlendiriliyorsunuz..." });
       setLocation("/");
     } catch (error: any) {
