@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Users, Briefcase, MessageSquare, Settings, Image, Plus, Trash2,
   ToggleLeft, ToggleRight, Star, StarOff, CheckCircle, XCircle, Clock,
-  ChevronDown, ChevronUp, Calendar, Infinity, Headphones, ChevronLeft, Send
+  ChevronDown, ChevronUp, Calendar, Infinity, Headphones, ChevronLeft, Send,
+  Sparkles, Eye, RefreshCw, Phone, User, MapPin, Building2, Lock
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -65,6 +66,210 @@ function Section({ title, icon: Icon, children, defaultOpen = false }: { title: 
         {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
       {open && <div className="px-4 pb-4 border-t border-white/5 pt-4">{children}</div>}
+    </div>
+  );
+}
+
+interface ParsedListing {
+  title: string; company: string; city: string; district: string;
+  salary: string; workType: string; description: string;
+  contactPhone: string; contactName: string; applyUrl: string;
+}
+
+function SmartListingSection({ apiCall, toast, refetchListings, refetchStats, hasOpenaiKey }: {
+  apiCall: (path: string, method: string, body?: unknown) => Promise<unknown>;
+  toast: (opts: { title: string; description?: string; variant?: "default" | "destructive" }) => void;
+  refetchListings: () => void;
+  refetchStats: () => void;
+  hasOpenaiKey: boolean;
+}) {
+  const [step, setStep] = useState<"input" | "preview" | "done">("input");
+  const [rawText, setRawText] = useState("");
+  const [parsed, setParsed] = useState<ParsedListing | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [isTimed, setIsTimed] = useState(false);
+  const [expiresAt, setExpiresAt] = useState("");
+
+  const parseText = async () => {
+    if (!rawText.trim()) return;
+    setLoading(true);
+    try {
+      const data = await apiCall("/admin/listings/parse", "POST", { text: rawText }) as ParsedListing;
+      setParsed(data);
+      setStep("preview");
+    } catch (e: any) {
+      toast({ title: "Ayıklama başarısız", description: e.message, variant: "destructive" });
+    } finally { setLoading(false); }
+  };
+
+  const publish = async () => {
+    if (!parsed) return;
+    setLoading(true);
+    try {
+      const city = parsed.city || (parsed.district ? "Belirtilmedi" : "Türkiye");
+      await apiCall("/admin/listings", "POST", {
+        title: parsed.title || "İlan",
+        company: parsed.company || "Belirtilmedi",
+        city,
+        workType: parsed.workType || "Tam Zamanlı",
+        salary: parsed.salary || null,
+        description: [
+          parsed.description,
+          parsed.contactName ? `İletişim: ${parsed.contactName}` : null,
+          parsed.contactPhone ? `Tel: ${parsed.contactPhone}` : null,
+          parsed.district ? `İlçe: ${parsed.district}` : null,
+        ].filter(Boolean).join("\n\n") || null,
+        applyUrl: parsed.applyUrl || null,
+        isFeatured,
+        expiresAt: isTimed && expiresAt ? new Date(expiresAt).toISOString() : null,
+      });
+      toast({ title: "İlan yayınlandı!" });
+      setStep("done");
+      setRawText("");
+      setParsed(null);
+      setIsFeatured(false);
+      setIsTimed(false);
+      setExpiresAt("");
+      refetchListings();
+      refetchStats();
+      setTimeout(() => setStep("input"), 1500);
+    } catch (e: any) {
+      toast({ title: "Yayınlama başarısız", description: e.message, variant: "destructive" });
+    } finally { setLoading(false); }
+  };
+
+  const Field = ({ icon: Icon, label, value, onChange }: { icon: React.ElementType; label: string; value: string; onChange: (v: string) => void }) => (
+    <div>
+      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+        <Icon className="w-3 h-3" /> {label}
+      </label>
+      <input value={value} onChange={e => onChange(e.target.value)}
+        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50" />
+    </div>
+  );
+
+  return (
+    <div className="glass-card rounded-2xl overflow-hidden">
+      <div className="flex items-center justify-between p-4 border-b border-white/5">
+        <div className="flex items-center gap-2 font-semibold text-sm">
+          <Sparkles className="w-4 h-4 text-primary" />
+          Akıllı İlan Oluştur
+          {hasOpenaiKey && <span className="text-[9px] font-bold bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">AKTİF</span>}
+        </div>
+        {step !== "input" && (
+          <button onClick={() => { setStep("input"); setParsed(null); }}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+            <RefreshCw className="w-3 h-3" /> Sıfırla
+          </button>
+        )}
+      </div>
+
+      <div className="p-4 space-y-3">
+        {!hasOpenaiKey ? (
+          <div className="flex items-center gap-2 p-3 bg-amber-500/10 rounded-xl text-xs text-amber-400">
+            <Lock className="w-4 h-4 shrink-0" />
+            <span>Bu özelliği kullanmak için Genel Ayarlar bölümünden OpenAI API anahtarı girin.</span>
+          </div>
+        ) : step === "input" ? (
+          <>
+            <p className="text-xs text-muted-foreground">WhatsApp mesajı, Telegram gönderisi veya herhangi bir iş ilanı metnini yapıştırın. Yapay zeka otomatik olarak tüm bilgileri çıkaracak.</p>
+            <textarea
+              value={rawText}
+              onChange={e => setRawText(e.target.value)}
+              placeholder={"Örnek:\n\"Acil! İstanbul Kadıköy'de güvenlik şirketi arıyor. Silahlı güvenlik görevlisi. 25.000 TL maaş. Tam zamanlı. İletişim: Ahmet Bey 0532 123 45 67\""}
+              rows={6}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none"
+            />
+            <Button
+              onClick={parseText}
+              disabled={loading || !rawText.trim()}
+              className="w-full bg-gradient-to-r from-primary to-secondary text-white text-sm disabled:opacity-40"
+            >
+              {loading ? (
+                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Ayıklanıyor...</>
+              ) : (
+                <><Sparkles className="w-4 h-4 mr-2" /> AI ile Ayıkla</>
+              )}
+            </Button>
+          </>
+        ) : step === "preview" && parsed ? (
+          <>
+            <div className="flex items-center gap-2 p-2.5 bg-green-500/10 rounded-xl text-xs text-green-400 font-medium">
+              <Eye className="w-3.5 h-3.5 shrink-0" /> Bilgiler ayıklandı — kontrol edip düzenleyebilirsiniz
+            </div>
+            <div className="space-y-2">
+              <Field icon={Briefcase} label="İlan Başlığı" value={parsed.title} onChange={v => setParsed(p => p ? { ...p, title: v } : p)} />
+              <div className="grid grid-cols-2 gap-2">
+                <Field icon={Building2} label="Şirket" value={parsed.company} onChange={v => setParsed(p => p ? { ...p, company: v } : p)} />
+                <Field icon={MapPin} label="Şehir (İl)" value={parsed.city} onChange={v => setParsed(p => p ? { ...p, city: v } : p)} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field icon={MapPin} label="İlçe" value={parsed.district} onChange={v => setParsed(p => p ? { ...p, district: v } : p)} />
+                <div>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+                    <Briefcase className="w-3 h-3" /> Çalışma Tipi
+                  </label>
+                  <select value={parsed.workType} onChange={e => setParsed(p => p ? { ...p, workType: e.target.value } : p)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50">
+                    <option value="Tam Zamanlı">Tam Zamanlı</option>
+                    <option value="Yarı Zamanlı">Yarı Zamanlı</option>
+                    <option value="Vardiyalı">Vardiyalı</option>
+                    <option value="Proje Bazlı">Proje Bazlı</option>
+                  </select>
+                </div>
+              </div>
+              <Field icon={Star} label="Maaş" value={parsed.salary} onChange={v => setParsed(p => p ? { ...p, salary: v } : p)} />
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+                  <MessageSquare className="w-3 h-3" /> Açıklama
+                </label>
+                <textarea value={parsed.description} onChange={e => setParsed(p => p ? { ...p, description: e.target.value } : p)}
+                  rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50 resize-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field icon={User} label="İletişim Kişisi" value={parsed.contactName} onChange={v => setParsed(p => p ? { ...p, contactName: v } : p)} />
+                <Field icon={Phone} label="Telefon" value={parsed.contactPhone} onChange={v => setParsed(p => p ? { ...p, contactPhone: v } : p)} />
+              </div>
+              <Field icon={CheckCircle} label="Başvuru / Telefon URL" value={parsed.applyUrl} onChange={v => setParsed(p => p ? { ...p, applyUrl: v } : p)} />
+
+              {/* Yayınlama seçenekleri */}
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setIsTimed(false)}
+                  className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border text-xs font-medium transition-all ${!isTimed ? "border-primary bg-primary/20 text-primary" : "border-white/10 text-muted-foreground"}`}>
+                  <Infinity className="w-3 h-3" /> Süresiz
+                </button>
+                <button onClick={() => setIsTimed(true)}
+                  className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border text-xs font-medium transition-all ${isTimed ? "border-accent bg-accent/20 text-accent" : "border-white/10 text-muted-foreground"}`}>
+                  <Clock className="w-3 h-3" /> Süreli
+                </button>
+              </div>
+              {isTimed && (
+                <input type="datetime-local" value={expiresAt} onChange={e => setExpiresAt(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none" />
+              )}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={isFeatured} onChange={e => setIsFeatured(e.target.checked)}
+                  className="w-4 h-4 rounded accent-amber-400" />
+                <span className="text-sm flex items-center gap-1">
+                  <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> Öne çıkarılsın
+                </span>
+              </label>
+
+              <Button onClick={publish} disabled={loading}
+                className="w-full bg-gradient-to-r from-primary to-secondary text-white text-sm disabled:opacity-40">
+                {loading ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Yayınlanıyor...</> : <><CheckCircle className="w-4 h-4 mr-2" /> İlanı Yayınla</>}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-6 text-green-400 font-semibold text-sm">
+            <CheckCircle className="w-10 h-10 mx-auto mb-2" />
+            İlan başarıyla yayınlandı!
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -252,7 +457,7 @@ export default function AdminDashboard() {
   }>("/admin/stats");
 
   const { data: settings, refetch: refetchSettings } = useAdminApi<{
-    chatLocked: boolean; fakeOnlineBonus: number; maintenanceMode: boolean; welcomeMessage: string | null;
+    chatLocked: boolean; fakeOnlineBonus: number; maintenanceMode: boolean; welcomeMessage: string | null; hasOpenaiKey: boolean;
   }>("/admin/settings");
 
   const { data: bannersData, refetch: refetchBanners } = useAdminApi<{
@@ -266,6 +471,8 @@ export default function AdminDashboard() {
 
   const [fakeBonus, setFakeBonus] = useState("");
   const [welcomeMsg, setWelcomeMsg] = useState("");
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   useEffect(() => {
     if (settings) {
       setFakeBonus(String(settings.fakeOnlineBonus));
@@ -297,13 +504,24 @@ export default function AdminDashboard() {
 
   const saveSettings = async () => {
     try {
-      await apiCall("/admin/settings", "PATCH", {
+      const body: Record<string, unknown> = {
         fakeOnlineBonus: parseInt(fakeBonus, 10) || 0,
         welcomeMessage: welcomeMsg || null,
-      });
+      };
+      if (openaiKey) body.openaiApiKey = openaiKey;
+      await apiCall("/admin/settings", "PATCH", body);
       toast({ title: "Ayarlar kaydedildi" });
+      setOpenaiKey("");
       refetchSettings();
       refetchStats();
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const removeOpenaiKey = async () => {
+    try {
+      await apiCall("/admin/settings", "PATCH", { openaiApiKey: "" });
+      toast({ title: "API anahtarı silindi" });
+      refetchSettings();
     } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
   };
 
@@ -445,11 +663,45 @@ export default function AdminDashboard() {
                   : <ToggleLeft className="w-7 h-7" />}
               </button>
             </div>
+
+            {/* OpenAI API Key */}
+            <div className="bg-white/5 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full inline-block" style={{ background: settings?.hasOpenaiKey ? "#22c55e" : "#ef4444" }} />
+                  OpenAI API Anahtarı
+                </label>
+                {settings?.hasOpenaiKey && (
+                  <button onClick={removeOpenaiKey} className="text-[10px] text-destructive hover:text-destructive/80">Sil</button>
+                )}
+              </div>
+              {settings?.hasOpenaiKey ? (
+                <p className="text-xs text-green-400">API anahtarı kayıtlı. Akıllı ilan oluşturma aktif.</p>
+              ) : (
+                <p className="text-xs text-amber-400">API anahtarı yok — akıllı ilan oluşturma devre dışı.</p>
+              )}
+              <div className="flex gap-2">
+                <input
+                  type={showOpenaiKey ? "text" : "password"}
+                  value={openaiKey}
+                  onChange={e => setOpenaiKey(e.target.value)}
+                  placeholder={settings?.hasOpenaiKey ? "Yeni anahtar gir (değiştirmek için)" : "sk-..."}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+                />
+                <button onClick={() => setShowOpenaiKey(v => !v)}
+                  className="px-2.5 py-1.5 bg-white/10 rounded-xl text-xs text-muted-foreground hover:bg-white/15">
+                  {showOpenaiKey ? "Gizle" : "Göster"}
+                </button>
+              </div>
+            </div>
+
             <Button onClick={saveSettings} className="w-full bg-primary/80 hover:bg-primary text-sm">
               Kaydet
             </Button>
           </div>
         </Section>
+
+        <SmartListingSection apiCall={apiCall} toast={toast} refetchListings={refetchListings} refetchStats={refetchStats} hasOpenaiKey={settings?.hasOpenaiKey ?? false} />
 
         <Section title="Banner Yönetimi" icon={Image}>
           <div className="space-y-3">

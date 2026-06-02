@@ -25,6 +25,7 @@ export const adminSettingsTable = pgTable("admin_settings", {
   fakeOnlineBonus: integer("fake_online_bonus").notNull().default(0),
   maintenanceMode: boolean("maintenance_mode").notNull().default(false),
   welcomeMessage: text("welcome_message"),
+  openaiApiKey: text("openai_api_key"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 

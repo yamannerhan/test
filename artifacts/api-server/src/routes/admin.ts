@@ -127,20 +127,27 @@ router.get("/admin/settings", authMiddleware, requireAdmin, async (_req, res): P
   const settings = await db.select().from(adminSettingsTable).limit(1);
   if (!settings[0]) {
     const [created] = await db.insert(adminSettingsTable).values({ chatLocked: false, fakeOnlineBonus: 0, maintenanceMode: false }).returning();
-    res.json({ chatLocked: created.chatLocked, fakeOnlineBonus: created.fakeOnlineBonus, maintenanceMode: created.maintenanceMode, welcomeMessage: created.welcomeMessage });
+    res.json({ chatLocked: created.chatLocked, fakeOnlineBonus: created.fakeOnlineBonus, maintenanceMode: created.maintenanceMode, welcomeMessage: created.welcomeMessage, hasOpenaiKey: false });
     return;
   }
   const s = settings[0];
-  res.json({ chatLocked: s.chatLocked, fakeOnlineBonus: s.fakeOnlineBonus, maintenanceMode: s.maintenanceMode, welcomeMessage: s.welcomeMessage });
+  res.json({
+    chatLocked: s.chatLocked,
+    fakeOnlineBonus: s.fakeOnlineBonus,
+    maintenanceMode: s.maintenanceMode,
+    welcomeMessage: s.welcomeMessage,
+    hasOpenaiKey: !!s.openaiApiKey,
+  });
 });
 
 router.patch("/admin/settings", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
-  const { chatLocked, fakeOnlineBonus, maintenanceMode, welcomeMessage } = req.body as Record<string, unknown>;
+  const { chatLocked, fakeOnlineBonus, maintenanceMode, welcomeMessage, openaiApiKey } = req.body as Record<string, unknown>;
   const updates: Partial<typeof adminSettingsTable.$inferInsert> = {};
   if (chatLocked !== undefined) updates.chatLocked = Boolean(chatLocked);
   if (fakeOnlineBonus !== undefined) updates.fakeOnlineBonus = parseInt(String(fakeOnlineBonus), 10);
   if (maintenanceMode !== undefined) updates.maintenanceMode = Boolean(maintenanceMode);
   if (welcomeMessage !== undefined) updates.welcomeMessage = welcomeMessage == null ? null : String(welcomeMessage);
+  if (openaiApiKey !== undefined) updates.openaiApiKey = openaiApiKey == null || openaiApiKey === "" ? null : String(openaiApiKey);
 
   const existing = await db.select().from(adminSettingsTable).limit(1);
   let result;
@@ -150,7 +157,91 @@ router.patch("/admin/settings", authMiddleware, requireAdmin, async (req, res): 
     [result] = await db.update(adminSettingsTable).set(updates).where(eq(adminSettingsTable.id, existing[0].id)).returning();
   }
 
-  res.json({ chatLocked: result!.chatLocked, fakeOnlineBonus: result!.fakeOnlineBonus, maintenanceMode: result!.maintenanceMode, welcomeMessage: result!.welcomeMessage });
+  res.json({
+    chatLocked: result!.chatLocked,
+    fakeOnlineBonus: result!.fakeOnlineBonus,
+    maintenanceMode: result!.maintenanceMode,
+    welcomeMessage: result!.welcomeMessage,
+    hasOpenaiKey: !!result!.openaiApiKey,
+  });
+});
+
+// ── AI: parse raw text into listing fields ─────────────────────────────────────
+router.post("/admin/listings/parse", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const { text } = req.body as { text?: string };
+  if (!text?.trim()) { res.status(400).json({ error: "Metin zorunludur" }); return; }
+
+  const settings = await db.select().from(adminSettingsTable).limit(1);
+  const apiKey = settings[0]?.openaiApiKey;
+  if (!apiKey) { res.status(400).json({ error: "OpenAI API anahtarı ayarlanmamış. Admin ayarlarından girin." }); return; }
+
+  const prompt = `Sen bir Türk iş ilanı asistanısın. Aşağıdaki ham metinden iş ilanı bilgilerini çıkar ve SADECE JSON döndür, başka hiçbir şey yazma.
+
+HAM METİN:
+${text.trim()}
+
+Çıkar ve JSON olarak döndür:
+{
+  "title": "İş pozisyonu başlığı (örn: Güvenlik Görevlisi, Silahlı Güvenlik Görevlisi)",
+  "company": "Şirket adı (varsa, yoksa boş string)",
+  "city": "İl adı Türkçe (varsa, yoksa boş string)",
+  "district": "İlçe adı (varsa, yoksa boş string)",
+  "salary": "Maaş bilgisi (varsa, yoksa boş string)",
+  "workType": "Tam Zamanlı veya Yarı Zamanlı veya Vardiyalı veya Proje Bazlı",
+  "description": "İş tanımı ve gereksinimler temiz paragraf olarak",
+  "contactPhone": "Telefon numarası (varsa, yoksa boş string)",
+  "contactName": "İletişim kişisi adı (varsa, yoksa boş string)",
+  "applyUrl": "Başvuru linki veya telefon (varsa, yoksa boş string)"
+}
+
+Önemli kurallar:
+- Sadece metinde açıkça yazanı çıkar, tahmin etme
+- Şehir adı Türkçe il adı olmalı (İstanbul, Ankara, İzmir gibi)
+- applyUrl için telefon numarası varsa "tel:+905..." formatında yaz
+- Tüm alanlar string olmalı`;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.1,
+        max_tokens: 800,
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      req.log.error({ status: response.status, body: errBody }, "OpenAI API error");
+      res.status(502).json({ error: "OpenAI API hatası: " + response.statusText }); return;
+    }
+
+    const data = await response.json() as { choices: { message: { content: string } }[] };
+    const content = data.choices[0]?.message?.content ?? "{}";
+    const parsed = JSON.parse(content);
+
+    res.json({
+      title: parsed.title ?? "",
+      company: parsed.company ?? "",
+      city: parsed.city ?? "",
+      district: parsed.district ?? "",
+      salary: parsed.salary ?? "",
+      workType: parsed.workType ?? "Tam Zamanlı",
+      description: parsed.description ?? "",
+      contactPhone: parsed.contactPhone ?? "",
+      contactName: parsed.contactName ?? "",
+      applyUrl: parsed.applyUrl ?? "",
+    });
+  } catch (err) {
+    req.log.error(err, "Parse listing error");
+    res.status(500).json({ error: "AI ayıklama başarısız oldu" });
+  }
 });
 
 router.post("/admin/chat/lock", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
