@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { authMiddleware, signToken } from "../middlewares/auth";
 
 const router = Router();
@@ -66,19 +66,24 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const { email, password } = req.body as { email?: string; password?: string };
 
   if (!email || !password) {
-    res.status(400).json({ error: "E-posta ve şifre zorunludur" });
+    res.status(400).json({ error: "E-posta/kullanıcı adı ve şifre zorunludur" });
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  // Allow login with either email or username
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(or(eq(usersTable.email, email), eq(usersTable.username, email)));
+
   if (!user) {
-    res.status(401).json({ error: "E-posta veya şifre hatalı" });
+    res.status(401).json({ error: "E-posta/kullanıcı adı veya şifre hatalı" });
     return;
   }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
-    res.status(401).json({ error: "E-posta veya şifre hatalı" });
+    res.status(401).json({ error: "E-posta/kullanıcı adı veya şifre hatalı" });
     return;
   }
 

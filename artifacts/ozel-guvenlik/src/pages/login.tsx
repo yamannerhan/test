@@ -74,7 +74,7 @@ export default function Login() {
                       <FormLabel>E-Posta</FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="ornek@email.com" 
+                          placeholder="E-posta veya kullanıcı adı" 
                           className="glass-card border-white/10" 
                           {...field} 
                           data-testid="input-email"

@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import path from "path";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -28,6 +29,9 @@ app.use(
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded avatars as static files at /api/avatars/:filename
+app.use("/api/avatars", express.static(path.join(process.cwd(), "uploads", "avatars")));
 
 app.use("/api", router);
 

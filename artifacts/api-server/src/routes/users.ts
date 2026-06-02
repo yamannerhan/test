@@ -1,10 +1,82 @@
 import { Router } from "express";
+import multer from "multer";
+import sharp from "sharp";
+import path from "path";
+import fs from "fs";
 import { db, usersTable, listingsTable, listingFavoritesTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { authMiddleware } from "../middlewares/auth";
 
 const router = Router();
 
+// ── Avatar upload setup ──────────────────────────────────────────
+const UPLOADS_DIR = path.join(process.cwd(), "uploads", "avatars");
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB max
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp"];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
+
+router.post("/users/avatar", authMiddleware, upload.single("avatar"), async (req, res): Promise<void> => {
+  if (!req.file) {
+    res.status(400).json({ error: "Resim dosyası gerekli (jpg, png, webp, gif)" });
+    return;
+  }
+
+  const filename = `${req.user!.id}_${Date.now()}.jpg`;
+  const filepath = path.join(UPLOADS_DIR, filename);
+
+  // Resize and convert to JPEG — max 256x256, quality 85
+  await sharp(req.file.buffer)
+    .resize(256, 256, { fit: "cover", position: "center" })
+    .jpeg({ quality: 85 })
+    .toFile(filepath);
+
+  const avatarUrl = `/api/avatars/${filename}`;
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ avatarUrl })
+    .where(eq(usersTable.id, req.user!.id))
+    .returning();
+
+  res.json({
+    id: updated.id,
+    username: updated.username,
+    email: updated.email,
+    role: updated.role,
+    avatarUrl: updated.avatarUrl,
+    bio: updated.bio,
+    nameColor: updated.nameColor,
+    nameAnimated: updated.nameAnimated,
+    isBanned: updated.isBanned,
+    banReason: updated.banReason,
+    banExpiresAt: updated.banExpiresAt?.toISOString() ?? null,
+    createdAt: updated.createdAt.toISOString(),
+  });
+});
+
+// ── User search for @ mention ─────────────────────────────────────
+router.get("/users/search", async (req, res): Promise<void> => {
+  const q = String(req.query["q"] ?? "").trim().toLowerCase();
+  if (!q) { res.json([]); return; }
+
+  const all = await db
+    .select({ id: usersTable.id, username: usersTable.username, avatarUrl: usersTable.avatarUrl, role: usersTable.role })
+    .from(usersTable)
+    .limit(8);
+
+  const filtered = all.filter(u => u.username.toLowerCase().startsWith(q)).slice(0, 6);
+  res.json(filtered);
+});
+
+// ── Profile ───────────────────────────────────────────────────────
 router.get("/users/profile/:username", async (req, res): Promise<void> => {
   const username = Array.isArray(req.params["username"]) ? req.params["username"][0] : req.params["username"];
   if (!username) { res.status(400).json({ error: "Geçersiz kullanıcı adı" }); return; }
