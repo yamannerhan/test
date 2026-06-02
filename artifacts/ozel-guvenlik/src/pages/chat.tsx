@@ -21,13 +21,19 @@ interface UserSuggestion { id: number; username: string; displayName?: string | 
 /* ── Role badge ─────────────────────────────────────────────── */
 function RoleBadge({ role }: { role: string }) {
   if (role === "admin") return (
-    <span className="text-[8px] font-semibold tracking-wide" style={{ color: "rgba(248,113,113,0.75)" }}>admin</span>
+    <span className="text-[8px] font-black tracking-widest uppercase"
+      style={{ color: "rgba(248,113,113,0.9)", animation: "badge-pulse-red 2.5s ease-in-out infinite" }}>
+      ADMİN
+    </span>
   );
   if (role === "moderator") return (
-    <span className="text-[8px] font-semibold tracking-wide" style={{ color: "rgba(96,165,250,0.75)" }}>mod</span>
+    <span className="text-[8px] font-black tracking-widest uppercase"
+      style={{ color: "rgba(96,165,250,0.9)", animation: "badge-pulse-blue 2.5s ease-in-out infinite" }}>
+      MOD
+    </span>
   );
   return (
-    <span className="text-[8px] font-medium" style={{ color: "rgba(148,163,184,0.45)" }}>üye</span>
+    <span className="text-[8px] font-semibold tracking-wider uppercase" style={{ color: "rgba(148,163,184,0.4)" }}>ÜYE</span>
   );
 }
 
@@ -255,6 +261,16 @@ export default function Chat() {
 
   return (
     <Layout>
+      <style>{`
+        @keyframes badge-pulse-red {
+          0%, 100% { opacity: 0.9; text-shadow: 0 0 6px rgba(248,113,113,0.6); }
+          50%       { opacity: 0.6; text-shadow: 0 0 2px rgba(248,113,113,0.2); }
+        }
+        @keyframes badge-pulse-blue {
+          0%, 100% { opacity: 0.9; text-shadow: 0 0 6px rgba(96,165,250,0.6); }
+          50%       { opacity: 0.6; text-shadow: 0 0 2px rgba(96,165,250,0.2); }
+        }
+      `}</style>
       <div className="flex flex-col h-[calc(100vh-7rem)] bg-background relative">
         <div className="flex-1 overflow-y-auto py-4 space-y-3 pb-36">
           {isLoading ? (
