@@ -21,18 +21,12 @@ interface UserSuggestion { id: number; username: string; displayName?: string | 
 /* ── Role badge ─────────────────────────────────────────────── */
 function RoleBadge({ role }: { role: string }) {
   if (role === "admin") return (
-    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1"
-      style={{ background: "linear-gradient(90deg,#ef4444,#f97316)", color: "#fff", boxShadow: "0 0 6px rgba(239,68,68,0.5)" }}>
-      YÖNETİCİ
-    </span>
+    <span className="text-[8px] font-semibold text-red-400/70 ml-0.5">yönetici</span>
   );
   if (role === "moderator") return (
-    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1"
-      style={{ background: "linear-gradient(90deg,#3b82f6,#06b6d4)", color: "#fff", boxShadow: "0 0 6px rgba(59,130,246,0.5)" }}>
-      MODERATÖR
-    </span>
+    <span className="text-[8px] font-semibold text-blue-400/70 ml-0.5">mod</span>
   );
-  return <span className="text-[9px] text-white/30 ml-1">Üye</span>;
+  return null;
 }
 
 /* ── Swipeable row ────────────────────────────────────────────── */

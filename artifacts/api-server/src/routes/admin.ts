@@ -186,54 +186,181 @@ router.patch("/admin/settings", authMiddleware, requireAdmin, async (req, res): 
   res.json(settingsJson(result!));
 });
 
-// ── AI: parse raw text into listing fields ─────────────────────────────────────
+// ── Smart parser: regex-based, no external API needed ──────────────────────────
+const TR_CITIES: Record<string, string> = {
+  "istanbul": "İstanbul", "ankara": "Ankara", "izmir": "İzmir", "bursa": "Bursa",
+  "antalya": "Antalya", "adana": "Adana", "konya": "Konya", "gaziantep": "Gaziantep",
+  "şanlıurfa": "Şanlıurfa", "mersin": "Mersin", "kayseri": "Kayseri", "eskişehir": "Eskişehir",
+  "diyarbakır": "Diyarbakır", "samsun": "Samsun", "denizli": "Denizli", "şırnak": "Şırnak",
+  "sakarya": "Sakarya", "trabzon": "Trabzon", "manisa": "Manisa", "kocaeli": "Kocaeli",
+  "gebze": "Kocaeli", "izmit": "Kocaeli", "hatay": "Hatay", "balıkesir": "Balıkesir",
+  "van": "Van", "batman": "Batman", "malatya": "Malatya", "kahramanmaraş": "Kahramanmaraş",
+  "erzurum": "Erzurum", "muğla": "Muğla", "bodrum": "Muğla", "marmaris": "Muğla",
+  "tekirdağ": "Tekirdağ", "siirt": "Siirt", "afyon": "Afyonkarahisar", "afyonkarahisar": "Afyonkarahisar",
+  "aydın": "Aydın", "kütahya": "Kütahya", "çorum": "Çorum", "elazığ": "Elazığ",
+  "mardin": "Mardin", "tokat": "Tokat", "sivas": "Sivas", "kastamonu": "Kastamonu",
+  "aksaray": "Aksaray", "giresun": "Giresun", "muş": "Muş", "uşak": "Uşak",
+  "zonguldak": "Zonguldak", "ordu": "Ordu", "edirne": "Edirne", "bolu": "Bolu",
+  "isparta": "Isparta", "karabük": "Karabük", "osmaniye": "Osmaniye", "düzce": "Düzce",
+  "yalova": "Yalova", "niğde": "Niğde", "nevşehir": "Nevşehir", "kırıkkale": "Kırıkkale",
+  "karaman": "Karaman", "ağrı": "Ağrı", "rize": "Rize", "bingöl": "Bingöl",
+  "tunceli": "Tunceli", "hakkari": "Hakkari", "kars": "Kars", "iğdır": "Iğdır",
+  "ardahan": "Ardahan", "sinop": "Sinop", "artvin": "Artvin", "gümüşhane": "Gümüşhane",
+  "bayburt": "Bayburt", "bitlis": "Bitlis", "erzincan": "Erzincan", "kırşehir": "Kırşehir",
+  "yozgat": "Yozgat", "çankırı": "Çankırı", "bilecik": "Bilecik", "amasya": "Amasya",
+  "burdur": "Burdur", "çanakkale": "Çanakkale", "kırklareli": "Kırklareli",
+  "adıyaman": "Adıyaman", "bartın": "Bartın", "kilis": "Kilis",
+};
+
+const ISTANBUL_DISTRICTS = [
+  "kadıköy","beşiktaş","şişli","beyoğlu","fatih","üsküdar","maltepe","kartal","pendik",
+  "tuzla","ataşehir","umraniye","ümraniye","bağcılar","bahçelievler","bakırköy","başakşehir",
+  "beylikdüzü","büyükçekmece","çekmeköy","esenler","esenyurt","eyüpsultan","güngören",
+  "küçükçekmece","sarıyer","sultanbeyli","sultangazi","zeytinburnu","arnavutköy","avcılar",
+  "sancaktepe","gaziosmanpaşa","kağıthane","silivri","şile","çatalca","adalar","beykoz","sultangazi",
+];
+
+function normalizeForLookup(s: string): string {
+  return s.toLowerCase()
+    .replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u")
+    .replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c").replace(/İ/g, "i");
+}
+
+function parseListingText(raw: string): Record<string, string> {
+  const text = raw.trim();
+  const lines = text.split(/\n/);
+
+  // Phone numbers — Turkish formats
+  const phoneMatch = text.match(/(?:0|\+90)[\s\-]?(?:\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}|\d{3}[\s\-]?\d{7})/);
+  const rawPhone = phoneMatch?.[0]?.replace(/[\s\-\(\)]/g, "") ?? "";
+  const contactPhone = rawPhone ? rawPhone.replace(/^0/, "+90").replace(/^\+90(\d{10})$/, "+90$1") : "";
+  const applyUrl = contactPhone ? `tel:${contactPhone}` : "";
+
+  // Contact name — patterns: "iletisim: Ad Soyad", "adı soyad:", "yetkili:", etc.
+  let contactName = "";
+  const namePatterns = [
+    /(?:iletişim|yetkili|irtibat|sorumlu|müdür|bey|hanım|bay|bayan)\s*[:\-]?\s*([A-ZÇĞİÖŞÜa-zçğışöüİ]{2,}\s+[A-ZÇĞİÖŞÜa-zçğışöüİ]{2,}(?:\s+[A-ZÇĞİÖŞÜa-zçğışöüİ]{2,})?)/i,
+    /([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,})\s+(?:bey|hanım|bay|bayan)/i,
+  ];
+  for (const pat of namePatterns) {
+    const m = text.match(pat);
+    if (m?.[1] && m[1].length > 4 && !m[1].toLowerCase().includes("güvenlik") && !m[1].toLowerCase().includes("personel")) {
+      contactName = m[1].trim(); break;
+    }
+  }
+
+  // City — scan each word against known cities
+  let city = "";
+  let district = "";
+  const cityPatterns = [
+    /(?:il|şehir|konum|lokasyon|bölge)\s*[:\-]?\s*([A-ZÇĞİÖŞÜa-zçğışöüİ\/\s]{3,30})/i,
+  ];
+  for (const pat of cityPatterns) {
+    const m = text.match(pat);
+    if (m?.[1]) {
+      const candidate = m[1].split(/[\/,\s]/)[0]?.trim().toLowerCase() ?? "";
+      const normalized = normalizeForLookup(candidate);
+      if (TR_CITIES[normalized]) { city = TR_CITIES[normalized]; break; }
+    }
+  }
+  // Fallback: scan all words
+  if (!city) {
+    const words = text.split(/[\s\/,\-]+/);
+    for (const word of words) {
+      const norm = normalizeForLookup(word);
+      if (TR_CITIES[norm]) { city = TR_CITIES[norm]; break; }
+    }
+  }
+  // District scan (İstanbul districts for now)
+  for (const word of text.split(/[\s\/,\-]+/)) {
+    if (ISTANBUL_DISTRICTS.includes(normalizeForLookup(word))) {
+      district = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      if (!city) city = "İstanbul";
+      break;
+    }
+  }
+
+  // Salary
+  let salary = "";
+  const salaryPatterns = [
+    /(\d[\d\.\s]+)\s*[-–]\s*(\d[\d\.\s]+)\s*(?:bin\s*)?tl/i,
+    /(\d[\d\.\s]+)\s*(?:bin\s*)?tl\s*(?:maaş|ücret|aylık)/i,
+    /maaş\s*[:\-]?\s*(\d[\d\.\s]+\s*(?:bin\s*)?tl(?:\s*[-–]\s*\d[\d\.\s]+\s*(?:bin\s*)?tl)?)/i,
+    /ücret\s*[:\-]?\s*(\d[\d\.\s]+\s*(?:bin\s*)?tl(?:\s*[-–]\s*\d[\d\.\s]+\s*(?:bin\s*)?tl)?)/i,
+  ];
+  for (const pat of salaryPatterns) {
+    const m = text.match(pat);
+    if (m) {
+      salary = m[0].replace(/\n/g, " ").trim();
+      salary = salary.charAt(0).toUpperCase() + salary.slice(1);
+      if (!salary.toLowerCase().includes("tl")) salary += " TL";
+      break;
+    }
+  }
+
+  // Work type
+  let workType = "Tam Zamanlı";
+  if (/vardiy/i.test(text)) workType = "Vardiyalı";
+  else if (/yarı\s*zamanl/i.test(text) || /part[\s\-]?time/i.test(text)) workType = "Yarı Zamanlı";
+  else if (/proje\s*baz/i.test(text) || /freelance/i.test(text)) workType = "Proje Bazlı";
+  else if (/tam\s*zamanl/i.test(text) || /full[\s\-]?time/i.test(text)) workType = "Tam Zamanlı";
+
+  // Job title
+  let title = "";
+  const titlePatterns = [
+    /(?:pozisyon|görev|ünvan|iş\s*ilanı|aranan)\s*[:\-]?\s*(.+)/i,
+    /(?:güvenlik\s*(?:görevlisi|uzmanı|şefi|amiri|koordinatörü|müdürü)|özel\s*güvenlik|silahlı\s*güvenlik|koruma\s*görevlisi|kasiyp|resepsiyonist)/i,
+  ];
+  for (const pat of titlePatterns) {
+    const m = text.match(pat);
+    if (m) { title = (m[1] ?? m[0]).trim().split(/\n/)[0]!.trim(); if (title.length > 5 && title.length < 80) break; title = ""; }
+  }
+  if (!title) {
+    // First non-empty line often is the title in WhatsApp forwards
+    for (const line of lines) {
+      const l = line.trim();
+      if (l.length > 5 && l.length < 80 && !/^\d/.test(l) && !l.includes("http")) {
+        title = l.replace(/^[🔔📢🚨✅❗❕#\*\-\•]/g, "").trim();
+        if (title.length > 3) break;
+        title = "";
+      }
+    }
+  }
+
+  // Company
+  let company = "";
+  const companyPatterns = [
+    /(?:şirket|firma|kurum|işveren)\s*[:\-]?\s*(.+)/i,
+    /([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜa-zçğışöüİ\s]{2,30}(?:A\.Ş\.|Ltd\.|Tic\.|Grup|Güvenlik|Holding|Şirketi))/,
+  ];
+  for (const pat of companyPatterns) {
+    const m = text.match(pat);
+    if (m?.[1]) {
+      company = m[1].trim().split(/\n/)[0]!.trim();
+      if (company.length > 2 && company.length < 60) break;
+      company = "";
+    }
+  }
+
+  // Description: remove lines with phone/link, keep rest
+  const descLines = lines.filter(l => {
+    const ll = l.trim();
+    if (!ll) return false;
+    if (/(?:0|\+90)[\s\-]?\d{3}/.test(ll)) return false;
+    if (/http[s]?:\/\//.test(ll)) return false;
+    if (ll === title) return false;
+    return true;
+  });
+  const description = descLines.join("\n").trim();
+
+  return { title, company, city, district, salary, workType, description, contactPhone, contactName, applyUrl };
+}
+
 router.post("/admin/listings/parse", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
   const { text } = req.body as { text?: string };
   if (!text?.trim()) { res.status(400).json({ error: "Metin zorunludur" }); return; }
-
-  const settings = await db.select().from(adminSettingsTable).limit(1);
-  const apiKey = settings[0]?.openaiApiKey;
-  if (!apiKey) { res.status(400).json({ error: "OpenAI API anahtarı ayarlanmamış. Admin ayarlarından girin." }); return; }
-
-  const prompt = `Sen bir Türk iş ilanı asistanısın. Aşağıdaki ham metinden iş ilanı bilgilerini çıkar ve SADECE JSON döndür, başka hiçbir şey yazma.
-
-HAM METİN:
-${text.trim()}
-
-Çıkar ve JSON olarak döndür:
-{
-  "title": "İş pozisyonu başlığı",
-  "company": "Şirket adı (varsa, yoksa boş string)",
-  "city": "İl adı Türkçe (varsa, yoksa boş string)",
-  "district": "İlçe adı (varsa, yoksa boş string)",
-  "salary": "Maaş bilgisi (varsa, yoksa boş string)",
-  "workType": "Tam Zamanlı veya Yarı Zamanlı veya Vardiyalı veya Proje Bazlı",
-  "description": "İş tanımı ve gereksinimler temiz paragraf olarak",
-  "contactPhone": "Telefon numarası (varsa, yoksa boş string)",
-  "contactName": "İletişim kişisi adı (varsa, yoksa boş string)",
-  "applyUrl": "Başvuru linki veya telefon (varsa, yoksa boş string)"
-}
-
-Önemli kurallar:
-- Sadece metinde açıkça yazanı çıkar, tahmin etme
-- Şehir adı Türkçe il adı olmalı
-- applyUrl için telefon numarası varsa "tel:+905..." formatında yaz
-- Tüm alanlar string olmalı`;
-
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }], temperature: 0.1, max_tokens: 800, response_format: { type: "json_object" } }),
-    });
-    if (!response.ok) { res.status(502).json({ error: "OpenAI API hatası: " + response.statusText }); return; }
-    const data = await response.json() as { choices: { message: { content: string } }[] };
-    const parsed = JSON.parse(data.choices[0]?.message?.content ?? "{}");
-    res.json({ title: parsed.title ?? "", company: parsed.company ?? "", city: parsed.city ?? "", district: parsed.district ?? "", salary: parsed.salary ?? "", workType: parsed.workType ?? "Tam Zamanlı", description: parsed.description ?? "", contactPhone: parsed.contactPhone ?? "", contactName: parsed.contactName ?? "", applyUrl: parsed.applyUrl ?? "" });
-  } catch (err) {
-    req.log.error(err, "Parse listing error");
-    res.status(500).json({ error: "AI ayıklama başarısız oldu" });
-  }
+  const result = parseListingText(text);
+  res.json(result);
 });
 
 router.post("/admin/chat/lock", authMiddleware, requireAdmin, async (req, res): Promise<void> => {

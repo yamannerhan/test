@@ -77,12 +77,11 @@ interface ParsedListing {
   contactPhone: string; contactName: string; applyUrl: string;
 }
 
-function SmartListingSection({ apiCall, toast, refetchListings, refetchStats, hasOpenaiKey }: {
+function SmartListingSection({ apiCall, toast, refetchListings, refetchStats }: {
   apiCall: (path: string, method: string, body?: unknown) => Promise<unknown>;
   toast: (opts: { title: string; description?: string; variant?: "default" | "destructive" }) => void;
   refetchListings: () => void;
   refetchStats: () => void;
-  hasOpenaiKey: boolean;
 }) {
   const [step, setStep] = useState<"input" | "preview" | "done">("input");
   const [rawText, setRawText] = useState("");
@@ -156,7 +155,7 @@ function SmartListingSection({ apiCall, toast, refetchListings, refetchStats, ha
         <div className="flex items-center gap-2 font-semibold text-sm">
           <Sparkles className="w-4 h-4 text-primary" />
           Akıllı İlan Oluştur
-          {hasOpenaiKey && <span className="text-[9px] font-bold bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">AKTİF</span>}
+          <span className="text-[9px] font-bold bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">AKTİF</span>
         </div>
         {step !== "input" && (
           <button onClick={() => { setStep("input"); setParsed(null); }}
@@ -167,12 +166,7 @@ function SmartListingSection({ apiCall, toast, refetchListings, refetchStats, ha
       </div>
 
       <div className="p-4 space-y-3">
-        {!hasOpenaiKey ? (
-          <div className="flex items-center gap-2 p-3 bg-amber-500/10 rounded-xl text-xs text-amber-400">
-            <Lock className="w-4 h-4 shrink-0" />
-            <span>Bu özelliği kullanmak için Genel Ayarlar bölümünden OpenAI API anahtarı girin.</span>
-          </div>
-        ) : step === "input" ? (
+        {step === "input" ? (
           <>
             <p className="text-xs text-muted-foreground">WhatsApp mesajı, Telegram gönderisi veya herhangi bir iş ilanı metnini yapıştırın. Yapay zeka otomatik olarak tüm bilgileri çıkaracak.</p>
             <textarea
@@ -1110,7 +1104,7 @@ export default function AdminDashboard() {
           </div>
         </Section>
 
-        <SmartListingSection apiCall={apiCall} toast={toast} refetchListings={refetchListings} refetchStats={refetchStats} hasOpenaiKey={settings?.hasOpenaiKey ?? false} />
+        <SmartListingSection apiCall={apiCall} toast={toast} refetchListings={refetchListings} refetchStats={refetchStats} />
 
         <ChatManagementSection apiCall={apiCall} toast={toast} />
 

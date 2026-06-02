@@ -17,43 +17,17 @@ function isSystem(m: AnyMsg): m is SystemMsg { return "type" in m; }
 
 /* ── Role badge ─────────────────────────────────────────── */
 function RoleBadge({ role }: { role: string }) {
-  if (role === "admin") {
-    return (
-      <span
-        className="inline-flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-full ml-1 shrink-0"
-        style={{
-          background: "linear-gradient(90deg,#ef4444,#f97316,#ef4444)",
-          backgroundSize: "200% 100%",
-          animation: "role-slide 2s linear infinite",
-          color: "#fff",
-          boxShadow: "0 0 8px rgba(239,68,68,0.6)",
-        }}
-      >
-        <Shield className="w-2 h-2 inline" />
-        YÖNETİCİ
-      </span>
-    );
-  }
-  if (role === "moderator") {
-    return (
-      <span
-        className="inline-flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-full ml-1 shrink-0"
-        style={{
-          background: "linear-gradient(90deg,#3b82f6,#06b6d4,#3b82f6)",
-          backgroundSize: "200% 100%",
-          animation: "role-slide 2.5s linear infinite",
-          color: "#fff",
-          boxShadow: "0 0 8px rgba(59,130,246,0.6)",
-        }}
-      >
-        <Star className="w-2 h-2 inline" />
-        MODERATÖR
-      </span>
-    );
-  }
-  return (
-    <span className="text-[8px] font-medium text-white/25 ml-1 shrink-0">Üye</span>
+  if (role === "admin") return (
+    <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-red-400/70 shrink-0">
+      <Shield className="w-2 h-2" />yönetici
+    </span>
   );
+  if (role === "moderator") return (
+    <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-blue-400/70 shrink-0">
+      <Star className="w-2 h-2" />mod
+    </span>
+  );
+  return null;
 }
 
 /* ── User avatar ─────────────────────────────────────────── */
@@ -376,7 +350,7 @@ export function ChatBubble() {
                                 className={`text-[10px] font-bold leading-tight ${chatMsg.userNameAnimated ? "animate-rainbow" : ""}`}
                                 style={chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: chatMsg.userNameColor } : !chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: "#94a3b8" } : {}}
                               >
-                                {chatMsg.username}
+                                {(chatMsg as any).displayName || chatMsg.username}
                               </span>
                               <RoleBadge role={chatMsg.userRole ?? "user"} />
                             </>
