@@ -3,8 +3,8 @@ import { Server as SocketIOServer } from "socket.io";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { onlineSockets } from "./routes/chat";
-import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, usersTable, listingsTable } from "@workspace/db";
+import { eq, count, sql } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
 if (!rawPort) throw new Error("PORT environment variable is required but was not provided.");
@@ -18,52 +18,146 @@ const io = new SocketIOServer(httpServer, {
 });
 app.set("io", io);
 
-// ── GuvenlikBot ──────────────────────────────────────────────────
+// ── GuvenlikBot ───────────────────────────────────────────────────
 const BOT_USER = {
   id: 0, username: "GuvenlikBot", displayName: "GuvenlikBot",
   userRole: "bot", userAvatarUrl: null,
   userNameColor: "#06B6D4", userNameAnimated: false, isBot: true,
 };
-function makeBotMsg(content: string) {
+
+function makeBotMsg(content: string, replyToUsername?: string | null) {
   return {
     ...BOT_USER,
-    id: Date.now(), content, replyToId: null, replyToUsername: null,
-    replyToContent: null, isPinned: false, mentions: [],
+    id: Date.now() + Math.random(),
+    content,
+    replyToId: null,
+    replyToUsername: replyToUsername ?? null,
+    replyToContent: null,
+    isPinned: false,
+    mentions: [],
+    reactions: [],
     createdAt: new Date().toISOString(),
   };
 }
-const BOT_MESSAGES = [
+
+// ── Dinamik ilan verisi ───────────────────────────────────────────
+async function getListingStats(): Promise<{ total: number; cities: string[]; minSalary: number; maxSalary: number }> {
+  try {
+    const [{ total }] = await db.select({ total: count() }).from(listingsTable).where(eq(listingsTable.isActive, true));
+    const cityRows = await db.selectDistinct({ city: listingsTable.city }).from(listingsTable).where(eq(listingsTable.isActive, true)).limit(8);
+    const salaryRows = await db.select({
+      minSalary: sql<number>`min(${listingsTable.salaryMin})`,
+      maxSalary: sql<number>`max(${listingsTable.salaryMax})`,
+    }).from(listingsTable).where(eq(listingsTable.isActive, true));
+    return {
+      total: Number(total),
+      cities: cityRows.map(r => r.city).filter(Boolean) as string[],
+      minSalary: Math.round((salaryRows[0]?.minSalary ?? 25000) / 1000) * 1000,
+      maxSalary: Math.round((salaryRows[0]?.maxSalary ?? 55000) / 1000) * 1000,
+    };
+  } catch {
+    return { total: 0, cities: ["İstanbul", "Ankara", "İzmir"], minSalary: 25000, maxSalary: 50000 };
+  }
+}
+
+// ── Saat başı hatırlatma mesajları ────────────────────────────────
+const HOURLY_TEMPLATES: Array<(h: string) => string> = [
+  h => `Saat ${h}:00 oldu! Yeni iş ilanlarını kaçırmamak için ilanlar sayfasını kontrol edin.`,
+  h => `${h}:00 — Güvenlik sektöründe yeni fırsatlar sizi bekliyor. İlanları incelediniz mi?`,
+  h => `Saat ${h}:00. İyi çalışmalar! Bugün yayınlanan ilanları görüntülemek için İlanlar bölümüne göz atın.`,
+  h => `🕐 ${h}:00 oldu. Güncel maaş ve pozisyonlar için ilanlarımızı takip edin.`,
+  h => `Saat ${h}:00 — Kariyer hedefinize bir adım daha yaklaşın. Yeni ilanlar eklendi!`,
+  h => `${h}:00 çaldı. Özel güvenlik sektöründe binlerce pozisyon sizi bekliyor.`,
+  h => `Saat ${h}:00. Silahlı, silahsız, AVM, site güvenliği — tüm ilanlar platformumuzda!`,
+  h => `${h}:00 oldu! Başvurmadığınız ilanlar kalmasın, fırsatları kaçırmayın.`,
+];
+const usedHourlyIdx = new Set<number>();
+function getHourlyMsg(hour: number): string {
+  if (usedHourlyIdx.size >= HOURLY_TEMPLATES.length) usedHourlyIdx.clear();
+  let idx: number;
+  do { idx = Math.floor(Math.random() * HOURLY_TEMPLATES.length); } while (usedHourlyIdx.has(idx));
+  usedHourlyIdx.add(idx);
+  const pad = hour.toString().padStart(2, "0");
+  return HOURLY_TEMPLATES[idx]!(pad);
+}
+
+function scheduleHourlyReminder() {
+  const now = new Date();
+  const nextHour = new Date(now);
+  nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+  const msUntil = nextHour.getTime() - now.getTime();
+  setTimeout(() => {
+    const h = new Date().getHours();
+    io.emit("chat:message", makeBotMsg(getHourlyMsg(h)));
+    setInterval(() => {
+      const hh = new Date().getHours();
+      io.emit("chat:message", makeBotMsg(getHourlyMsg(hh)));
+    }, 60 * 60 * 1000);
+  }, msUntil);
+}
+
+// ── GuvenlikBot döngüsel mesajlar ─────────────────────────────────
+const BOT_MSG_POOL = [
   "Güvenlik sektöründe kariyer yapmak isteyenler için yüzlerce ilan mevcut!",
-  "Yeni üyelerimize hoş geldiniz! Soru ve sorunlarınız için destek menüsünü kullanabilirsiniz.",
   "Topluluk kurallarına uymayı unutmayın — saygılı bir ortam herkese faydalı olur.",
-  "Güvenlik sektöründeki son ilanlar için bizi takip etmeye devam edin!",
   "Herhangi bir sorun yaşıyorsanız Destek menüsünden bize ulaşabilirsiniz.",
   "Özel güvenlik sertifikası almak isteyenler için eğitim ilanlarımıza göz atın!",
+  "İstanbul, Ankara, İzmir ve daha birçok şehirde güncel ilanlar ekleniyor.",
+  "Profil sayfanızı tamamlayarak işverenlerin sizi daha kolay bulmasını sağlayın.",
+  "Yeni üyelerimize hoş geldiniz! Soru ve sorunlarınız için Destek menüsünü kullanın.",
+  "Güvenlik sektöründe gece vardiyası zammı yasal olarak yüzde 25'tir — haklarınızı bilin.",
+  "AVM, fabrika, site ve okul güvenliği için ayrı ayrı ilanlar platformumuzda.",
+  "Deneyimli güvenlik personeline büyük talep var — başvurularınızı güncel tutun.",
+  "SGK prim ödeyen şirketleri tercih edin, haklarınızdan vazgeçmeyin.",
+  "Silahlı güvenlik lisansı için gerekli belgeler ilanlar bölümünde açıklanmıştır.",
 ];
-let botMsgIndex = 0;
+const usedBotMsgIdx = new Set<number>();
+function getNextBotMsg(): string {
+  if (usedBotMsgIdx.size >= BOT_MSG_POOL.length) usedBotMsgIdx.clear();
+  let idx: number;
+  do { idx = Math.floor(Math.random() * BOT_MSG_POOL.length); } while (usedBotMsgIdx.has(idx));
+  usedBotMsgIdx.add(idx);
+  return BOT_MSG_POOL[idx]!;
+}
+async function getDynamicBotMsg(): Promise<string> {
+  const stats = await getListingStats();
+  if (stats.total > 0 && Math.random() < 0.35) {
+    const cityStr = stats.cities.slice(0, 3).join(", ");
+    const dynamic = [
+      `Şu an platformumuzda ${stats.total} aktif ilan bulunuyor. ${cityStr} başta olmak üzere birçok şehirde pozisyon var!`,
+      `Güncel maaş aralıkları: ${stats.minSalary.toLocaleString("tr-TR")} - ${stats.maxSalary.toLocaleString("tr-TR")} TL. ${stats.total} ilanı inceleyin.`,
+      `Bugün itibarıyla ${stats.total} açık pozisyon mevcut. ${cityStr} ve çevresinde fırsatlar sizi bekliyor!`,
+    ];
+    return dynamic[Math.floor(Math.random() * dynamic.length)]!;
+  }
+  return getNextBotMsg();
+}
+
 function scheduleBotMessage() {
-  const delay = 4 * 60 * 1000 + Math.random() * 6 * 60 * 1000;
-  setTimeout(() => {
-    io.emit("chat:message", makeBotMsg(BOT_MESSAGES[botMsgIndex % BOT_MESSAGES.length]!));
-    botMsgIndex++;
+  const delay = 5 * 60 * 1000 + Math.random() * 8 * 60 * 1000;
+  setTimeout(async () => {
+    const msg = await getDynamicBotMsg();
+    io.emit("chat:message", makeBotMsg(msg));
     scheduleBotMessage();
   }, delay);
 }
 
-// ── Fake Live Conversation ────────────────────────────────────────
-// Pools of realistic fake users and messages for the security sector
+// ── Sahte kullanıcılar ────────────────────────────────────────────
 const FAKE_USERS = [
-  { id: -1, username: "mehmet_k",    displayName: "Mehmet",   color: "#94a3b8" },
-  { id: -2, username: "ayse_g",      displayName: "Ayse",     color: "#a78bfa" },
-  { id: -3, username: "ali_demir",   displayName: "Ali",      color: "#94a3b8" },
-  { id: -4, username: "fatma_y",     displayName: "Fatma",    color: "#f9a8d4" },
-  { id: -5, username: "hasan_b",     displayName: "Hasan",    color: "#94a3b8" },
-  { id: -6, username: "zeynep_a",    displayName: "Zeynep",   color: "#67e8f9" },
-  { id: -7, username: "ibrahim_s",   displayName: "Ibrahim",  color: "#94a3b8" },
-  { id: -8, username: "selin_c",     displayName: "Selin",    color: "#86efac" },
+  { id: -1,  username: "mehmet_k",    displayName: "Mehmet",   color: "#94a3b8" },
+  { id: -2,  username: "ayse_g",      displayName: "Ayşe",     color: "#a78bfa" },
+  { id: -3,  username: "ali_demir",   displayName: "Ali",      color: "#94a3b8" },
+  { id: -4,  username: "fatma_y",     displayName: "Fatma",    color: "#f9a8d4" },
+  { id: -5,  username: "hasan_b",     displayName: "Hasan",    color: "#94a3b8" },
+  { id: -6,  username: "zeynep_a",    displayName: "Zeynep",   color: "#67e8f9" },
+  { id: -7,  username: "ibrahim_s",   displayName: "İbrahim",  color: "#94a3b8" },
+  { id: -8,  username: "selin_c",     displayName: "Selin",    color: "#86efac" },
+  { id: -9,  username: "murat_d",     displayName: "Murat",    color: "#fbbf24" },
+  { id: -10, username: "gulsum_k",    displayName: "Gülsüm",   color: "#f472b6" },
+  { id: -11, username: "taner_y",     displayName: "Taner",    color: "#94a3b8" },
+  { id: -12, username: "hacer_o",     displayName: "Hacer",    color: "#a3e635" },
 ];
 
-// Standalone messages (just a random comment)
 const STANDALONE_MSGS = [
   "Bugün yeni bir ilan gördüm, oldukça iyi görünüyor.",
   "Bu sektörde tecrübe çok önemli, en az 2 yıl şart gibi görünüyor.",
@@ -80,24 +174,123 @@ const STANDALONE_MSGS = [
   "Kıyafet yardımı yapan şirketler tercih edilmeli.",
   "İşe başlamadan önce mutlaka sözleşmeyi okuyun.",
   "Güvenlik kamerası sistemleri konusunda eğitim alan önde gidiyor.",
+  "Belediye güvenliği ilanları da son dönemde artmış.",
+  "Havaalanı güvenliği için özel sertifika gerekiyor, biliyor musunuz?",
+  "Tatil günleri yüzde elliden fazla zam hakkınız olduğunu unutmayın.",
+  "Sağlık kurumu güvenliği çok stresli ama maaşlar iyi.",
+  "Bu platforma yeni üye oldum, ilanlar gerçekten çok kapsamlı.",
+  "Sigortasız çalıştıranlardan uzak durun, hakkınızı koruyun.",
+  "İkinci el koruyucu ekipman mı yoksa yeni mi almak daha iyi?",
+  "Hangi şehirlerde talep daha fazla, bilen var mı?",
+  "Mağaza güvenliği ile banka güvenliği arasında çok fark var.",
+  "Sivil kıyafetli gözetleme görevi için ayrı eğitim gerekiyor.",
+  "Yaz aylarında tatil köyü güvenliği için ilanlar artıyor.",
 ];
 
-// Conversation pairs: A says something, B responds shortly after
-const CONV_PAIRS: { a: string; b: string; delay: number }[] = [
-  { a: "Bu ay kaç ilan çıktı acaba?", b: "Epey fazla, özellikle İstanbul ilanları artmış.", delay: 25000 },
-  { a: "Silahlı güvenlik maaşları ne kadar?", b: "Genellikle 25-35 bin TL arasında, şirkete göre değişiyor.", delay: 30000 },
-  { a: "AVM güvenliği deneyimli mi arıyor?", b: "Çoğu yer 1 yıl tecrübe istiyor, bazıları deneyimsiz de alıyor.", delay: 20000 },
-  { a: "Sertifika almak için kurs kaç para?", b: "MEB onaylı kurslar 3-5 bin TL civarı, fiyatlar değişiyor.", delay: 28000 },
-  { a: "Gece vardiyası zammı ne kadar oluyor?", b: "Yasal olarak yüzde 25 zam hakkınız var, bazı firmalar daha fazla veriyor.", delay: 22000 },
-  { a: "İstanbul'da hangi ilçelerde ilan var?", b: "Kadıköy, Şişli, Ataşehir çok ilanlar var, Anadolu yakası da iyi.", delay: 18000 },
-  { a: "Yeni başlayanlar için hangi pozisyon uygun?", b: "Site güvenliği veya iş merkezi güvenliği daha uygun başlangıç.", delay: 26000 },
-  { a: "Emekli maaşı alırken çalışabilir miyim?", b: "Evet, SGDP kesintisi olur ama çalışabilirsiniz.", delay: 32000 },
+// Dinamik konuşma çiftleri - DB verisiyle güncellenebilir
+type ConvPair = { a: string; bTemplate: (stats: { total: number; cities: string[]; minSalary: number; maxSalary: number }) => string; delay: number };
+
+const CONV_PAIRS: ConvPair[] = [
+  {
+    a: "Bu ay kaç ilan çıktı acaba?",
+    bTemplate: s => s.total > 0 ? `Şu an ${s.total} aktif ilan var. ${s.cities.slice(0, 2).join(" ve ")} başta olmak üzere her yerden.` : "Epey fazla, özellikle İstanbul ilanları artmış.",
+    delay: 25000,
+  },
+  {
+    a: "Silahlı güvenlik maaşları ne kadar?",
+    bTemplate: s => s.maxSalary > 0 ? `Genellikle ${s.minSalary.toLocaleString("tr-TR")} - ${s.maxSalary.toLocaleString("tr-TR")} TL arasında, şirkete göre değişiyor.` : "Genellikle 28-45 bin TL arasında, şirkete göre değişiyor.",
+    delay: 30000,
+  },
+  {
+    a: "AVM güvenliği deneyimli mi arıyor?",
+    bTemplate: () => "Çoğu yer 1 yıl tecrübe istiyor, bazıları deneyimsiz de alıyor. İlanlara bakman lazım.",
+    delay: 20000,
+  },
+  {
+    a: "Sertifika almak için kurs kaç para?",
+    bTemplate: () => "MEB onaylı kurslar 4-7 bin TL civarı, fiyatlar sürekli değişiyor.",
+    delay: 28000,
+  },
+  {
+    a: "Gece vardiyası zammı ne kadar oluyor?",
+    bTemplate: () => "Yasal olarak yüzde 25 zam hakkınız var, bazı firmalar yüzde 35-40 da veriyor.",
+    delay: 22000,
+  },
+  {
+    a: "İstanbul'da hangi ilçelerde ilan var?",
+    bTemplate: () => "Kadıköy, Şişli, Ataşehir çok ilan var. Anadolu yakası da son dönemde iyice arttı.",
+    delay: 18000,
+  },
+  {
+    a: "Yeni başlayanlar için hangi pozisyon uygun?",
+    bTemplate: () => "Site güvenliği veya iş merkezi güvenliği daha uygun başlangıç. Gece vardiyası daha kolay bulunuyor.",
+    delay: 26000,
+  },
+  {
+    a: "Emekli maaşı alırken çalışabilir miyim?",
+    bTemplate: () => "Evet, SGDP kesintisi olur ama çalışabilirsiniz. Bazı şirketler buna göre kontratsız alıyor.",
+    delay: 32000,
+  },
+  {
+    a: "Hangi belgeler lazım başvuru için?",
+    bTemplate: () => "Genellikle nüfus cüzdanı, sabıka kaydı, sağlık raporu ve özel güvenlik kimliği yeterli.",
+    delay: 24000,
+  },
+  {
+    a: "İzmir'de iş ilanı var mı?",
+    bTemplate: s => s.cities.includes("İzmir") ? "Evet, İzmir ilanları son dönemde arttı. Platforma baksan iyi olur." : "İzmir ilanları da var ama İstanbul kadar yoğun değil.",
+    delay: 20000,
+  },
+  {
+    a: "Yabancı uyruklu çalışabilir mi bu sektörde?",
+    bTemplate: () => "Hayır, Türk vatandaşlığı şart. Bazı firma ilanlarında açıkça yazıyor.",
+    delay: 27000,
+  },
+  {
+    a: "Okul güvenliği maaşları düşük mü?",
+    bTemplate: () => "Diğer pozisyonlara göre biraz düşük kalabiliyor ama çalışma saatleri düzenli. Yazın tatil oluyor.",
+    delay: 23000,
+  },
+  {
+    a: "Kaç yıl deneyim gerekiyor genelde?",
+    bTemplate: () => "Çoğu ilan 1-3 yıl istiyor. Deneyimsiz başvurabilirsiniz ama alınma şansı azalıyor.",
+    delay: 19000,
+  },
+  {
+    a: "Sigortalı pozisyon bulmak zor mu?",
+    bTemplate: () => "Bu platformdaki ilanların büyük çoğunluğu SGK'lı. Sigortsuz ilanlardan kaçının.",
+    delay: 21000,
+  },
+  {
+    a: "En çok hangi şehirde ilan var?",
+    bTemplate: s => s.cities.length > 0 ? `${s.cities[0]} en fazla ilana sahip şehir şu an.` : "İstanbul açık ara önde, ardından Ankara ve İzmir geliyor.",
+    delay: 25000,
+  },
 ];
 
-function makeFakeMsg(user: typeof FAKE_USERS[0], content: string): object {
+const usedConvIdx = new Set<number>();
+function getNextConvPair(): ConvPair {
+  if (usedConvIdx.size >= CONV_PAIRS.length) usedConvIdx.clear();
+  let idx: number;
+  do { idx = Math.floor(Math.random() * CONV_PAIRS.length); } while (usedConvIdx.has(idx));
+  usedConvIdx.add(idx);
+  return CONV_PAIRS[idx]!;
+}
+
+const usedStandaloneIdx = new Set<number>();
+function getNextStandalone(): string {
+  if (usedStandaloneIdx.size >= STANDALONE_MSGS.length) usedStandaloneIdx.clear();
+  let idx: number;
+  do { idx = Math.floor(Math.random() * STANDALONE_MSGS.length); } while (usedStandaloneIdx.has(idx));
+  usedStandaloneIdx.add(idx);
+  return STANDALONE_MSGS[idx]!;
+}
+
+function makeFakeMsg(user: typeof FAKE_USERS[0], content: string, replyToUsername?: string): object {
+  const fullContent = replyToUsername ? `@${replyToUsername} ${content}` : content;
   return {
     id: Date.now() + Math.random(),
-    content,
+    content: fullContent,
     userId: user.id,
     username: user.username,
     displayName: user.displayName,
@@ -106,45 +299,68 @@ function makeFakeMsg(user: typeof FAKE_USERS[0], content: string): object {
     userNameAnimated: false,
     userRole: "user",
     replyToId: null,
-    replyToUsername: null,
+    replyToUsername: replyToUsername ?? null,
     replyToContent: null,
     isPinned: false,
-    mentions: [],
+    mentions: replyToUsername ? [replyToUsername] : [],
+    reactions: [],
     createdAt: new Date().toISOString(),
     isFake: true,
   };
 }
 
-function getRandomItem<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]!;
+function getRandomUser(exclude?: typeof FAKE_USERS[0]): typeof FAKE_USERS[0] {
+  let user: typeof FAKE_USERS[0];
+  do { user = FAKE_USERS[Math.floor(Math.random() * FAKE_USERS.length)]!; } while (exclude && user.id === exclude.id);
+  return user;
+}
+
+// Bot kullanıcıya @ ile cevap versin
+async function maybeBotReply(question: string, askerUsername: string) {
+  // %40 ihtimalle bot da araya girip cevap versin
+  if (Math.random() > 0.4) return;
+  const stats = await getListingStats();
+  const botReplies: Array<(s: typeof stats) => string> = [
+    s => `Güncel bilgi: şu an platformumuzda ${s.total} aktif ilan mevcut. İncelemeyi unutmayın!`,
+    s => `Maaş aralıkları ${s.minSalary.toLocaleString("tr-TR")} - ${s.maxSalary.toLocaleString("tr-TR")} TL arasında değişiyor.`,
+    () => "Daha fazla bilgi için ilanlar sayfamızı ziyaret edebilirsiniz!",
+    s => s.cities.length > 0 ? `${s.cities.slice(0, 3).join(", ")} gibi şehirlerde pozisyon açıklamaları var.` : "Birçok şehirde ilanlarımız mevcut.",
+  ];
+  const replyFn = botReplies[Math.floor(Math.random() * botReplies.length)]!;
+  const content = `@${askerUsername} ${replyFn(stats)}`;
+  setTimeout(() => {
+    io.emit("chat:message", { ...makeBotMsg(content, askerUsername), content });
+  }, 8000 + Math.random() * 12000);
 }
 
 function scheduleFakeConversation() {
-  // Random interval 45 - 150 seconds
-  const delay = 45000 + Math.random() * 105000;
-  setTimeout(() => {
+  const delay = 50000 + Math.random() * 110000;
+  setTimeout(async () => {
     const roll = Math.random();
-    if (roll < 0.4) {
-      // Standalone single message
-      const user = getRandomItem(FAKE_USERS);
-      const msg = getRandomItem(STANDALONE_MSGS);
-      io.emit("chat:message", makeFakeMsg(user, msg));
+    if (roll < 0.35) {
+      const user = getRandomUser();
+      io.emit("chat:message", makeFakeMsg(user, getNextStandalone()));
     } else {
-      // Conversation pair
-      const pair = getRandomItem(CONV_PAIRS);
-      const userA = getRandomItem(FAKE_USERS);
-      let userB = getRandomItem(FAKE_USERS);
-      while (userB.id === userA.id) userB = getRandomItem(FAKE_USERS);
+      const pair = getNextConvPair();
+      const stats = await getListingStats();
+      const userA = getRandomUser();
+      const userB = getRandomUser(userA);
 
       io.emit("chat:message", makeFakeMsg(userA, pair.a));
+
+      // Bot bazen soruya cevap verir
+      await maybeBotReply(pair.a, userA.username);
+
       setTimeout(() => {
-        io.emit("chat:message", makeFakeMsg(userB, pair.b));
+        const answer = pair.bTemplate(stats);
+        io.emit("chat:message", makeFakeMsg(userB, answer, userA.username));
       }, pair.delay);
     }
     scheduleFakeConversation();
   }, delay);
 }
 
+// ── Hoş geldiniz metni ────────────────────────────────────────────
 const WELCOME_RULES = `Hoş geldiniz! Topluluk Kuralları:
 1. Saygılı ve nazik olun
 2. Spam ve reklam yapmayın
@@ -154,9 +370,8 @@ const WELCOME_RULES = `Hoş geldiniz! Topluluk Kuralları:
 
 İyi sohbetler dileriz!`;
 
-// Track when each userId last disconnected (in-memory)
-const userLastDisconnect = new Map<number, number>(); // userId -> timestamp ms
-const JOIN_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes
+const userLastDisconnect = new Map<number, number>();
+const JOIN_THRESHOLD_MS = 20 * 60 * 1000;
 
 // ── Socket.io ─────────────────────────────────────────────────────
 io.on("connection", (socket) => {
@@ -171,14 +386,12 @@ io.on("connection", (socket) => {
       const entry = onlineSockets.get(socketId);
       if (entry) { entry.userId = userId; onlineSockets.set(socketId, entry); }
 
-      // Count how many other sockets this user already has open
       const alreadyConnected = [...onlineSockets.values()].filter(e => e.userId === userId).length;
 
       try {
         const [user] = await db.select({ username: usersTable.username, displayName: usersTable.displayName })
           .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
         if (user) {
-          // Only emit join if user had no other open sockets AND was away 20+ min (or first visit)
           if (alreadyConnected <= 1) {
             const lastDisconnect = userLastDisconnect.get(userId);
             const awayLong = !lastDisconnect || (Date.now() - lastDisconnect) >= JOIN_THRESHOLD_MS;
@@ -195,7 +408,6 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     const entry = onlineSockets.get(socketId);
     if (entry?.userId) {
-      // Check if this was the user's last socket
       const remaining = [...onlineSockets.values()].filter(e => e.userId === entry.userId && e !== entry);
       if (remaining.length === 0) {
         userLastDisconnect.set(entry.userId, Date.now());
@@ -207,9 +419,10 @@ io.on("connection", (socket) => {
   });
 });
 
-// Start loops after warmup
-setTimeout(() => scheduleBotMessage(), 2 * 60 * 1000);
-setTimeout(() => scheduleFakeConversation(), 30000); // Start fake chat after 30s
+// Başlangıç gecikmeleri
+setTimeout(() => scheduleBotMessage(), 3 * 60 * 1000);
+setTimeout(() => scheduleFakeConversation(), 30000);
+scheduleHourlyReminder();
 
 httpServer.listen(port, (err?: Error) => {
   if (err) { logger.error({ err }, "Error listening on port"); process.exit(1); }
