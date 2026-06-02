@@ -21,19 +21,19 @@ interface UserSuggestion { id: number; username: string; displayName?: string | 
 /* ── Role badge ─────────────────────────────────────────────── */
 function RoleBadge({ role }: { role: string }) {
   if (role === "admin") return (
-    <span className="text-[8px] font-black tracking-widest uppercase"
-      style={{ color: "rgba(248,113,113,0.9)", animation: "badge-pulse-red 2.5s ease-in-out infinite" }}>
-      ADMİN
+    <span className="text-[7px] font-black tracking-widest uppercase"
+      style={{ color: "rgba(248,113,113,0.85)", animation: "badge-pulse-red 2.5s ease-in-out infinite" }}>
+      YÖNETİCİ
     </span>
   );
   if (role === "moderator") return (
-    <span className="text-[8px] font-black tracking-widest uppercase"
-      style={{ color: "rgba(96,165,250,0.9)", animation: "badge-pulse-blue 2.5s ease-in-out infinite" }}>
-      MOD
+    <span className="text-[7px] font-black tracking-widest uppercase"
+      style={{ color: "rgba(96,165,250,0.85)", animation: "badge-pulse-blue 2.5s ease-in-out infinite" }}>
+      MODERATÖR
     </span>
   );
   return (
-    <span className="text-[8px] font-semibold tracking-wider uppercase" style={{ color: "rgba(148,163,184,0.4)" }}>ÜYE</span>
+    <span className="text-[7px] font-semibold tracking-wider uppercase" style={{ color: "rgba(148,163,184,0.35)" }}>ÜYE</span>
   );
 }
 
@@ -217,6 +217,7 @@ export default function Chat() {
                   <span className="text-[9px] text-white/30">Sen</span>
                 ) : (
                   <>
+                    <RoleBadge role={chatMsg.userRole ?? "user"} />
                     <span className={`text-[13px] font-extrabold leading-tight tracking-wide ${chatMsg.userNameAnimated ? "animate-rainbow" : ""}`}
                       style={{
                         ...(chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: chatMsg.userNameColor } : !chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: "#e2e8f0" } : {}),
@@ -228,7 +229,6 @@ export default function Chat() {
                       }}>
                       {name}
                     </span>
-                    <RoleBadge role={chatMsg.userRole ?? "user"} />
                   </>
                 )}
               </div>
