@@ -21,16 +21,10 @@ interface UserSuggestion { id: number; username: string; displayName?: string | 
 /* ── Role badge ─────────────────────────────────────────────── */
 function RoleBadge({ role }: { role: string }) {
   if (role === "admin") return (
-    <span className="text-[7px] font-black tracking-widest uppercase"
-      style={{ color: "rgba(248,113,113,0.85)", animation: "badge-pulse-red 2.5s ease-in-out infinite" }}>
-      YÖNETİCİ
-    </span>
+    <span className="badge-admin text-[7px] font-black tracking-widest uppercase">YÖNETİCİ</span>
   );
   if (role === "moderator") return (
-    <span className="text-[7px] font-black tracking-widest uppercase"
-      style={{ color: "rgba(96,165,250,0.85)", animation: "badge-pulse-blue 2.5s ease-in-out infinite" }}>
-      MODERATÖR
-    </span>
+    <span className="badge-mod text-[7px] font-black tracking-widest uppercase">MODERATÖR</span>
   );
   return (
     <span className="text-[7px] font-semibold tracking-wider uppercase" style={{ color: "rgba(148,163,184,0.35)" }}>ÜYE</span>
@@ -269,13 +263,36 @@ export default function Chat() {
   return (
     <Layout>
       <style>{`
-        @keyframes badge-pulse-red {
-          0%, 100% { opacity: 0.9; text-shadow: 0 0 6px rgba(248,113,113,0.6); }
-          50%       { opacity: 0.6; text-shadow: 0 0 2px rgba(248,113,113,0.2); }
+        @keyframes shimmer-blue {
+          0%   { background-position: -250% 0; }
+          100% { background-position: 250% 0; }
         }
-        @keyframes badge-pulse-blue {
-          0%, 100% { opacity: 0.9; text-shadow: 0 0 6px rgba(96,165,250,0.6); }
-          50%       { opacity: 0.6; text-shadow: 0 0 2px rgba(96,165,250,0.2); }
+        @keyframes shimmer-green {
+          0%   { background-position: -250% 0; }
+          100% { background-position: 250% 0; }
+        }
+        .badge-admin {
+          background: linear-gradient(90deg,
+            #1e3a8a 0%, #3b82f6 25%, #bfdbfe 50%, #93c5fd 65%, #3b82f6 80%, #1e3a8a 100%);
+          background-size: 250% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: shimmer-blue 2.8s linear infinite;
+          filter: drop-shadow(0 0 5px rgba(96,165,250,0.7));
+        }
+        .badge-mod {
+          background: linear-gradient(90deg,
+            #14532d 0%, #22c55e 25%, #bbf7d0 50%, #86efac 65%, #22c55e 80%, #14532d 100%);
+          background-size: 250% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: shimmer-green 2.8s linear infinite;
+          filter: drop-shadow(0 0 5px rgba(34,197,94,0.7));
+        }
+        .badge-uyе {
+          color: rgba(148,163,184,0.35);
         }
       `}</style>
       <div className="flex flex-col h-[calc(100vh-7rem)] bg-background relative">
