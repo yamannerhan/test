@@ -26,7 +26,16 @@ export const adminSettingsTable = pgTable("admin_settings", {
   maintenanceMode: boolean("maintenance_mode").notNull().default(false),
   welcomeMessage: text("welcome_message"),
   openaiApiKey: text("openai_api_key"),
+  spamCooldown: integer("spam_cooldown").notNull().default(3),
+  chatAnnounceListings: boolean("chat_announce_listings").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const chatRulesTable = pgTable("chat_rules", {
+  id: serial("id").primaryKey(),
+  content: text("content").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const bannedWordsTable = pgTable("banned_words", {

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, usersTable, listingsTable, chatMessagesTable, announcementsTable, adminSettingsTable, bannedWordsTable, bannersTable, supportTicketsTable } from "@workspace/db";
+import { db, usersTable, listingsTable, chatMessagesTable, announcementsTable, adminSettingsTable, bannedWordsTable, bannersTable, supportTicketsTable, chatRulesTable } from "@workspace/db";
 import { eq, desc, ilike, and, sql, asc } from "drizzle-orm";
 import { authMiddleware, requireAdmin } from "../middlewares/auth";
 import { onlineSockets } from "./chat";
@@ -146,25 +146,35 @@ router.patch("/admin/users/:id/name-color", authMiddleware, requireAdmin, async 
   res.json({ success: true, message: "İsim rengi güncellendi" });
 });
 
+function settingsJson(s: typeof adminSettingsTable.$inferSelect) {
+  return {
+    chatLocked: s.chatLocked, fakeOnlineBonus: s.fakeOnlineBonus,
+    maintenanceMode: s.maintenanceMode, welcomeMessage: s.welcomeMessage,
+    hasOpenaiKey: !!s.openaiApiKey, spamCooldown: s.spamCooldown ?? 3,
+    chatAnnounceListings: s.chatAnnounceListings ?? true,
+  };
+}
+
 router.get("/admin/settings", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {
   const settings = await db.select().from(adminSettingsTable).limit(1);
   if (!settings[0]) {
     const [created] = await db.insert(adminSettingsTable).values({ chatLocked: false, fakeOnlineBonus: 0, maintenanceMode: false }).returning();
-    res.json({ chatLocked: created.chatLocked, fakeOnlineBonus: created.fakeOnlineBonus, maintenanceMode: created.maintenanceMode, welcomeMessage: created.welcomeMessage, hasOpenaiKey: false });
+    res.json(settingsJson(created));
     return;
   }
-  const s = settings[0];
-  res.json({ chatLocked: s.chatLocked, fakeOnlineBonus: s.fakeOnlineBonus, maintenanceMode: s.maintenanceMode, welcomeMessage: s.welcomeMessage, hasOpenaiKey: !!s.openaiApiKey });
+  res.json(settingsJson(settings[0]));
 });
 
 router.patch("/admin/settings", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
-  const { chatLocked, fakeOnlineBonus, maintenanceMode, welcomeMessage, openaiApiKey } = req.body as Record<string, unknown>;
+  const { chatLocked, fakeOnlineBonus, maintenanceMode, welcomeMessage, openaiApiKey, spamCooldown, chatAnnounceListings } = req.body as Record<string, unknown>;
   const updates: Partial<typeof adminSettingsTable.$inferInsert> = {};
   if (chatLocked !== undefined) updates.chatLocked = Boolean(chatLocked);
   if (fakeOnlineBonus !== undefined) updates.fakeOnlineBonus = parseInt(String(fakeOnlineBonus), 10);
   if (maintenanceMode !== undefined) updates.maintenanceMode = Boolean(maintenanceMode);
   if (welcomeMessage !== undefined) updates.welcomeMessage = welcomeMessage == null ? null : String(welcomeMessage);
   if (openaiApiKey !== undefined) updates.openaiApiKey = openaiApiKey == null || openaiApiKey === "" ? null : String(openaiApiKey);
+  if (spamCooldown !== undefined) updates.spamCooldown = Math.max(0, parseInt(String(spamCooldown), 10) || 0);
+  if (chatAnnounceListings !== undefined) updates.chatAnnounceListings = Boolean(chatAnnounceListings);
 
   const existing = await db.select().from(adminSettingsTable).limit(1);
   let result;
@@ -173,7 +183,7 @@ router.patch("/admin/settings", authMiddleware, requireAdmin, async (req, res): 
   } else {
     [result] = await db.update(adminSettingsTable).set(updates).where(eq(adminSettingsTable.id, existing[0].id)).returning();
   }
-  res.json({ chatLocked: result!.chatLocked, fakeOnlineBonus: result!.fakeOnlineBonus, maintenanceMode: result!.maintenanceMode, welcomeMessage: result!.welcomeMessage, hasOpenaiKey: !!result!.openaiApiKey });
+  res.json(settingsJson(result!));
 });
 
 // ── AI: parse raw text into listing fields ─────────────────────────────────────
@@ -237,6 +247,50 @@ router.post("/admin/chat/lock", authMiddleware, requireAdmin, async (req, res): 
   const ioInstance = (req as any).app.get("io") as { emit: (event: string, data: unknown) => void } | null;
   if (ioInstance) ioInstance.emit("chat_locked", { locked: !current });
   res.json({ success: true, message: !current ? "Sohbet kilitledi" : "Sohbet kilidi açıldı" });
+});
+
+// ─── Clear all chat ────────────────────────────────────────────────
+router.delete("/admin/chat/messages/all", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  await db.update(chatMessagesTable).set({ isDeleted: true });
+  const io = (req as any).app.get("io") as { emit: (event: string, data: unknown) => void } | null;
+  if (io) io.emit("chat:clear", {});
+  res.json({ success: true });
+});
+
+// ─── Chat rules ────────────────────────────────────────────────────
+router.get("/admin/chat/rules", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {
+  const rules = await db.select().from(chatRulesTable).orderBy(asc(chatRulesTable.sortOrder), asc(chatRulesTable.id));
+  res.json(rules.map(r => ({ id: r.id, content: r.content, sortOrder: r.sortOrder })));
+});
+
+router.get("/chat/rules", async (_req, res): Promise<void> => {
+  const rules = await db.select().from(chatRulesTable).orderBy(asc(chatRulesTable.sortOrder), asc(chatRulesTable.id));
+  res.json(rules.map(r => ({ id: r.id, content: r.content, sortOrder: r.sortOrder })));
+});
+
+router.post("/admin/chat/rules", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const { content, sortOrder } = req.body as { content?: string; sortOrder?: number };
+  if (!content?.trim()) { res.status(400).json({ error: "İçerik zorunludur" }); return; }
+  const [rule] = await db.insert(chatRulesTable).values({ content: content.trim(), sortOrder: sortOrder ?? 0 }).returning();
+  res.status(201).json({ id: rule!.id, content: rule!.content, sortOrder: rule!.sortOrder });
+});
+
+router.patch("/admin/chat/rules/:id", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  const { content, sortOrder } = req.body as { content?: string; sortOrder?: number };
+  const updates: Partial<typeof chatRulesTable.$inferInsert> = {};
+  if (content !== undefined) updates.content = content.trim();
+  if (sortOrder !== undefined) updates.sortOrder = sortOrder;
+  await db.update(chatRulesTable).set(updates).where(eq(chatRulesTable.id, id));
+  res.json({ success: true });
+});
+
+router.delete("/admin/chat/rules/:id", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  await db.delete(chatRulesTable).where(eq(chatRulesTable.id, id));
+  res.sendStatus(204);
 });
 
 router.get("/admin/banned-words", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {

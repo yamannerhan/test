@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, X, Send, Maximize2, Zap, Bot, Shield, Star } from "lucide-react";
+import { X, Send, Maximize2, Bot, Shield, Star, MessageSquareDot } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "wouter";
 import { io, Socket } from "socket.io-client";
@@ -81,6 +81,40 @@ function UserAvatar({ src, username, role }: { src?: string | null; username: st
   );
 }
 
+/* ── Cool floating button icon ───────────────────────────── */
+function ChatIcon({ unread, pulse }: { unread: number; pulse: boolean }) {
+  return (
+    <div className="relative flex items-center justify-center w-full h-full">
+      {/* Glow ring */}
+      <motion.div
+        animate={pulse ? { scale: [1, 1.6, 1], opacity: [0.5, 0, 0] } : { scale: 1, opacity: 0 }}
+        transition={{ duration: 0.6 }}
+        className="absolute inset-0 rounded-2xl"
+        style={{ background: "radial-gradient(circle,rgba(79,70,229,0.8),transparent)" }}
+      />
+      {/* Icon layers */}
+      <div className="relative">
+        <MessageSquareDot className="w-6 h-6 text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.6)]" />
+        {/* live indicator dot */}
+        <span
+          className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#4F46E5] bg-green-400"
+          style={{ boxShadow: "0 0 6px rgba(74,222,128,0.8)" }}
+        />
+      </div>
+      {/* Unread badge */}
+      {unread > 0 && (
+        <motion.span
+          initial={{ scale: 0 }} animate={{ scale: 1 }}
+          className="absolute -top-2 -right-2 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 border-2 border-[#4F46E5]"
+          style={{ boxShadow: "0 0 8px rgba(239,68,68,0.7)" }}
+        >
+          {unread > 9 ? "9+" : unread}
+        </motion.span>
+      )}
+    </div>
+  );
+}
+
 export function ChatBubble() {
   const { user } = useAuth();
   const [location] = useLocation();
@@ -91,6 +125,8 @@ export function ChatBubble() {
   const [unread, setUnread] = useState(0);
   const [sending, setSending] = useState(false);
   const [pulse, setPulse] = useState(false);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isOnChatPage = location === "/sohbet";
 
@@ -121,6 +157,9 @@ export function ChatBubble() {
     s.on("chat:delete", ({ id }: { id: number }) => {
       setMessages(prev => prev.filter(m => !isSystem(m) && (m as ChatMessage).id !== id));
     });
+    s.on("chat:clear", () => {
+      setMessages([]);
+    });
     s.on("chat:join", ({ username }: { username: string }) => {
       addMsg({ id: Date.now(), type: "join", text: `${username} sohbete katıldı`, createdAt: new Date().toISOString() });
     });
@@ -141,16 +180,32 @@ export function ChatBubble() {
     if (open) setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   }, [messages.length]);
 
+  const startCooldown = (seconds: number) => {
+    setCooldownLeft(seconds);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setCooldownLeft(prev => {
+        if (prev <= 1) { clearInterval(cooldownRef.current!); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const sendMsg = async () => {
-    if (!content.trim() || !user || sending) return;
+    if (!content.trim() || !user || sending || cooldownLeft > 0) return;
     setSending(true);
     try {
-      await fetch("/api/chat/messages", {
+      const r = await fetch("/api/chat/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ content: content.trim() }),
       });
-      setContent("");
+      if (r.status === 429) {
+        const data = await r.json().catch(() => ({})) as { waitSeconds?: number };
+        startCooldown(data.waitSeconds ?? 3);
+        return;
+      }
+      if (r.ok) setContent("");
     } catch {} finally { setSending(false); }
   };
 
@@ -162,25 +217,31 @@ export function ChatBubble() {
 
   return (
     <>
-      {/* role-slide keyframe injected inline */}
       <style>{`
         @keyframes role-slide {
           0%   { background-position: 0% 50%; }
           100% { background-position: 200% 50%; }
+        }
+        @keyframes bubble-glow {
+          0%, 100% { box-shadow: 0 8px 32px rgba(79,70,229,0.5), 0 0 0 1px rgba(255,255,255,0.1); }
+          50% { box-shadow: 0 8px 40px rgba(124,58,237,0.7), 0 0 0 1px rgba(255,255,255,0.15), 0 0 0 4px rgba(79,70,229,0.15); }
         }
       `}</style>
 
       {/* Floating button */}
       <motion.button
         onClick={() => setOpen(o => !o)}
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.94 }}
-        animate={pulse && !open ? { scale: [1, 1.15, 1] } : {}}
+        whileHover={{ scale: 1.08, rotate: open ? 0 : 5 }}
+        whileTap={{ scale: 0.92 }}
+        animate={pulse && !open ? { scale: [1, 1.18, 1] } : {}}
         transition={{ duration: 0.3 }}
-        className="fixed bottom-24 right-4 z-50 w-14 h-14 rounded-2xl shadow-2xl flex items-center justify-center"
+        className="fixed bottom-24 right-4 z-50 w-14 h-14 rounded-2xl flex items-center justify-center"
         style={{
-          background: "linear-gradient(135deg,#4F46E5,#7C3AED)",
-          boxShadow: "0 8px 32px rgba(79,70,229,0.5), 0 0 0 1px rgba(255,255,255,0.1)",
+          background: open
+            ? "linear-gradient(135deg,#1E293B,#334155)"
+            : "linear-gradient(135deg,#4F46E5,#7C3AED,#4F46E5)",
+          backgroundSize: "200% 200%",
+          animation: open ? "none" : "bubble-glow 3s ease-in-out infinite",
         }}
       >
         <AnimatePresence mode="wait">
@@ -189,16 +250,8 @@ export function ChatBubble() {
               <X className="w-5 h-5 text-white" />
             </motion.div>
           ) : (
-            <motion.div key="chat" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.18 }} className="relative">
-              <MessageCircle className="w-6 h-6 text-white" />
-              {unread > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }} animate={{ scale: 1 }}
-                  className="absolute -top-2 -right-2 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 border-2 border-background"
-                >
-                  {unread > 9 ? "9+" : unread}
-                </motion.span>
-              )}
+            <motion.div key="chat" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.18 }}>
+              <ChatIcon unread={unread} pulse={pulse} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -227,7 +280,7 @@ export function ChatBubble() {
               style={{ background: "linear-gradient(135deg,rgba(79,70,229,0.9),rgba(124,58,237,0.9))", borderBottom: "1px solid rgba(255,255,255,0.08)" }}
             >
               <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                <MessageCircle className="w-4 h-4 text-white" />
+                <MessageSquareDot className="w-4 h-4 text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white font-bold text-sm leading-tight">Topluluk Sohbeti</p>
@@ -250,7 +303,7 @@ export function ChatBubble() {
             <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0" style={{ maxHeight: 360 }}>
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-24 gap-2">
-                  <MessageCircle className="w-8 h-8 text-white/10" />
+                  <MessageSquareDot className="w-8 h-8 text-white/10" />
                   <p className="text-xs text-muted-foreground">Henüz mesaj yok.</p>
                 </div>
               ) : (
@@ -260,8 +313,8 @@ export function ChatBubble() {
                     return (
                       <motion.div key={msg.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex justify-center">
                         {msg.type === "join" ? (
-                          <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] font-medium px-3 py-1 rounded-full">
-                            <Zap className="w-2.5 h-2.5" />
+                          <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-medium px-3 py-1 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                             {msg.text}
                           </div>
                         ) : (
@@ -308,16 +361,12 @@ export function ChatBubble() {
                       animate={{ opacity: 1, y: 0 }}
                       className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}
                     >
-                      {/* Avatar — always shown */}
                       <UserAvatar
                         src={chatMsg.userAvatarUrl}
                         username={chatMsg.username}
                         role={chatMsg.userRole ?? "user"}
                       />
-
-                      {/* Bubble */}
                       <div className={`flex flex-col max-w-[75%] ${isMe ? "items-end" : "items-start"}`}>
-                        {/* Name row — shown for everyone (including "me") */}
                         <div className="flex items-center flex-wrap gap-0.5 mb-1 px-1">
                           {isMe ? (
                             <span className="text-[9px] font-bold text-white/40">Sen</span>
@@ -333,8 +382,6 @@ export function ChatBubble() {
                             </>
                           )}
                         </div>
-
-                        {/* Bubble body */}
                         <div
                           className={`rounded-2xl px-3 py-2 text-xs ${isMe ? "rounded-br-sm text-white" : "rounded-bl-sm"}`}
                           style={
@@ -360,29 +407,45 @@ export function ChatBubble() {
                 <Link href="/giris" onClick={() => setOpen(false)}
                   className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-bold text-white"
                   style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }}>
-                  <MessageCircle className="w-3.5 h-3.5" />
+                  <MessageSquareDot className="w-3.5 h-3.5" />
                   Giriş yap ve mesaj gönder
                 </Link>
               ) : (
-                <div className="flex gap-2 items-center">
-                  <input
-                    value={content}
-                    onChange={e => setContent(e.target.value)}
-                    onKeyDown={handleKey}
-                    placeholder="Bir şeyler yaz..."
-                    maxLength={500}
-                    className="flex-1 rounded-xl px-3 py-2.5 text-xs text-foreground placeholder:text-white/30 focus:outline-none"
-                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
-                  />
-                  <motion.button
-                    onClick={sendMsg}
-                    disabled={!content.trim() || sending}
-                    whileTap={{ scale: 0.9 }}
-                    className="w-9 h-9 rounded-xl flex items-center justify-center disabled:opacity-30 shrink-0 transition-opacity"
-                    style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }}
-                  >
-                    <Send className="w-3.5 h-3.5 text-white" />
-                  </motion.button>
+                <div className="space-y-1.5">
+                  {cooldownLeft > 0 && (
+                    <div className="flex items-center gap-1.5 px-1">
+                      <div className="h-0.5 flex-1 bg-white/10 rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full bg-amber-400"
+                          initial={{ width: "100%" }}
+                          animate={{ width: "0%" }}
+                          transition={{ duration: cooldownLeft, ease: "linear" }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-amber-400 font-bold shrink-0">{cooldownLeft}s</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2 items-center">
+                    <input
+                      value={content}
+                      onChange={e => setContent(e.target.value)}
+                      onKeyDown={handleKey}
+                      placeholder={cooldownLeft > 0 ? `${cooldownLeft}s bekle...` : "Bir şeyler yaz..."}
+                      disabled={cooldownLeft > 0}
+                      maxLength={500}
+                      className="flex-1 rounded-xl px-3 py-2.5 text-xs text-foreground placeholder:text-white/30 focus:outline-none disabled:opacity-50"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    />
+                    <motion.button
+                      onClick={sendMsg}
+                      disabled={!content.trim() || sending || cooldownLeft > 0}
+                      whileTap={{ scale: 0.9 }}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center disabled:opacity-30 shrink-0 transition-opacity"
+                      style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }}
+                    >
+                      <Send className="w-3.5 h-3.5 text-white" />
+                    </motion.button>
+                  </div>
                 </div>
               )}
             </div>

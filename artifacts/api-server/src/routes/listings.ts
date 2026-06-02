@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, listingsTable, listingLikesTable, listingFavoritesTable, usersTable } from "@workspace/db";
+import { db, listingsTable, listingLikesTable, listingFavoritesTable, usersTable, adminSettingsTable, chatMessagesTable } from "@workspace/db";
 import { eq, desc, and, sql, ilike, inArray } from "drizzle-orm";
 import { authMiddleware, optionalAuthMiddleware, requireAdmin } from "../middlewares/auth";
 
@@ -102,6 +102,42 @@ router.post("/listings", authMiddleware, async (req, res): Promise<void> => {
     authorId: req.user!.id,
     status: req.user!.role === "admin" ? "active" : "active",
   }).returning();
+
+  // Announce new listing in chat if enabled
+  try {
+    const settings = await db.select().from(adminSettingsTable).limit(1);
+    if (settings[0]?.chatAnnounceListings !== false) {
+      const chatContent = `Yeni ilan: ${title} — ${company} (${city})${salary ? ` • ${salary}` : ""}`;
+      const [chatMsg] = await db.insert(chatMessagesTable).values({
+        content: chatContent,
+        userId: 0, // bot user
+        isPinned: false,
+        isDeleted: false,
+      }).returning();
+      const io = (req as unknown as { app: { get: (k: string) => unknown } }).app.get("io") as { emit: (e: string, d: unknown) => void } | null;
+      if (io && chatMsg) {
+        io.emit("chat:message", {
+          id: chatMsg.id,
+          content: chatContent,
+          userId: 0,
+          username: "GuvenlikBot",
+          displayName: null,
+          userAvatarUrl: null,
+          userNameColor: "#06B6D4",
+          userNameAnimated: false,
+          userRole: "bot",
+          replyToId: null,
+          replyToUsername: null,
+          replyToContent: null,
+          isPinned: false,
+          isBot: true,
+          listingId: listing!.id,
+          mentions: [],
+          createdAt: chatMsg.createdAt.toISOString(),
+        });
+      }
+    }
+  } catch { /* don't fail the listing creation */ }
 
   res.status(201).json(formatListing(listing, req.user!.id, new Set(), new Set(), req.user!.username));
 });

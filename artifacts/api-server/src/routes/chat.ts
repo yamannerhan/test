@@ -8,6 +8,9 @@ const router = Router();
 // Shared online tracking (in-memory, resets on restart)
 export const onlineSockets = new Map<string, { userId?: number; joinedAt: Date }>();
 
+// Spam protection: userId -> last message timestamp
+const lastMessageAt = new Map<number, number>();
+
 function extractMentions(content: string): string[] {
   const regex = /@(\w+)/g;
   const mentions: string[] = [];
@@ -81,10 +84,24 @@ router.get("/chat/messages", optionalAuthMiddleware, async (req, res): Promise<v
 router.post("/chat/messages", authMiddleware, async (req, res): Promise<void> => {
   const settings = await db.select().from(adminSettingsTable).limit(1);
   const chatLocked = settings[0]?.chatLocked ?? false;
+  const spamCooldown = settings[0]?.spamCooldown ?? 3;
+
   if (chatLocked && req.user!.role !== "admin") {
     res.status(403).json({ error: "Sohbet şu an kilitli" });
     return;
   }
+
+  // Spam protection (skip for admin/moderator)
+  if (req.user!.role === "user" && spamCooldown > 0) {
+    const last = lastMessageAt.get(req.user!.id) ?? 0;
+    const diffSec = (Date.now() - last) / 1000;
+    if (diffSec < spamCooldown) {
+      const wait = Math.ceil(spamCooldown - diffSec);
+      res.status(429).json({ error: `Çok hızlı mesaj gönderiyorsunuz. ${wait} saniye bekleyin.`, waitSeconds: wait });
+      return;
+    }
+  }
+  lastMessageAt.set(req.user!.id, Date.now());
 
   const { content, replyToId } = req.body as { content?: string; replyToId?: number | null };
   if (!content?.trim()) {

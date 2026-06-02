@@ -10,7 +10,8 @@ import {
   Users, Briefcase, MessageSquare, Settings, Image, Plus, Trash2,
   ToggleLeft, ToggleRight, Star, StarOff, CheckCircle, XCircle, Clock,
   ChevronDown, ChevronUp, Calendar, Infinity, Headphones, ChevronLeft, Send,
-  Sparkles, Eye, RefreshCw, Phone, User, MapPin, Building2, Lock, Shield, Search
+  Sparkles, Eye, RefreshCw, Phone, User, MapPin, Building2, Lock, Shield, Search,
+  MessageSquareDot, ListChecks, Eraser, Pin
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -447,6 +448,157 @@ function SupportAdminSection({ apiCall, toast }: {
   );
 }
 
+/* ── Sohbet Yönetimi Bölümü ──────────────────────────────── */
+interface ChatRule { id: number; content: string; sortOrder: number; }
+
+function ChatManagementSection({ apiCall, toast }: {
+  apiCall: (path: string, method: string, body?: unknown) => Promise<unknown>;
+  toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const [rules, setRules] = useState<ChatRule[]>([]);
+  const [newRule, setNewRule] = useState("");
+  const [newOrder, setNewOrder] = useState("0");
+  const [clearing, setClearing] = useState(false);
+  const [addingRule, setAddingRule] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editContent, setEditContent] = useState("");
+
+  const loadRules = async () => {
+    try {
+      const d = await apiCall("/admin/chat/rules", "GET") as ChatRule[];
+      setRules(d ?? []);
+    } catch {}
+  };
+
+  useEffect(() => { loadRules(); }, []);
+
+  const clearChat = async () => {
+    if (!confirm("Tüm sohbet mesajları silinecek. Devam?")) return;
+    setClearing(true);
+    try {
+      await apiCall("/admin/chat/messages/all", "DELETE");
+      toast({ title: "Sohbet temizlendi" });
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+    finally { setClearing(false); }
+  };
+
+  const addRule = async () => {
+    if (!newRule.trim()) { toast({ title: "İçerik zorunludur", variant: "destructive" }); return; }
+    setAddingRule(true);
+    try {
+      const r = await apiCall("/admin/chat/rules", "POST", { content: newRule.trim(), sortOrder: parseInt(newOrder, 10) || 0 }) as ChatRule;
+      setRules(prev => [...prev, r].sort((a, b) => a.sortOrder - b.sortOrder));
+      setNewRule(""); setNewOrder("0");
+      toast({ title: "Kural eklendi" });
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+    finally { setAddingRule(false); }
+  };
+
+  const deleteRule = async (id: number) => {
+    try {
+      await apiCall(`/admin/chat/rules/${id}`, "DELETE");
+      setRules(prev => prev.filter(r => r.id !== id));
+      toast({ title: "Kural silindi" });
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const saveEdit = async (id: number) => {
+    if (!editContent.trim()) return;
+    try {
+      await apiCall(`/admin/chat/rules/${id}`, "PATCH", { content: editContent.trim() });
+      setRules(prev => prev.map(r => r.id === id ? { ...r, content: editContent.trim() } : r));
+      setEditingId(null);
+      toast({ title: "Kural güncellendi" });
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  return (
+    <Section title="Sohbet Yönetimi" icon={MessageSquareDot}>
+      <div className="space-y-4">
+        {/* Clear chat */}
+        <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-destructive flex items-center gap-1.5"><Eraser className="w-4 h-4" /> Sohbeti Temizle</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Tüm mesajlar kalıcı olarak gizlenir.</p>
+          </div>
+          <button
+            onClick={clearChat}
+            disabled={clearing}
+            className="text-xs font-semibold px-3 py-2 bg-destructive/20 text-destructive rounded-xl hover:bg-destructive/30 transition-colors disabled:opacity-50 shrink-0"
+          >
+            {clearing ? "Siliniyor..." : "Temizle"}
+          </button>
+        </div>
+
+        {/* Chat rules */}
+        <div className="bg-white/5 rounded-xl p-3 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <ListChecks className="w-3.5 h-3.5 text-primary" /> Sohbet Kuralları
+          </p>
+
+          {/* Existing rules */}
+          {rules.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-2">Henüz kural eklenmemiş.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {rules.map((r, idx) => (
+                <div key={r.id} className="flex items-start gap-2 bg-white/5 rounded-lg px-2 py-1.5">
+                  <span className="text-[10px] font-bold text-primary mt-0.5 shrink-0">{idx + 1}.</span>
+                  {editingId === r.id ? (
+                    <div className="flex-1 flex gap-1">
+                      <input
+                        value={editContent}
+                        onChange={e => setEditContent(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") saveEdit(r.id); if (e.key === "Escape") setEditingId(null); }}
+                        autoFocus
+                        className="flex-1 bg-white/10 border border-primary/30 rounded-lg px-2 py-0.5 text-xs text-foreground focus:outline-none"
+                      />
+                      <button onClick={() => saveEdit(r.id)} className="text-[10px] px-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30">Kaydet</button>
+                      <button onClick={() => setEditingId(null)} className="text-[10px] px-1.5 bg-white/10 text-muted-foreground rounded-lg hover:bg-white/20">İptal</button>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="flex-1 text-xs leading-relaxed">{r.content}</p>
+                      <button onClick={() => { setEditingId(r.id); setEditContent(r.content); }} className="text-[10px] text-primary hover:text-primary/70 shrink-0">Düz</button>
+                      <button onClick={() => deleteRule(r.id)} className="text-[10px] text-destructive hover:text-destructive/70 shrink-0"><Trash2 className="w-3 h-3" /></button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add new rule */}
+          <div className="flex gap-1.5">
+            <input
+              value={newRule}
+              onChange={e => setNewRule(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && addRule()}
+              placeholder="Yeni kural..."
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40"
+            />
+            <input
+              type="number"
+              value={newOrder}
+              onChange={e => setNewOrder(e.target.value)}
+              placeholder="Sıra"
+              className="w-14 bg-white/5 border border-white/10 rounded-xl px-2 py-2 text-xs text-foreground focus:outline-none focus:border-primary/40"
+            />
+            <button
+              onClick={addRule}
+              disabled={addingRule}
+              className="px-3 py-2 rounded-xl text-xs font-semibold text-white disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 interface AdminUser {
   id: number; username: string; email: string; displayName: string | null; role: string;
   isBanned: boolean; createdAt: string; avatarUrl: string | null;
@@ -680,6 +832,7 @@ export default function AdminDashboard() {
 
   const { data: settings, refetch: refetchSettings } = useAdminApi<{
     chatLocked: boolean; fakeOnlineBonus: number; maintenanceMode: boolean; welcomeMessage: string | null; hasOpenaiKey: boolean;
+    spamCooldown: number; chatAnnounceListings: boolean;
   }>("/admin/settings");
 
   const { data: bannersData, refetch: refetchBanners } = useAdminApi<{
@@ -695,10 +848,12 @@ export default function AdminDashboard() {
   const [welcomeMsg, setWelcomeMsg] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
+  const [spamCooldown, setSpamCooldown] = useState("3");
   useEffect(() => {
     if (settings) {
       setFakeBonus(String(settings.fakeOnlineBonus));
       setWelcomeMsg(settings.welcomeMessage ?? "");
+      setSpamCooldown(String(settings.spamCooldown ?? 3));
     }
   }, [settings]);
 
@@ -729,6 +884,7 @@ export default function AdminDashboard() {
       const body: Record<string, unknown> = {
         fakeOnlineBonus: parseInt(fakeBonus, 10) || 0,
         welcomeMessage: welcomeMsg || null,
+        spamCooldown: parseInt(spamCooldown, 10) || 0,
       };
       if (openaiKey) body.openaiApiKey = openaiKey;
       await apiCall("/admin/settings", "PATCH", body);
@@ -736,6 +892,13 @@ export default function AdminDashboard() {
       setOpenaiKey("");
       refetchSettings();
       refetchStats();
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const toggleChatAnnounceListings = async () => {
+    try {
+      await apiCall("/admin/settings", "PATCH", { chatAnnounceListings: !(settings?.chatAnnounceListings ?? true) });
+      refetchSettings();
     } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
   };
 
@@ -874,6 +1037,19 @@ export default function AdminDashboard() {
                 className="glass-card border-white/10"
               />
             </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Spam Koruması (saniye)</label>
+              <Input
+                type="number"
+                min="0"
+                max="60"
+                value={spamCooldown}
+                onChange={e => setSpamCooldown(e.target.value)}
+                placeholder="3"
+                className="glass-card border-white/10"
+              />
+              <p className="text-[10px] text-muted-foreground mt-0.5">Üyeler arasında minimum mesaj aralığı. 0 = kapalı.</p>
+            </div>
             <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
               <div>
                 <div className="text-sm font-medium">Sohbet Kilidi</div>
@@ -882,6 +1058,17 @@ export default function AdminDashboard() {
               <button onClick={toggleChatLock} className="text-primary hover:text-primary/80 transition-colors">
                 {settings?.chatLocked
                   ? <ToggleRight className="w-7 h-7 text-destructive" />
+                  : <ToggleLeft className="w-7 h-7" />}
+              </button>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+              <div>
+                <div className="text-sm font-medium">İlan Sohbet Bildirimi</div>
+                <div className="text-xs text-muted-foreground">Yeni ilan paylaşılınca sohbette duyursun</div>
+              </div>
+              <button onClick={toggleChatAnnounceListings} className="text-primary hover:text-primary/80 transition-colors">
+                {settings?.chatAnnounceListings !== false
+                  ? <ToggleRight className="w-7 h-7 text-green-400" />
                   : <ToggleLeft className="w-7 h-7" />}
               </button>
             </div>
@@ -924,6 +1111,8 @@ export default function AdminDashboard() {
         </Section>
 
         <SmartListingSection apiCall={apiCall} toast={toast} refetchListings={refetchListings} refetchStats={refetchStats} hasOpenaiKey={settings?.hasOpenaiKey ?? false} />
+
+        <ChatManagementSection apiCall={apiCall} toast={toast} />
 
         <Section title="Banner Yönetimi" icon={Image}>
           <div className="space-y-3">

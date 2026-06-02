@@ -154,6 +154,10 @@ const WELCOME_RULES = `Hoş geldiniz! Topluluk Kuralları:
 
 İyi sohbetler dileriz!`;
 
+// Track when each userId last disconnected (in-memory)
+const userLastDisconnect = new Map<number, number>(); // userId -> timestamp ms
+const JOIN_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes
+
 // ── Socket.io ─────────────────────────────────────────────────────
 io.on("connection", (socket) => {
   const socketId = socket.id;
@@ -163,13 +167,25 @@ io.on("connection", (socket) => {
 
   socket.on("authenticate", async (data: { userId?: number }) => {
     if (data?.userId) {
+      const userId = data.userId;
       const entry = onlineSockets.get(socketId);
-      if (entry) { entry.userId = data.userId; onlineSockets.set(socketId, entry); }
+      if (entry) { entry.userId = userId; onlineSockets.set(socketId, entry); }
+
+      // Count how many other sockets this user already has open
+      const alreadyConnected = [...onlineSockets.values()].filter(e => e.userId === userId).length;
+
       try {
         const [user] = await db.select({ username: usersTable.username, displayName: usersTable.displayName })
-          .from(usersTable).where(eq(usersTable.id, data.userId)).limit(1);
+          .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
         if (user) {
-          io.emit("chat:join", { username: user.displayName || user.username });
+          // Only emit join if user had no other open sockets AND was away 20+ min (or first visit)
+          if (alreadyConnected <= 1) {
+            const lastDisconnect = userLastDisconnect.get(userId);
+            const awayLong = !lastDisconnect || (Date.now() - lastDisconnect) >= JOIN_THRESHOLD_MS;
+            if (awayLong) {
+              io.emit("chat:join", { username: user.displayName || user.username });
+            }
+          }
           socket.emit("chat:welcome", { message: WELCOME_RULES });
         }
       } catch { /* ignore */ }
@@ -177,6 +193,14 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    const entry = onlineSockets.get(socketId);
+    if (entry?.userId) {
+      // Check if this was the user's last socket
+      const remaining = [...onlineSockets.values()].filter(e => e.userId === entry.userId && e !== entry);
+      if (remaining.length === 0) {
+        userLastDisconnect.set(entry.userId, Date.now());
+      }
+    }
     onlineSockets.delete(socketId);
     logger.info({ socketId, online: onlineSockets.size }, "Socket disconnected");
     io.emit("online_count", { count: onlineSockets.size });
