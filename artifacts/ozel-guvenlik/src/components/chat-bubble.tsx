@@ -229,7 +229,7 @@ export function ChatBubble() {
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: shimmer-blue 3.5s linear infinite;
+          animation: shimmer-blue 7s linear infinite;
           filter: drop-shadow(0 0 8px rgba(96,165,250,0.55));
         }
         .name-mod {
@@ -239,7 +239,7 @@ export function ChatBubble() {
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: shimmer-green 3.5s linear infinite;
+          animation: shimmer-green 7s linear infinite;
           filter: drop-shadow(0 0 8px rgba(74,222,128,0.55));
         }
         .name-user {
