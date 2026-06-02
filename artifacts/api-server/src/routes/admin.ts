@@ -187,180 +187,597 @@ router.patch("/admin/settings", authMiddleware, requireAdmin, async (req, res): 
 });
 
 // ── Smart parser: regex-based, no external API needed ──────────────────────────
+
+// All 81 Turkish provinces (normalized → display)
 const TR_CITIES: Record<string, string> = {
-  "istanbul": "İstanbul", "ankara": "Ankara", "izmir": "İzmir", "bursa": "Bursa",
-  "antalya": "Antalya", "adana": "Adana", "konya": "Konya", "gaziantep": "Gaziantep",
-  "şanlıurfa": "Şanlıurfa", "mersin": "Mersin", "kayseri": "Kayseri", "eskişehir": "Eskişehir",
-  "diyarbakır": "Diyarbakır", "samsun": "Samsun", "denizli": "Denizli", "şırnak": "Şırnak",
-  "sakarya": "Sakarya", "trabzon": "Trabzon", "manisa": "Manisa", "kocaeli": "Kocaeli",
-  "gebze": "Kocaeli", "izmit": "Kocaeli", "hatay": "Hatay", "balıkesir": "Balıkesir",
-  "van": "Van", "batman": "Batman", "malatya": "Malatya", "kahramanmaraş": "Kahramanmaraş",
-  "erzurum": "Erzurum", "muğla": "Muğla", "bodrum": "Muğla", "marmaris": "Muğla",
-  "tekirdağ": "Tekirdağ", "siirt": "Siirt", "afyon": "Afyonkarahisar", "afyonkarahisar": "Afyonkarahisar",
-  "aydın": "Aydın", "kütahya": "Kütahya", "çorum": "Çorum", "elazığ": "Elazığ",
-  "mardin": "Mardin", "tokat": "Tokat", "sivas": "Sivas", "kastamonu": "Kastamonu",
-  "aksaray": "Aksaray", "giresun": "Giresun", "muş": "Muş", "uşak": "Uşak",
-  "zonguldak": "Zonguldak", "ordu": "Ordu", "edirne": "Edirne", "bolu": "Bolu",
-  "isparta": "Isparta", "karabük": "Karabük", "osmaniye": "Osmaniye", "düzce": "Düzce",
-  "yalova": "Yalova", "niğde": "Niğde", "nevşehir": "Nevşehir", "kırıkkale": "Kırıkkale",
-  "karaman": "Karaman", "ağrı": "Ağrı", "rize": "Rize", "bingöl": "Bingöl",
-  "tunceli": "Tunceli", "hakkari": "Hakkari", "kars": "Kars", "iğdır": "Iğdır",
-  "ardahan": "Ardahan", "sinop": "Sinop", "artvin": "Artvin", "gümüşhane": "Gümüşhane",
-  "bayburt": "Bayburt", "bitlis": "Bitlis", "erzincan": "Erzincan", "kırşehir": "Kırşehir",
-  "yozgat": "Yozgat", "çankırı": "Çankırı", "bilecik": "Bilecik", "amasya": "Amasya",
-  "burdur": "Burdur", "çanakkale": "Çanakkale", "kırklareli": "Kırklareli",
-  "adıyaman": "Adıyaman", "bartın": "Bartın", "kilis": "Kilis",
+  "istanbul":"İstanbul","ankara":"Ankara","izmir":"İzmir","bursa":"Bursa",
+  "antalya":"Antalya","adana":"Adana","konya":"Konya","gaziantep":"Gaziantep",
+  "sanlıurfa":"Şanlıurfa","sanliurfa":"Şanlıurfa","mersin":"Mersin","kayseri":"Kayseri",
+  "eskisehir":"Eskişehir","eskişehir":"Eskişehir","diyarbakir":"Diyarbakır","diyarbakır":"Diyarbakır",
+  "samsun":"Samsun","denizli":"Denizli","sırnak":"Şırnak","şırnak":"Şırnak",
+  "sakarya":"Sakarya","trabzon":"Trabzon","manisa":"Manisa","kocaeli":"Kocaeli",
+  "gebze":"Kocaeli","izmit":"Kocaeli","hatay":"Hatay","antakya":"Hatay",
+  "balikesir":"Balıkesir","balıkesir":"Balıkesir","van":"Van","batman":"Batman",
+  "malatya":"Malatya","kahramanmaras":"Kahramanmaraş","kahramanmaraş":"Kahramanmaraş",
+  "erzurum":"Erzurum","mugla":"Muğla","muğla":"Muğla","bodrum":"Muğla","marmaris":"Muğla","fethiye":"Muğla",
+  "tekirdag":"Tekirdağ","tekirdağ":"Tekirdağ","siirt":"Siirt",
+  "afyon":"Afyonkarahisar","afyonkarahisar":"Afyonkarahisar",
+  "aydin":"Aydın","aydın":"Aydın","kutahya":"Kütahya","kütahya":"Kütahya",
+  "corum":"Çorum","çorum":"Çorum","elazig":"Elazığ","elazığ":"Elazığ",
+  "mardin":"Mardin","tokat":"Tokat","sivas":"Sivas","kastamonu":"Kastamonu",
+  "aksaray":"Aksaray","giresun":"Giresun","mus":"Muş","muş":"Muş","usak":"Uşak","uşak":"Uşak",
+  "zonguldak":"Zonguldak","ordu":"Ordu","edirne":"Edirne","bolu":"Bolu",
+  "isparta":"Isparta","karabuk":"Karabük","karabük":"Karabük",
+  "osmaniye":"Osmaniye","duzce":"Düzce","düzce":"Düzce",
+  "yalova":"Yalova","nigde":"Niğde","niğde":"Niğde","nevsehir":"Nevşehir","nevşehir":"Nevşehir",
+  "kirikkale":"Kırıkkale","kırıkkale":"Kırıkkale","karaman":"Karaman",
+  "agri":"Ağrı","ağrı":"Ağrı","rize":"Rize","bingol":"Bingöl","bingöl":"Bingöl",
+  "tunceli":"Tunceli","hakkari":"Hakkari","kars":"Kars","igdir":"Iğdır","iğdır":"Iğdır",
+  "ardahan":"Ardahan","sinop":"Sinop","artvin":"Artvin","gumushane":"Gümüşhane","gümüşhane":"Gümüşhane",
+  "bayburt":"Bayburt","bitlis":"Bitlis","erzincan":"Erzincan",
+  "kirsehir":"Kırşehir","kırşehir":"Kırşehir","yozgat":"Yozgat",
+  "cankiri":"Çankırı","çankırı":"Çankırı","bilecik":"Bilecik","amasya":"Amasya",
+  "burdur":"Burdur","canakkale":"Çanakkale","çanakkale":"Çanakkale",
+  "kirklareli":"Kırklareli","kırklareli":"Kırklareli",
+  "adiyaman":"Adıyaman","adıyaman":"Adıyaman","bartin":"Bartın","bartın":"Bartın","kilis":"Kilis",
 };
 
-const ISTANBUL_DISTRICTS = [
-  "kadıköy","beşiktaş","şişli","beyoğlu","fatih","üsküdar","maltepe","kartal","pendik",
-  "tuzla","ataşehir","umraniye","ümraniye","bağcılar","bahçelievler","bakırköy","başakşehir",
-  "beylikdüzü","büyükçekmece","çekmeköy","esenler","esenyurt","eyüpsultan","güngören",
-  "küçükçekmece","sarıyer","sultanbeyli","sultangazi","zeytinburnu","arnavutköy","avcılar",
-  "sancaktepe","gaziosmanpaşa","kağıthane","silivri","şile","çatalca","adalar","beykoz","sultangazi",
-];
+// Comprehensive district → {city, district} map for all major Turkish provinces
+// Keys are normalized (lowercase, no Turkish diacritics)
+const DISTRICT_TO_CITY: Record<string, { city: string; district: string }> = {
+  // ─── İSTANBUL ───
+  "adalar":        {city:"İstanbul", district:"Adalar"},
+  "arnavutkoy":    {city:"İstanbul", district:"Arnavutköy"},
+  "atasehir":      {city:"İstanbul", district:"Ataşehir"},
+  "avcilar":       {city:"İstanbul", district:"Avcılar"},
+  "bagcilar":      {city:"İstanbul", district:"Bağcılar"},
+  "bahcelievler":  {city:"İstanbul", district:"Bahçelievler"},
+  "bakirkoy":      {city:"İstanbul", district:"Bakırköy"},
+  "basaksehir":    {city:"İstanbul", district:"Başakşehir"},
+  "bayrampa a":    {city:"İstanbul", district:"Bayrampaşa"},
+  "bayrampa":      {city:"İstanbul", district:"Bayrampaşa"},
+  "bayrampaşa":    {city:"İstanbul", district:"Bayrampaşa"},
+  "bayrampa a":    {city:"İstanbul", district:"Bayrampaşa"},
+  "besiktas":      {city:"İstanbul", district:"Beşiktaş"},
+  "beykoz":        {city:"İstanbul", district:"Beykoz"},
+  "beylikduzu":    {city:"İstanbul", district:"Beylikdüzü"},
+  "beyoglu":       {city:"İstanbul", district:"Beyoğlu"},
+  "buyukcekmece":  {city:"İstanbul", district:"Büyükçekmece"},
+  "catalca":       {city:"İstanbul", district:"Çatalca"},
+  "cekmekoy":      {city:"İstanbul", district:"Çekmeköy"},
+  "esenler":       {city:"İstanbul", district:"Esenler"},
+  "esenyurt":      {city:"İstanbul", district:"Esenyurt"},
+  "eyupsultan":    {city:"İstanbul", district:"Eyüpsultan"},
+  "eyup":          {city:"İstanbul", district:"Eyüpsultan"},
+  "fatih":         {city:"İstanbul", district:"Fatih"},
+  "gaziosmanpasa": {city:"İstanbul", district:"Gaziosmanpaşa"},
+  "gungoren":      {city:"İstanbul", district:"Güngören"},
+  "kadikoy":       {city:"İstanbul", district:"Kadıköy"},
+  "kagithane":     {city:"İstanbul", district:"Kağıthane"},
+  "kartal":        {city:"İstanbul", district:"Kartal"},
+  "kucukcekmece":  {city:"İstanbul", district:"Küçükçekmece"},
+  "maltepe":       {city:"İstanbul", district:"Maltepe"},
+  "pendik":        {city:"İstanbul", district:"Pendik"},
+  "sancaktepe":    {city:"İstanbul", district:"Sancaktepe"},
+  "sariyer":       {city:"İstanbul", district:"Sarıyer"},
+  "silivri":       {city:"İstanbul", district:"Silivri"},
+  "sultanbeyli":   {city:"İstanbul", district:"Sultanbeyli"},
+  "sultangazi":    {city:"İstanbul", district:"Sultangazi"},
+  "sile":          {city:"İstanbul", district:"Şile"},
+  "sisli":         {city:"İstanbul", district:"Şişli"},
+  "tuzla":         {city:"İstanbul", district:"Tuzla"},
+  "umraniye":      {city:"İstanbul", district:"Ümraniye"},
+  "uskudar":       {city:"İstanbul", district:"Üsküdar"},
+  "zeytinburnu":   {city:"İstanbul", district:"Zeytinburnu"},
+
+  // ─── ANKARA ───
+  "altindag":      {city:"Ankara", district:"Altındağ"},
+  "akyurt":        {city:"Ankara", district:"Akyurt"},
+  "cankaya":       {city:"Ankara", district:"Çankaya"},
+  "cubuk":         {city:"Ankara", district:"Çubuk"},
+  "elmadal":       {city:"Ankara", district:"Elmadağ"},
+  "elmadağ":       {city:"Ankara", district:"Elmadağ"},
+  "etimesgut":     {city:"Ankara", district:"Etimesgut"},
+  "golbasi":       {city:"Ankara", district:"Gölbaşı"},
+  "kahramankazan": {city:"Ankara", district:"Kahramankazan"},
+  "kazan":         {city:"Ankara", district:"Kazan"},
+  "kecioren":      {city:"Ankara", district:"Keçiören"},
+  "kiziicahamam":  {city:"Ankara", district:"Kızılcahamam"},
+  "mamak":         {city:"Ankara", district:"Mamak"},
+  "polatli":       {city:"Ankara", district:"Polatlı"},
+  "pursaklar":     {city:"Ankara", district:"Pursaklar"},
+  "sincan":        {city:"Ankara", district:"Sincan"},
+  "yenimahalle":   {city:"Ankara", district:"Yenimahalle"},
+  "beypazari":     {city:"Ankara", district:"Beypazarı"},
+  "haymana":       {city:"Ankara", district:"Haymana"},
+  "nallihan":      {city:"Ankara", district:"Nallıhan"},
+
+  // ─── İZMİR ───
+  "aliaga":        {city:"İzmir", district:"Aliağa"},
+  "balcova":       {city:"İzmir", district:"Balçova"},
+  "bayrakli":      {city:"İzmir", district:"Bayraklı"},
+  "bergama":       {city:"İzmir", district:"Bergama"},
+  "bornova":       {city:"İzmir", district:"Bornova"},
+  "buca":          {city:"İzmir", district:"Buca"},
+  "cesme":         {city:"İzmir", district:"Çeşme"},
+  "cigli":         {city:"İzmir", district:"Çiğli"},
+  "foca":          {city:"İzmir", district:"Foça"},
+  "gaziemir":      {city:"İzmir", district:"Gaziemir"},
+  "guzelbahce":    {city:"İzmir", district:"Güzelbahçe"},
+  "karabaglar":    {city:"İzmir", district:"Karabağlar"},
+  "karsiyaka":     {city:"İzmir", district:"Karşıyaka"},
+  "kemalpasa":     {city:"İzmir", district:"Kemalpaşa"},
+  "konak":         {city:"İzmir", district:"Konak"},
+  "menemen":       {city:"İzmir", district:"Menemen"},
+  "narlidere":     {city:"İzmir", district:"Narlıdere"},
+  "odemis":        {city:"İzmir", district:"Ödemiş"},
+  "seferihisar":   {city:"İzmir", district:"Seferihisar"},
+  "selcuk":        {city:"İzmir", district:"Selçuk"},
+  "tire":          {city:"İzmir", district:"Tire"},
+  "torbali":       {city:"İzmir", district:"Torbalı"},
+  "urla":          {city:"İzmir", district:"Urla"},
+  "dikili":        {city:"İzmir", district:"Dikili"},
+  "bayindir":      {city:"İzmir", district:"Bayındır"},
+  "kinik":         {city:"İzmir", district:"Kınık"},
+
+  // ─── BURSA ───
+  "gemlik":        {city:"Bursa", district:"Gemlik"},
+  "gursu":         {city:"Bursa", district:"Gürsu"},
+  "inegol":        {city:"Bursa", district:"İnegöl"},
+  "iznik":         {city:"Bursa", district:"İznik"},
+  "karacabey":     {city:"Bursa", district:"Karacabey"},
+  "kestel":        {city:"Bursa", district:"Kestel"},
+  "mudanya":       {city:"Bursa", district:"Mudanya"},
+  "nilufer":       {city:"Bursa", district:"Nilüfer"},
+  "osmangazi":     {city:"Bursa", district:"Osmangazi"},
+  "yildirim":      {city:"Bursa", district:"Yıldırım"},
+  "yenisehir":     {city:"Bursa", district:"Yenişehir"},
+  "orhaneli":      {city:"Bursa", district:"Orhaneli"},
+  "orhangazi":     {city:"Bursa", district:"Orhangazi"},
+  "mustafakemalp": {city:"Bursa", district:"Mustafakemalpaşa"},
+  "buyukorhan":    {city:"Bursa", district:"Büyükorhan"},
+  "harmancik":     {city:"Bursa", district:"Harmancık"},
+
+  // ─── ANTALYA ───
+  "alanya":        {city:"Antalya", district:"Alanya"},
+  "kepez":         {city:"Antalya", district:"Kepez"},
+  "konyaalti":     {city:"Antalya", district:"Konyaaltı"},
+  "muratpasa":     {city:"Antalya", district:"Muratpaşa"},
+  "serik":         {city:"Antalya", district:"Serik"},
+  "manavgat":      {city:"Antalya", district:"Manavgat"},
+  "kemer":         {city:"Antalya", district:"Kemer"},
+  "aksu":          {city:"Antalya", district:"Aksu"},
+  "dosemealti":    {city:"Antalya", district:"Döşemealtı"},
+  "elmali":        {city:"Antalya", district:"Elmalı"},
+  "finike":        {city:"Antalya", district:"Finike"},
+  "gazipasa":      {city:"Antalya", district:"Gazipaşa"},
+  "kas":           {city:"Antalya", district:"Kaş"},
+  "kumluca":       {city:"Antalya", district:"Kumluca"},
+  "akseki":        {city:"Antalya", district:"Akseki"},
+  "korkuteli":     {city:"Antalya", district:"Korkuteli"},
+
+  // ─── ADANA ───
+  "cukurova":      {city:"Adana", district:"Çukurova"},
+  "seyhan":        {city:"Adana", district:"Seyhan"},
+  "yuregir":       {city:"Adana", district:"Yüreğir"},
+  "saricam":       {city:"Adana", district:"Sarıçam"},
+  "ceyhan":        {city:"Adana", district:"Ceyhan"},
+  "kozan":         {city:"Adana", district:"Kozan"},
+  "karaisali":     {city:"Adana", district:"Karaisalı"},
+  "karatas":       {city:"Adana", district:"Karataş"},
+  "pozanti":       {city:"Adana", district:"Pozantı"},
+  "imamoglu":      {city:"Adana", district:"İmamoğlu"},
+  "feke":          {city:"Adana", district:"Feke"},
+
+  // ─── KOCAELİ ───
+  "basiskele":     {city:"Kocaeli", district:"Başiskele"},
+  "cayirova":      {city:"Kocaeli", district:"Çayırova"},
+  "darica":        {city:"Kocaeli", district:"Darıca"},
+  "derince":       {city:"Kocaeli", district:"Derince"},
+  "golcuk":        {city:"Kocaeli", district:"Gölcük"},
+  "izmit":         {city:"Kocaeli", district:"İzmit"},
+  "kandira":       {city:"Kocaeli", district:"Kandıra"},
+  "karamursel":    {city:"Kocaeli", district:"Karamürsel"},
+  "kartepe":       {city:"Kocaeli", district:"Kartepe"},
+  "korfez":        {city:"Kocaeli", district:"Körfez"},
+  "gebze":         {city:"Kocaeli", district:"Gebze"},
+  "dilovasi":      {city:"Kocaeli", district:"Dilovası"},
+
+  // ─── MERSİN ───
+  "akdeniz":       {city:"Mersin", district:"Akdeniz"},
+  "mezitli":       {city:"Mersin", district:"Mezitli"},
+  "toroslar":      {city:"Mersin", district:"Toroslar"},
+  "yenisehirm":    {city:"Mersin", district:"Yenişehir"},
+  "tarsus":        {city:"Mersin", district:"Tarsus"},
+  "erdemli":       {city:"Mersin", district:"Erdemli"},
+  "silifke":       {city:"Mersin", district:"Silifke"},
+  "anamur":        {city:"Mersin", district:"Anamur"},
+  "mut":           {city:"Mersin", district:"Mut"},
+  "gulnar":        {city:"Mersin", district:"Gülnar"},
+  "bozyazi":       {city:"Mersin", district:"Bozyazı"},
+  "aydincik":      {city:"Mersin", district:"Aydıncık"},
+
+  // ─── GAZİANTEP ───
+  "sehitkamil":    {city:"Gaziantep", district:"Şehitkamil"},
+  "sahinbey":      {city:"Gaziantep", district:"Şahinbey"},
+  "nizip":         {city:"Gaziantep", district:"Nizip"},
+  "islahiye":      {city:"Gaziantep", district:"İslahiye"},
+  "oguzeli":       {city:"Gaziantep", district:"Oğuzeli"},
+
+  // ─── KONYA ───
+  "karatay":       {city:"Konya", district:"Karatay"},
+  "meram":         {city:"Konya", district:"Meram"},
+  "selcuklu":      {city:"Konya", district:"Selçuklu"},
+  "eregli":        {city:"Konya", district:"Ereğli"},
+  "aksehir":       {city:"Konya", district:"Akşehir"},
+  "cumra":         {city:"Konya", district:"Çumra"},
+  "beysehir":      {city:"Konya", district:"Beyşehir"},
+  "seydisehir":    {city:"Konya", district:"Seydişehir"},
+  "ilgin":         {city:"Konya", district:"Ilgın"},
+  "kadinhani":     {city:"Konya", district:"Kadınhanı"},
+  "karapinar":     {city:"Konya", district:"Karapınar"},
+  "kulu":          {city:"Konya", district:"Kulu"},
+  "cihanbeyli":    {city:"Konya", district:"Cihanbeyli"},
+
+  // ─── MUĞLA ───
+  "bodrum":        {city:"Muğla", district:"Bodrum"},
+  "marmaris":      {city:"Muğla", district:"Marmaris"},
+  "fethiye":       {city:"Muğla", district:"Fethiye"},
+  "milas":         {city:"Muğla", district:"Milas"},
+  "ortaca":        {city:"Muğla", district:"Ortaca"},
+  "dalaman":       {city:"Muğla", district:"Dalaman"},
+  "seydikemer":    {city:"Muğla", district:"Seydikemer"},
+  "kavaklıdere":   {city:"Muğla", district:"Kavaklıdere"},
+  "ula":           {city:"Muğla", district:"Ula"},
+  "koycegiz":      {city:"Muğla", district:"Köyceğiz"},
+  "datca":         {city:"Muğla", district:"Datça"},
+
+  // ─── AYDIN ───
+  "efeler":        {city:"Aydın", district:"Efeler"},
+  "kusadasi":      {city:"Aydın", district:"Kuşadası"},
+  "didim":         {city:"Aydın", district:"Didim"},
+  "nazilli":       {city:"Aydın", district:"Nazilli"},
+  "soke":          {city:"Aydın", district:"Söke"},
+  "incirliova":    {city:"Aydın", district:"İncirliova"},
+  "germencik":     {city:"Aydın", district:"Germencik"},
+  "karpuzlu":      {city:"Aydın", district:"Karpuzlu"},
+
+  // ─── SAKARYA ───
+  "adapazari":     {city:"Sakarya", district:"Adapazarı"},
+  "serdivan":      {city:"Sakarya", district:"Serdivan"},
+  "erenler":       {city:"Sakarya", district:"Erenler"},
+  "arifiye":       {city:"Sakarya", district:"Arifiye"},
+  "hendek":        {city:"Sakarya", district:"Hendek"},
+  "sapanca":       {city:"Sakarya", district:"Sapanca"},
+  "karasu":        {city:"Sakarya", district:"Karasu"},
+  "pamukova":      {city:"Sakarya", district:"Pamukova"},
+
+  // ─── TRABZON ───
+  "akçaabat":      {city:"Trabzon", district:"Akçaabat"},
+  "akcaabat":      {city:"Trabzon", district:"Akçaabat"},
+  "ortahisar":     {city:"Trabzon", district:"Ortahisar"},
+  "arakli":        {city:"Trabzon", district:"Araklı"},
+  "of":            {city:"Trabzon", district:"Of"},
+  "vakfikebir":    {city:"Trabzon", district:"Vakfıkebir"},
+  "yomra":         {city:"Trabzon", district:"Yomra"},
+
+  // ─── HATAY ───
+  "antakya":       {city:"Hatay", district:"Antakya"},
+  "iskenderun":    {city:"Hatay", district:"İskenderun"},
+  "dortyol":       {city:"Hatay", district:"Dörtyol"},
+  "kırıkhan":      {city:"Hatay", district:"Kırıkhan"},
+  "kirikhan":      {city:"Hatay", district:"Kırıkhan"},
+  "reyhanli":      {city:"Hatay", district:"Reyhanlı"},
+  "samandag":      {city:"Hatay", district:"Samandağ"},
+  "erzin":         {city:"Hatay", district:"Erzin"},
+  "hassa":         {city:"Hatay", district:"Hassa"},
+  "belen":         {city:"Hatay", district:"Belen"},
+
+  // ─── MANİSA ───
+  "akhisar":       {city:"Manisa", district:"Akhisar"},
+  "turgutlu":      {city:"Manisa", district:"Turgutlu"},
+  "salihlim":      {city:"Manisa", district:"Salihli"},
+  "salihli":       {city:"Manisa", district:"Salihli"},
+  "soma":          {city:"Manisa", district:"Soma"},
+  "yunusemre":     {city:"Manisa", district:"Yunusemre"},
+  "sehzadeler":    {city:"Manisa", district:"Şehzadeler"},
+  "alasehir":      {city:"Manisa", district:"Alaşehir"},
+  "golmarmara":    {city:"Manisa", district:"Gölmarmara"},
+
+  // ─── BALIKESİR ───
+  "bandirma":      {city:"Balıkesir", district:"Bandırma"},
+  "edremit":       {city:"Balıkesir", district:"Edremit"},
+  "altieylul":     {city:"Balıkesir", district:"Altıeylül"},
+  "karesi":        {city:"Balıkesir", district:"Karesi"},
+  "burhaniye":     {city:"Balıkesir", district:"Burhaniye"},
+  "gomec":         {city:"Balıkesir", district:"Gömeç"},
+  "ayvalik":       {city:"Balıkesir", district:"Ayvalık"},
+  "erdek":         {city:"Balıkesir", district:"Erdek"},
+
+  // ─── TEKİRDAĞ ───
+  "suleymanpasa":  {city:"Tekirdağ", district:"Süleymanpaşa"},
+  "corlu":         {city:"Tekirdağ", district:"Çorlu"},
+  "cerkezkoy":     {city:"Tekirdağ", district:"Çerkezköy"},
+  "kapakli":       {city:"Tekirdağ", district:"Kapaklı"},
+  "ergene":        {city:"Tekirdağ", district:"Ergene"},
+  "malkara":       {city:"Tekirdağ", district:"Malkara"},
+  "muratli":       {city:"Tekirdağ", district:"Muratlı"},
+  "hayrabolu":     {city:"Tekirdağ", district:"Hayrabolu"},
+
+  // ─── SAMSUN ───
+  "ilkadim":       {city:"Samsun", district:"İlkadım"},
+  "canik":         {city:"Samsun", district:"Canik"},
+  "atakum":        {city:"Samsun", district:"Atakum"},
+  "tekkekoyu":     {city:"Samsun", district:"Tekkeköy"},
+  "bafra":         {city:"Samsun", district:"Bafra"},
+  "carsamba":      {city:"Samsun", district:"Çarşamba"},
+  "vezirkopru":    {city:"Samsun", district:"Vezirköprü"},
+
+  // ─── DENİZLİ ───
+  "merkezefendi":  {city:"Denizli", district:"Merkezefendi"},
+  "pamukkale":     {city:"Denizli", district:"Pamukkale"},
+  "buldan":        {city:"Denizli", district:"Buldan"},
+  "civril":        {city:"Denizli", district:"Çivril"},
+  "acipayam":      {city:"Denizli", district:"Acıpayam"},
+  "tavas":         {city:"Denizli", district:"Tavas"},
+
+  // ─── ŞANLIURFA ───
+  "haliliye":      {city:"Şanlıurfa", district:"Haliliye"},
+  "karakopru":     {city:"Şanlıurfa", district:"Karaköprü"},
+  "eyup":          {city:"Şanlıurfa", district:"Eyyübiye"},
+  "birecik":       {city:"Şanlıurfa", district:"Birecik"},
+  "viransehir":    {city:"Şanlıurfa", district:"Viranşehir"},
+  "siverek":       {city:"Şanlıurfa", district:"Siverek"},
+
+  // ─── DİYARBAKIR ───
+  "baglar":        {city:"Diyarbakır", district:"Bağlar"},
+  "kayapinar":     {city:"Diyarbakır", district:"Kayapınar"},
+  "yenisehird":    {city:"Diyarbakır", district:"Yenişehir"},
+  "ergani":        {city:"Diyarbakır", district:"Ergani"},
+  "bismil":        {city:"Diyarbakır", district:"Bismil"},
+  "silvan":        {city:"Diyarbakır", district:"Silvan"},
+
+  // ─── MALATYA ───
+  "battalgazi":    {city:"Malatya", district:"Battalgazi"},
+  "yesilyu t":     {city:"Malatya", district:"Yeşilyurt"},
+  "yesilyurt":     {city:"Malatya", district:"Yeşilyurt"},
+  "dogansehi r":   {city:"Malatya", district:"Doğanşehir"},
+  "dogansehir":    {city:"Malatya", district:"Doğanşehir"},
+
+  // ─── KAYSERİ ───
+  "kocasinan":     {city:"Kayseri", district:"Kocasinan"},
+  "melikgazi":     {city:"Kayseri", district:"Melikgazi"},
+  "talas":         {city:"Kayseri", district:"Talas"},
+  "develi":        {city:"Kayseri", district:"Develi"},
+  "bünyan":        {city:"Kayseri", district:"Bünyan"},
+  "bunyan":        {city:"Kayseri", district:"Bünyan"},
+  "yahyali":       {city:"Kayseri", district:"Yahyalı"},
+
+  // ─── ESKİŞEHİR ───
+  "odunpazari":    {city:"Eskişehir", district:"Odunpazarı"},
+  "tepebaşi":      {city:"Eskişehir", district:"Tepebaşı"},
+  "tepebasi":      {city:"Eskişehir", district:"Tepebaşı"},
+  "mihalgazi":     {city:"Eskişehir", district:"Mihalgazi"},
+  "alpu":          {city:"Eskişehir", district:"Alpu"},
+
+  // ─── YALOVA ───
+  "ciftlikkoy":    {city:"Yalova", district:"Çiftlikköy"},
+  "altinova":      {city:"Yalova", district:"Altınova"},
+  "cınarcik":      {city:"Yalova", district:"Çınarcık"},
+  "cinarcik":      {city:"Yalova", district:"Çınarcık"},
+  "armutlu":       {city:"Yalova", district:"Armutlu"},
+  "termal":        {city:"Yalova", district:"Termal"},
+
+  // ─── ORDU ───
+  "altinordu":     {city:"Ordu", district:"Altınordu"},
+  "unye":          {city:"Ordu", district:"Ünye"},
+  "fatsa":         {city:"Ordu", district:"Fatsa"},
+  "golkoyu":       {city:"Ordu", district:"Gölköy"},
+  "gurgentepe":    {city:"Ordu", district:"Gürgentepe"},
+
+  // ─── ZONGULDAK ───
+  "eregli z":      {city:"Zonguldak", district:"Ereğli"},
+  "çaycuma":       {city:"Zonguldak", district:"Çaycuma"},
+  "caycuma":       {city:"Zonguldak", district:"Çaycuma"},
+  "devrek":        {city:"Zonguldak", district:"Devrek"},
+  "alaplı":        {city:"Zonguldak", district:"Alaplı"},
+  "alapli":        {city:"Zonguldak", district:"Alaplı"},
+
+  // ─── KAHRAMANMARAŞ ───
+  "dulkadirolu":   {city:"Kahramanmaraş", district:"Dulkadiroğlu"},
+  "onikisubat":    {city:"Kahramanmaraş", district:"Onikişubat"},
+  "elbistan":      {city:"Kahramanmaraş", district:"Elbistan"},
+  "afsin":         {city:"Kahramanmaraş", district:"Afşin"},
+};
 
 function normalizeForLookup(s: string): string {
   return s.toLowerCase()
     .replace(/ı/g, "i").replace(/ğ/g, "g").replace(/ü/g, "u")
-    .replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c").replace(/İ/g, "i");
+    .replace(/ş/g, "s").replace(/ö/g, "o").replace(/ç/g, "c")
+    .replace(/İ/g, "i").replace(/Ğ/g, "g").replace(/Ü/g, "u")
+    .replace(/Ş/g, "s").replace(/Ö/g, "o").replace(/Ç/g, "c")
+    .replace(/I/g, "i");
 }
 
 function parseListingText(raw: string): Record<string, string> {
   const text = raw.trim();
   const lines = text.split(/\n/);
 
-  // Phone numbers — Turkish formats
+  // ── Phone numbers ──────────────────────────────────────────────────────────
   const phoneMatch = text.match(/(?:0|\+90)[\s\-]?(?:\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}|\d{3}[\s\-]?\d{7})/);
   const rawPhone = phoneMatch?.[0]?.replace(/[\s\-\(\)]/g, "") ?? "";
   const contactPhone = rawPhone ? rawPhone.replace(/^0/, "+90").replace(/^\+90(\d{10})$/, "+90$1") : "";
   const applyUrl = contactPhone ? `tel:${contactPhone}` : "";
 
-  // Contact name — many Turkish formats
+  // ── Contact name ───────────────────────────────────────────────────────────
   let contactName = "";
-  const BAD_NAME_WORDS = ["güvenlik", "personel", "eleman", "firma", "şirket", "merkezi", "hizmet"];
-  const isGoodName = (s: string) => s.length >= 6 && !BAD_NAME_WORDS.some(w => s.toLowerCase().includes(w));
-  const namePatterns = [
-    // "iletişim/yetkili/irtibat: Ad Soyad"
-    /(?:iletişim|yetkili|irtibat|sorumlu|müdür|koordinatör|temsilci)\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,}\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,}(?:\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,})?)/i,
-    // "Ad Soyad:" or "İsim:" or "Adı Soyadı:"
-    /(?:ad\s*soyad|adı\s*soyadı|isim|ad)\s*[:\-]\s*([A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,}\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,})/i,
+  // Words that cannot be a real person name
+  const BAD_NAME_WORDS = [
+    "güvenlik","security","personel","eleman","firma","şirket","merkezi","hizmet",
+    "acil","ilan","arıyoruz","aranıyor","başvuru","iletişim","bilgi","başvur",
+    "tam","yarı","zaman","çalışma","görevli","uzman","şef","amir","müdür",
+  ];
+  const isGoodName = (s: string) => {
+    const sl = s.toLowerCase();
+    if (s.length < 5 || s.length > 40) return false;
+    if (BAD_NAME_WORDS.some(w => sl.includes(w))) return false;
+    // Must have exactly 2–3 capitalized words
+    const parts = s.trim().split(/\s+/);
+    if (parts.length < 2 || parts.length > 3) return false;
+    return parts.every(p => /^[A-ZÇĞİÖŞÜ]/.test(p));
+  };
+
+  // Priority patterns — highest confidence first
+  const namePatterns: RegExp[] = [
+    // "İletişim: Ahmet Yılmaz" / "Yetkili: Fatma Demir"
+    /(?:iletişim|yetkili|irtibat|sorumlu|koordinatör|temsilci)\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,20}\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,20}(?:\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,20})?)/i,
+    // "Ad Soyad: ..." / "Adı Soyadı: ..."
+    /(?:ad\s+soyad|adı\s+soyadı|isim|ad)\s*[:\-]\s*([A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,20}\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,20})/i,
     // "Ahmet Bey" / "Fatma Hanım"
-    /([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,})\s+(?:bey|hanım|bay|bayan)/i,
-    // Name right before phone number on same segment
-    /([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,})\s+(?:0|\+90)/,
+    /([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20})\s+(?:bey|hanım|bay|bayan)/i,
+    // Name immediately before phone: "Ahmet Yılmaz 0532..."
+    /([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20})\s+(?:0|\+90)/,
+    // After ":" on same line: ": Ahmet Yılmaz"
+    /:\s*([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20})\s*(?:\n|$)/,
   ];
   for (const pat of namePatterns) {
     const m = text.match(pat);
     if (m?.[1] && isGoodName(m[1])) { contactName = m[1].trim(); break; }
   }
+  // Line-by-line scan: a line that is ONLY "Ad Soyad" with no other content
+  if (!contactName) {
+    for (const line of lines) {
+      const l = line.trim();
+      const parts = l.split(/\s+/);
+      if (parts.length === 2 || parts.length === 3) {
+        if (isGoodName(l) && !/\d/.test(l)) { contactName = l; break; }
+      }
+    }
+  }
 
-  // City — scan each word against known cities
+  // ── City & District ────────────────────────────────────────────────────────
   let city = "";
   let district = "";
-  const cityPatterns = [
-    /(?:il|şehir|konum|lokasyon|bölge)\s*[:\-]?\s*([A-ZÇĞİÖŞÜa-zçğışöüİ\/\s]{3,30})/i,
-  ];
-  for (const pat of cityPatterns) {
-    const m = text.match(pat);
-    if (m?.[1]) {
-      const candidate = m[1].split(/[\/,\s]/)[0]?.trim().toLowerCase() ?? "";
-      const normalized = normalizeForLookup(candidate);
-      if (TR_CITIES[normalized]) { city = TR_CITIES[normalized]; break; }
-    }
-  }
-  // Fallback: scan all words
-  if (!city) {
-    const words = text.split(/[\s\/,\-]+/);
-    for (const word of words) {
-      const norm = normalizeForLookup(word);
-      if (TR_CITIES[norm]) { city = TR_CITIES[norm]; break; }
-    }
-  }
-  // District scan (İstanbul districts for now)
-  for (const word of text.split(/[\s\/,\-]+/)) {
-    if (ISTANBUL_DISTRICTS.includes(normalizeForLookup(word))) {
-      district = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-      if (!city) city = "İstanbul";
-      break;
+
+  // Tokenize: split on spaces, slashes, commas, dashes, dots, parens, apostrophes
+  // Strip common Turkish case suffixes before lookup ('de, 'da, 'nde, 'nda, 'te, 'ta, 'e, 'a, 'in, 'ın etc.)
+  const TR_SUFFIX = /['''](?:de|da|te|ta|nde|nda|nte|nta|ye|ya|ne|na|in|ın|un|ün|e|a|i|ı|u|ü|deki|daki|nin|nın|nun|nün|ler|lar|den|dan|ten|tan)$/i;
+  const tokens = text.split(/[\s\/,\-\.\(\)''']+/)
+    .filter(t => t.length >= 2)
+    .map(t => t.replace(TR_SUFFIX, "").trim())
+    .filter(t => t.length >= 3);
+
+  // 1) Check "district/city" or "district-city" or "city district" slash patterns first
+  const slashPattern = /([A-ZÇĞİÖŞÜa-zçğışöüİ]{3,})[\/\-]([A-ZÇĞİÖŞÜa-zçğışöüİ]{3,})/g;
+  let sm: RegExpExecArray | null;
+  while ((sm = slashPattern.exec(text)) !== null && !city) {
+    const a = normalizeForLookup(sm[1]!);
+    const b = normalizeForLookup(sm[2]!);
+    const da = DISTRICT_TO_CITY[a];
+    const db = DISTRICT_TO_CITY[b];
+    const ca = TR_CITIES[a];
+    const cb = TR_CITIES[b];
+    if (da && cb && da.city === TR_CITIES[b] || da && !cb) {
+      district = da.district; city = da.city;
+    } else if (db && ca && db.city === TR_CITIES[a] || db && !ca) {
+      district = db.district; city = db.city;
+    } else if (ca) {
+      city = ca;
+    } else if (cb) {
+      city = cb;
     }
   }
 
-  // Salary — comprehensive Turkish patterns
+  // 2) Labeled patterns: "İl: İstanbul", "Şehir: Ankara" etc.
+  if (!city) {
+    const labeled = text.match(/(?:il|şehir|konum|lokasyon|bölge)\s*[:\-]?\s*([A-ZÇĞİÖŞÜa-zçğışöüİ]{3,30})/i);
+    if (labeled?.[1]) {
+      const n = normalizeForLookup(labeled[1].split(/[\s,]/)[0]!);
+      if (TR_CITIES[n]) city = TR_CITIES[n];
+      else if (DISTRICT_TO_CITY[n]) { city = DISTRICT_TO_CITY[n]!.city; district = DISTRICT_TO_CITY[n]!.district; }
+    }
+  }
+
+  // 3) Scan every token: district first (more specific), then city
+  // Also try stripping direct (no-apostrophe) suffixes: de/da/te/ta/den/dan etc.
+  const DIRECT_SUFFIX = /(?:de|da|te|ta|ye|ya|ne|na|nde|nda|den|dan|ten|tan|deki|daki|ler|lar|in|ın|un|ün)$/i;
+  for (const tok of tokens) {
+    const n = normalizeForLookup(tok);
+    const n2 = n.replace(DIRECT_SUFFIX, "");
+    for (const candidate of n === n2 ? [n] : [n, n2]) {
+      if (!district && DISTRICT_TO_CITY[candidate]) {
+        district = DISTRICT_TO_CITY[candidate]!.district;
+        if (!city) city = DISTRICT_TO_CITY[candidate]!.city;
+      }
+      if (!city && TR_CITIES[candidate]) city = TR_CITIES[candidate]!;
+      if (city && district) break;
+    }
+    if (city && district) break;
+  }
+
+  // 4) If district found but city still missing, derive from district map
+  if (district && !city) {
+    const n = normalizeForLookup(district);
+    if (DISTRICT_TO_CITY[n]) city = DISTRICT_TO_CITY[n]!.city;
+  }
+
+  // ── Salary ─────────────────────────────────────────────────────────────────
   let salary = "";
   const salaryPatterns: RegExp[] = [
-    // "maaş/ücret/aylık: NET 25.000 - 35.000 TL"
-    /(?:maaş|ücret|aylık)\s*[:\-]?\s*((?:net|brüt)?\s*\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?\s*(?:bin\s*)?(?:tl|₺)?)/i,
-    // "NET 25.000 TL" or "BRÜT 30.000 - 40.000 TL"
+    /(?:maaş|ücret|aylık)\s*[:\-]?\s*((?:net|brüt)?\s*\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?\s*(?:bin\s*)?(?:tl|₺))/i,
     /(?:net|brüt)\s+(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)\s*(?:bin\s*)?(?:tl|₺)/i,
-    // Range: "25.000 - 35.000 TL" or "25000–35000₺"
     /(\d[\d\.]+)\s*[-–]\s*(\d[\d\.]+)\s*(?:bin\s*)?(?:tl|₺)/i,
-    // "25.000 TL maaş" or "35.000₺ ücret"
     /(\d[\d\.]{3,})\s*(?:bin\s*)?(?:tl|₺)\s*(?:maaş|ücret|aylık)?/i,
-    // "25 bin TL" / "30 bin ₺"
     /(\d{2,3})\s*bin\s*(?:tl|₺)/i,
-    // "₺25.000" prefix style
     /₺\s*(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)/i,
   ];
-  function normalizeSalary(raw: string): string {
-    let s = raw.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+  function normalizeSalary(r: string): string {
+    let s = r.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
     s = s.charAt(0).toUpperCase() + s.slice(1);
     if (!/tl|₺/i.test(s)) s += " TL";
     return s;
   }
   for (const pat of salaryPatterns) {
     const m = text.match(pat);
-    if (m) {
-      salary = normalizeSalary(m[0]);
-      break;
-    }
+    if (m) { salary = normalizeSalary(m[0]); break; }
   }
 
-  // Work type
+  // ── Work type ──────────────────────────────────────────────────────────────
   let workType = "Tam Zamanlı";
   if (/vardiy/i.test(text)) workType = "Vardiyalı";
   else if (/yarı\s*zamanl/i.test(text) || /part[\s\-]?time/i.test(text)) workType = "Yarı Zamanlı";
   else if (/proje\s*baz/i.test(text) || /freelance/i.test(text)) workType = "Proje Bazlı";
-  else if (/tam\s*zamanl/i.test(text) || /full[\s\-]?time/i.test(text)) workType = "Tam Zamanlı";
 
-  // Job title
+  // ── Job title ──────────────────────────────────────────────────────────────
   let title = "";
-  const titlePatterns = [
+  const titlePatterns: RegExp[] = [
     /(?:pozisyon|görev|ünvan|iş\s*ilanı|aranan)\s*[:\-]?\s*(.+)/i,
-    /(?:güvenlik\s*(?:görevlisi|uzmanı|şefi|amiri|koordinatörü|müdürü)|özel\s*güvenlik|silahlı\s*güvenlik|koruma\s*görevlisi|kasiyp|resepsiyonist)/i,
+    /(?:güvenlik\s*(?:görevlisi|uzmanı|şefi|amiri|koordinatörü|müdürü)|özel\s*güvenlik|silahlı\s*güvenlik|koruma\s*görevlisi|resepsiyonist|kapıcı|bekçi)/i,
   ];
   for (const pat of titlePatterns) {
     const m = text.match(pat);
-    if (m) { title = (m[1] ?? m[0]).trim().split(/\n/)[0]!.trim(); if (title.length > 5 && title.length < 80) break; title = ""; }
+    if (m) { title = (m[1] ?? m[0]).trim().split(/\n/)[0]!.trim(); if (title.length > 4 && title.length < 90) break; title = ""; }
   }
   if (!title) {
-    // First non-empty line often is the title in WhatsApp forwards
     for (const line of lines) {
-      const l = line.trim();
-      if (l.length > 5 && l.length < 80 && !/^\d/.test(l) && !l.includes("http")) {
-        title = l.replace(/^[🔔📢🚨✅❗❕#\*\-\•]/g, "").trim();
-        if (title.length > 3) break;
-        title = "";
-      }
+      const l = line.trim().replace(/^[🔔📢🚨✅❗❕#\*\-\•🔹🔸➡️]+/g, "").trim();
+      if (l.length > 5 && l.length < 90 && !/^\d/.test(l) && !l.includes("http") && !/^(?:0|\+90)/.test(l))
+        { title = l; break; }
     }
   }
 
-  // Company
+  // ── Company ────────────────────────────────────────────────────────────────
   let company = "";
-  const companyPatterns = [
+  const companyPatterns: RegExp[] = [
     /(?:şirket|firma|kurum|işveren)\s*[:\-]?\s*(.+)/i,
     /([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜa-zçğışöüİ\s]{2,30}(?:A\.Ş\.|Ltd\.|Tic\.|Grup|Güvenlik|Holding|Şirketi))/,
   ];
   for (const pat of companyPatterns) {
     const m = text.match(pat);
-    if (m?.[1]) {
-      company = m[1].trim().split(/\n/)[0]!.trim();
-      if (company.length > 2 && company.length < 60) break;
-      company = "";
-    }
+    if (m?.[1]) { company = m[1].trim().split(/\n/)[0]!.trim(); if (company.length > 2 && company.length < 60) break; company = ""; }
   }
 
-  // Description: remove lines with phone/link, keep rest
+  // ── Description ────────────────────────────────────────────────────────────
   const descLines = lines.filter(l => {
     const ll = l.trim();
     if (!ll) return false;
