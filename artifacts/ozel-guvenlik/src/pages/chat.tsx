@@ -217,8 +217,15 @@ export default function Chat() {
                   <span className="text-[9px] text-white/30">Sen</span>
                 ) : (
                   <>
-                    <span className={`text-[10px] font-bold leading-tight ${chatMsg.userNameAnimated ? "animate-rainbow" : ""}`}
-                      style={chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: chatMsg.userNameColor } : !chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: "#94a3b8" } : {}}>
+                    <span className={`text-[13px] font-extrabold leading-tight tracking-wide ${chatMsg.userNameAnimated ? "animate-rainbow" : ""}`}
+                      style={{
+                        ...(chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: chatMsg.userNameColor } : !chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: "#e2e8f0" } : {}),
+                        textShadow: chatMsg.userRole === "admin"
+                          ? "0 0 10px rgba(248,113,113,0.5)"
+                          : chatMsg.userRole === "moderator"
+                          ? "0 0 10px rgba(96,165,250,0.5)"
+                          : "0 0 8px rgba(148,163,184,0.3)",
+                      }}>
                       {name}
                     </span>
                     <RoleBadge role={chatMsg.userRole ?? "user"} />
