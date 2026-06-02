@@ -1,5 +1,6 @@
 import React from "react";
 import { BottomNav } from "./bottom-nav";
+import { SupportBubble } from "./support-bubble";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "wouter";
 import { Bell, ShieldCheck } from "lucide-react";
@@ -46,6 +47,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       <BottomNav />
+      <SupportBubble />
     </div>
   );
 }

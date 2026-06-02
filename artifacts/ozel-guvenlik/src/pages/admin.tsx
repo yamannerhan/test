@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Redirect } from "wouter";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Users, Briefcase, MessageSquare, Settings, Image, Plus, Trash2,
   ToggleLeft, ToggleRight, Star, StarOff, CheckCircle, XCircle, Clock,
-  ChevronDown, ChevronUp, Calendar, Infinity
+  ChevronDown, ChevronUp, Calendar, Infinity, Headphones, ChevronLeft, Send
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -65,6 +65,179 @@ function Section({ title, icon: Icon, children, defaultOpen = false }: { title: 
         {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
       {open && <div className="px-4 pb-4 border-t border-white/5 pt-4">{children}</div>}
+    </div>
+  );
+}
+
+interface AdminSupportTicket {
+  id: number; subject: string; status: string; userId: number;
+  username: string | null; msgCount: number; createdAt: string; updatedAt: string;
+}
+interface AdminSupportMessage {
+  id: number; message: string; isStaff: boolean; userId: number;
+  username: string | null; createdAt: string;
+}
+interface AdminSupportDetail extends AdminSupportTicket { messages: AdminSupportMessage[]; }
+
+function SupportAdminSection({ apiCall, toast }: {
+  apiCall: (path: string, method: string, body?: unknown) => Promise<unknown>;
+  toast: (opts: { title: string; description?: string; variant?: "default" | "destructive" }) => void;
+}) {
+  const [tickets, setTickets] = useState<AdminSupportTicket[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const [activeTicket, setActiveTicket] = useState<AdminSupportDetail | null>(null);
+  const [reply, setReply] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const loadTickets = async () => {
+    setLoading(true);
+    try {
+      const path = filter === "all" ? "/admin/support" : `/admin/support?status=${filter}`;
+      const data = await apiCall(path, "GET") as AdminSupportTicket[];
+      setTickets(data);
+    } catch {} finally { setLoading(false); }
+  };
+
+  const loadTicketDetail = async (id: number) => {
+    try {
+      const data = await apiCall(`/support/${id}`, "GET") as AdminSupportDetail;
+      setActiveTicket(data);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch {}
+  };
+
+  const sendReply = async () => {
+    if (!reply.trim() || !activeTicket) return;
+    try {
+      const msg = await apiCall(`/support/${activeTicket.id}/reply`, "POST", { message: reply.trim() }) as AdminSupportMessage;
+      setReply("");
+      setActiveTicket(prev => prev ? { ...prev, status: "answered", messages: [...prev.messages, msg] } : prev);
+      loadTickets();
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const changeStatus = async (id: number, status: string) => {
+    try {
+      await apiCall(`/support/${id}/status`, "PATCH", { status });
+      toast({ title: "Durum güncellendi" });
+      if (activeTicket?.id === id) setActiveTicket(prev => prev ? { ...prev, status } : prev);
+      loadTickets();
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const formatTime = (iso: string) => new Date(iso).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+
+  const StatusBadge = ({ status }: { status: string }) => {
+    const cfg = { waiting: "bg-amber-500/20 text-amber-400", answered: "bg-blue-500/20 text-blue-400", resolved: "bg-green-500/20 text-green-400" }[status] ?? "bg-white/10 text-muted-foreground";
+    const labels = { waiting: "Bekliyor", answered: "Yanıtlandı", resolved: "Çözüldü" } as Record<string, string>;
+    return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cfg}`}>{labels[status] ?? status}</span>;
+  };
+
+  return (
+    <div className="glass-card rounded-2xl overflow-hidden">
+      <button onClick={() => { loadTickets(); }}
+        className="w-full flex items-center justify-between p-4 text-left hover:bg-white/5 transition-colors">
+        <div className="flex items-center gap-2 font-semibold text-sm">
+          <Headphones className="w-4 h-4 text-primary" />
+          Destek Talepleri
+        </div>
+        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+      </button>
+
+      <div className="px-4 pb-4 border-t border-white/5 pt-4 space-y-3">
+        {activeTicket ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <button onClick={() => setActiveTicket(null)} className="text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold line-clamp-1">{activeTicket.subject}</p>
+                <p className="text-[10px] text-muted-foreground">{activeTicket.username} · #{ activeTicket.id}</p>
+              </div>
+              <StatusBadge status={activeTicket.status} />
+            </div>
+
+            <div className="space-y-1.5 flex gap-1 flex-wrap">
+              {["waiting", "answered", "resolved"].map(s => (
+                <button key={s} onClick={() => changeStatus(activeTicket.id, s)}
+                  disabled={activeTicket.status === s}
+                  className={`text-[10px] px-2 py-1 rounded-lg font-medium disabled:opacity-40 transition-colors ${
+                    s === "waiting" ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30" :
+                    s === "answered" ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" :
+                    "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                  }`}>
+                  { { waiting: "Bekliyor", answered: "Yanıtlandı", resolved: "Çözüldü" }[s] }
+                </button>
+              ))}
+            </div>
+
+            <div className="max-h-60 overflow-y-auto space-y-2 bg-white/5 rounded-xl p-3">
+              {activeTicket.messages.map(m => (
+                <div key={m.id} className={`flex ${m.isStaff ? "justify-start" : "justify-end"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                    m.isStaff ? "bg-primary/20 text-foreground rounded-tl-sm" : "bg-white/10 text-foreground rounded-tr-sm"
+                  }`}>
+                    <p className="text-[9px] font-bold text-muted-foreground mb-0.5">{m.username ?? "Kullanıcı"}{m.isStaff ? " · Ekip" : ""}</p>
+                    <p>{m.message}</p>
+                    <p className="text-[9px] text-muted-foreground mt-0.5">{formatTime(m.createdAt)}</p>
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {activeTicket.status !== "resolved" && (
+              <div className="flex gap-2">
+                <textarea value={reply} onChange={e => setReply(e.target.value)}
+                  placeholder="Yanıt yaz..."
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); }}}
+                  rows={2} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-primary/50 resize-none text-foreground placeholder:text-muted-foreground" />
+                <button onClick={sendReply} disabled={!reply.trim()}
+                  className="w-9 h-9 self-end rounded-xl bg-primary flex items-center justify-center disabled:opacity-40">
+                  <Send className="w-3.5 h-3.5 text-white" />
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="flex gap-1.5 flex-wrap">
+              {[["all","Tümü"],["waiting","Bekliyor"],["answered","Yanıtlandı"],["resolved","Çözüldü"]].map(([v,l]) => (
+                <button key={v} onClick={() => { setFilter(v!); }}
+                  className={`text-[10px] px-2.5 py-1 rounded-full font-medium transition-colors ${filter === v ? "bg-primary text-white" : "bg-white/10 text-muted-foreground hover:bg-white/15"}`}>
+                  {l}
+                </button>
+              ))}
+              <button onClick={loadTickets} className="text-[10px] px-2.5 py-1 rounded-full bg-white/10 text-muted-foreground hover:bg-white/15 ml-auto">
+                Yenile
+              </button>
+            </div>
+
+            {loading ? (
+              <p className="text-xs text-center text-muted-foreground py-4">Yükleniyor...</p>
+            ) : tickets.length === 0 ? (
+              <p className="text-xs text-center text-muted-foreground py-4">Destek talebi bulunamadı.</p>
+            ) : (
+              <div className="space-y-2">
+                {tickets.map(t => (
+                  <button key={t.id} onClick={() => loadTicketDetail(t.id)}
+                    className="w-full text-left bg-white/5 hover:bg-white/10 rounded-xl p-3 transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold line-clamp-1">{t.subject}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{t.username} · {t.msgCount} mesaj · {formatTime(t.updatedAt)}</p>
+                      </div>
+                      <StatusBadge status={t.status} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -397,6 +570,8 @@ export default function AdminDashboard() {
             </Button>
           </div>
         </Section>
+
+        <SupportAdminSection apiCall={apiCall} toast={toast} />
 
         <Section title="İlan Listesi" icon={Briefcase}>
           <div className="space-y-2">
