@@ -212,15 +212,14 @@ export default function Chat() {
                 ) : (
                   <>
                     <RoleBadge role={chatMsg.userRole ?? "user"} />
-                    <span className={`text-[13px] font-extrabold leading-tight tracking-wide ${chatMsg.userNameAnimated ? "animate-rainbow" : ""}`}
-                      style={{
-                        ...(chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: chatMsg.userNameColor } : !chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: "#e2e8f0" } : {}),
-                        textShadow: chatMsg.userRole === "admin"
-                          ? "0 0 10px rgba(248,113,113,0.5)"
-                          : chatMsg.userRole === "moderator"
-                          ? "0 0 10px rgba(96,165,250,0.5)"
-                          : "0 0 8px rgba(148,163,184,0.3)",
-                      }}>
+                    <span className={`text-[13px] font-extrabold leading-tight tracking-wide ${
+                        chatMsg.userNameAnimated ? "animate-rainbow"
+                        : chatMsg.userNameColor ? ""
+                        : chatMsg.userRole === "admin" ? "name-admin"
+                        : chatMsg.userRole === "moderator" ? "name-mod"
+                        : "name-user"
+                      }`}
+                      style={chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: chatMsg.userNameColor } : {}}>
                       {name}
                     </span>
                   </>
@@ -291,8 +290,29 @@ export default function Chat() {
           animation: shimmer-green 2.8s linear infinite;
           filter: drop-shadow(0 0 5px rgba(34,197,94,0.7));
         }
-        .badge-uyе {
-          color: rgba(148,163,184,0.35);
+        .name-admin {
+          background: linear-gradient(90deg,
+            #60a5fa 0%, #bfdbfe 30%, #e0f2fe 55%, #bfdbfe 75%, #60a5fa 100%);
+          background-size: 220% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: shimmer-blue 3.5s linear infinite;
+          filter: drop-shadow(0 0 8px rgba(96,165,250,0.55));
+        }
+        .name-mod {
+          background: linear-gradient(90deg,
+            #4ade80 0%, #bbf7d0 30%, #d1fae5 55%, #bbf7d0 75%, #4ade80 100%);
+          background-size: 220% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: shimmer-green 3.5s linear infinite;
+          filter: drop-shadow(0 0 8px rgba(74,222,128,0.55));
+        }
+        .name-user {
+          color: #e2e8f0;
+          text-shadow: 0 0 8px rgba(148,163,184,0.3);
         }
       `}</style>
       <div className="flex flex-col h-[calc(100vh-7rem)] bg-background relative">
