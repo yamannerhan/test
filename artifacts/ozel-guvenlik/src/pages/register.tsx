@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 const registerSchema = z.object({
+  firstName: z.string().min(2, "Ad en az 2 karakter olmalıdır."),
+  lastName: z.string().min(2, "Soyad en az 2 karakter olmalıdır."),
   username: z.string().min(3, "Kullanıcı adı en az 3 karakter olmalıdır."),
   email: z.string().email("Geçerli bir e-posta adresi girin."),
   password: z.string().min(6, "Şifre en az 6 karakter olmalıdır."),
@@ -28,12 +30,20 @@ export default function Register() {
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { username: "", email: "", password: "" },
+    defaultValues: { firstName: "", lastName: "", username: "", email: "", password: "" },
   });
 
   const onSubmit = async (values: RegisterFormValues) => {
     try {
-      const response = await registerMutation.mutateAsync({ data: values });
+      const response = await registerMutation.mutateAsync({
+        data: {
+          username: values.username,
+          email: values.email,
+          password: values.password,
+          // Pass firstName/lastName as extra fields
+          ...({ firstName: values.firstName, lastName: values.lastName } as any),
+        },
+      });
       if (response?.token) {
         localStorage.setItem("auth_token", response.token);
       }
@@ -41,10 +51,10 @@ export default function Register() {
       toast({ title: "Kayıt başarılı", description: "Yönlendiriliyorsunuz..." });
       setLocation("/");
     } catch (error: any) {
-      toast({ 
-        title: "Hata", 
-        description: error?.message || "Kayıt yapılamadı. Bilgilerinizi kontrol edin.", 
-        variant: "destructive" 
+      toast({
+        title: "Hata",
+        description: error?.message || "Kayıt yapılamadı. Bilgilerinizi kontrol edin.",
+        variant: "destructive",
       });
     }
   };
@@ -60,11 +70,42 @@ export default function Register() {
             <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
               Aramıza Katıl
             </h1>
+            <p className="text-xs text-muted-foreground mt-1">Sohbette sadece adınız görünür</p>
           </div>
 
           <div className="glass-card rounded-2xl p-6">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                {/* Ad + Soyad yan yana */}
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="firstName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Ad</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ahmet" className="glass-card border-white/10" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="lastName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Soyad</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Yilmaz" className="glass-card border-white/10" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
                 <FormField
                   control={form.control}
                   name="username"
@@ -72,10 +113,10 @@ export default function Register() {
                     <FormItem>
                       <FormLabel>Kullanıcı Adı</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="güvenlik_uzmanı" 
-                          className="glass-card border-white/10" 
-                          {...field} 
+                        <Input
+                          placeholder="guvenlik_uzmanı"
+                          className="glass-card border-white/10"
+                          {...field}
                           data-testid="input-username"
                         />
                       </FormControl>
@@ -83,6 +124,7 @@ export default function Register() {
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
                   name="email"
@@ -90,10 +132,10 @@ export default function Register() {
                     <FormItem>
                       <FormLabel>E-Posta</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="ornek@email.com" 
-                          className="glass-card border-white/10" 
-                          {...field} 
+                        <Input
+                          placeholder="ornek@email.com"
+                          className="glass-card border-white/10"
+                          {...field}
                           data-testid="input-email"
                         />
                       </FormControl>
@@ -101,6 +143,7 @@ export default function Register() {
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
                   name="password"
@@ -108,11 +151,11 @@ export default function Register() {
                     <FormItem>
                       <FormLabel>Şifre</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="password" 
-                          placeholder="******" 
-                          className="glass-card border-white/10" 
-                          {...field} 
+                        <Input
+                          type="password"
+                          placeholder="******"
+                          className="glass-card border-white/10"
+                          {...field}
                           data-testid="input-password"
                         />
                       </FormControl>
@@ -120,9 +163,9 @@ export default function Register() {
                     </FormItem>
                   )}
                 />
-                
-                <Button 
-                  type="submit" 
+
+                <Button
+                  type="submit"
                   disabled={registerMutation.isPending}
                   className="w-full bg-gradient-to-r from-primary to-secondary text-white shadow-lg mt-6"
                   data-testid="button-submit-register"

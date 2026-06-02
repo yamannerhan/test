@@ -5,12 +5,21 @@ import { useParams, Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, MapPin, Briefcase, Camera, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { LogOut, MapPin, Briefcase, Camera, Loader2, Pencil, Check, X, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 function getToken() { return localStorage.getItem("auth_token") ?? ""; }
+
+function apiCall(path: string, method: string, body?: unknown) {
+  return fetch(`/api${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
 
 export default function Profile() {
   const { username } = useParams();
@@ -24,11 +33,20 @@ export default function Profile() {
   const [uploading, setUploading] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
+  // Display name edit state
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+
+  // Password change state
+  const [showPwChange, setShowPwChange] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
+  const [pwLoading, setPwLoading] = useState(false);
+
   const { data: profile, isLoading } = useGetUserProfile(username || "", {
     query: {
       enabled: !!username,
       queryKey: getGetUserProfileQueryKey(username || ""),
-    }
+    },
   });
 
   const { data: listingsData } = useGetListings({ page: 1, limit: 10 });
@@ -49,28 +67,22 @@ export default function Profile() {
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Show local preview immediately
     const reader = new FileReader();
     reader.onload = ev => setAvatarPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
-
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("avatar", file);
-
       const res = await fetch("/api/users/avatar", {
         method: "POST",
         headers: { Authorization: `Bearer ${getToken()}` },
         body: formData,
       });
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Yükleme başarısız");
+        throw new Error((err as any).error || "Yükleme başarısız");
       }
-
       await queryClient.invalidateQueries();
       toast({ title: "Profil resmi güncellendi" });
     } catch (err: any) {
@@ -79,6 +91,51 @@ export default function Profile() {
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const startEditName = () => {
+    setNameInput((profile as any)?.displayName || "");
+    setEditingName(true);
+  };
+
+  const saveName = async () => {
+    try {
+      const res = await apiCall("/users/me", "PATCH", { displayName: nameInput.trim() || null });
+      if (!res.ok) throw new Error("Güncelleme başarısız");
+      await queryClient.invalidateQueries();
+      setEditingName(false);
+      toast({ title: "Adınız güncellendi" });
+    } catch {
+      toast({ title: "Hata", variant: "destructive" });
+    }
+  };
+
+  const handlePasswordChange = async () => {
+    if (!pwForm.current || !pwForm.next || !pwForm.confirm) {
+      toast({ title: "Tüm alanları doldurun", variant: "destructive" }); return;
+    }
+    if (pwForm.next !== pwForm.confirm) {
+      toast({ title: "Yeni şifreler eşleşmiyor", variant: "destructive" }); return;
+    }
+    if (pwForm.next.length < 6) {
+      toast({ title: "Şifre en az 6 karakter olmalıdır", variant: "destructive" }); return;
+    }
+    setPwLoading(true);
+    try {
+      const res = await apiCall("/auth/change-password", "POST", {
+        currentPassword: pwForm.current,
+        newPassword: pwForm.next,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as any).error || "Şifre değiştirilemedi");
+      toast({ title: "Şifre güncellendi" });
+      setShowPwChange(false);
+      setPwForm({ current: "", next: "", confirm: "" });
+    } catch (err: any) {
+      toast({ title: "Hata", description: err.message, variant: "destructive" });
+    } finally {
+      setPwLoading(false);
     }
   };
 
@@ -101,10 +158,12 @@ export default function Profile() {
   }
 
   const displayAvatar = avatarPreview ?? (profile.avatarUrl || undefined);
+  const profileDisplayName = (profile as any).displayName as string | null;
 
   return (
     <Layout>
       <div className="p-4 space-y-6">
+        {/* Profile card */}
         <div className="glass-card p-6 rounded-3xl relative overflow-hidden flex flex-col items-center text-center">
           <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
 
@@ -114,13 +173,12 @@ export default function Profile() {
               size="icon"
               onClick={handleLogout}
               className="absolute top-4 right-4 text-muted-foreground hover:text-destructive"
-              data-testid="btn-logout"
             >
               <LogOut className="w-5 h-5" />
             </Button>
           )}
 
-          {/* Avatar with upload button */}
+          {/* Avatar */}
           <div className="relative mb-4">
             <Avatar className="w-24 h-24 ring-4 ring-background shadow-xl">
               <AvatarImage src={displayAvatar} />
@@ -128,7 +186,6 @@ export default function Profile() {
                 {profile.username.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-
             {isMe && (
               <>
                 <input
@@ -145,22 +202,57 @@ export default function Profile() {
                   style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }}
                   title="Profil resmi değiştir"
                 >
-                  {uploading ? (
-                    <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
-                  ) : (
-                    <Camera className="w-3.5 h-3.5 text-white" />
-                  )}
+                  {uploading ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Camera className="w-3.5 h-3.5 text-white" />}
                 </button>
               </>
             )}
           </div>
 
-          <h1
-            className={`text-2xl font-bold mb-1 ${profile.nameAnimated ? "animate-rainbow" : ""}`}
-            style={profile.nameColor && !profile.nameAnimated ? { color: profile.nameColor } : {}}
-          >
-            {profile.username}
-          </h1>
+          {/* Display name (nickname) */}
+          {isMe ? (
+            <div className="mb-1">
+              {editingName ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={nameInput}
+                    onChange={e => setNameInput(e.target.value)}
+                    placeholder="Adınız (sohbette görünür)"
+                    className="h-8 text-base font-bold glass-card border-primary/40 text-center w-44"
+                    maxLength={32}
+                    autoFocus
+                    onKeyDown={e => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
+                  />
+                  <button onClick={saveName} className="text-green-400 hover:text-green-300"><Check className="w-4 h-4" /></button>
+                  <button onClick={() => setEditingName(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 justify-center">
+                  <h1
+                    className={`text-2xl font-bold ${profile.nameAnimated ? "animate-rainbow" : ""}`}
+                    style={profile.nameColor && !profile.nameAnimated ? { color: profile.nameColor } : {}}
+                  >
+                    {profileDisplayName || profile.username}
+                  </h1>
+                  <button onClick={startEditName} className="text-muted-foreground hover:text-foreground mt-0.5" title="Adı düzenle">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              {profileDisplayName && (
+                <p className="text-xs text-muted-foreground">@{profile.username}</p>
+              )}
+            </div>
+          ) : (
+            <div className="mb-1">
+              <h1
+                className={`text-2xl font-bold ${profile.nameAnimated ? "animate-rainbow" : ""}`}
+                style={profile.nameColor && !profile.nameAnimated ? { color: profile.nameColor } : {}}
+              >
+                {profileDisplayName || profile.username}
+              </h1>
+              {profileDisplayName && <p className="text-xs text-muted-foreground">@{profile.username}</p>}
+            </div>
+          )}
 
           <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
             <span className="capitalize">
@@ -170,12 +262,10 @@ export default function Profile() {
             <span>Katılım: {new Date(profile.createdAt).toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}</span>
           </div>
 
-          {isMe && (
-            <p className="text-[11px] text-white/30 mb-2">Profil resmi için kamera ikonuna tıklayın (jpg, png, webp, gif)</p>
-          )}
+          {profile.bio && <p className="text-sm px-4 text-foreground/80">{profile.bio}</p>}
 
-          {profile.bio && (
-            <p className="text-sm px-4 text-foreground/80">{profile.bio}</p>
+          {isMe && (
+            <p className="text-[11px] text-white/30 mt-1">Kalem ikonuna tıklayarak sohbette görünecek adınızı değiştirebilirsiniz</p>
           )}
 
           <div className="mt-6 flex space-x-6 text-center">
@@ -194,6 +284,61 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* Password change section (only for logged-in user) */}
+        {isMe && (
+          <div className="glass-card rounded-2xl overflow-hidden">
+            <button
+              onClick={() => setShowPwChange(v => !v)}
+              className="w-full flex items-center justify-between p-4 text-left hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2 font-semibold text-sm">
+                <KeyRound className="w-4 h-4 text-primary" />
+                Şifre Değiştir
+              </div>
+              <span className="text-muted-foreground text-xs">{showPwChange ? "Kapat" : "Aç"}</span>
+            </button>
+            <AnimatePresence>
+              {showPwChange && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  className="px-4 pb-4 border-t border-white/5 pt-4 space-y-3 overflow-hidden"
+                >
+                  <Input
+                    type="password"
+                    placeholder="Mevcut şifre"
+                    value={pwForm.current}
+                    onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
+                    className="glass-card border-white/10"
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Yeni şifre (en az 6 karakter)"
+                    value={pwForm.next}
+                    onChange={e => setPwForm(f => ({ ...f, next: e.target.value }))}
+                    className="glass-card border-white/10"
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Yeni şifre tekrar"
+                    value={pwForm.confirm}
+                    onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))}
+                    className="glass-card border-white/10"
+                  />
+                  <Button
+                    onClick={handlePasswordChange}
+                    disabled={pwLoading}
+                    className="w-full bg-gradient-to-r from-primary to-secondary text-white"
+                  >
+                    {pwLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Şifreyi Güncelle
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* Listings */}
         <div>
           <h2 className="text-lg font-bold mb-4">{isMe ? "Senin İlanların" : "İlanları"}</h2>
           <div className="space-y-4">
@@ -215,14 +360,8 @@ export default function Profile() {
                     <p className="text-sm text-muted-foreground mb-3">{listing.company}</p>
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex space-x-3 text-muted-foreground">
-                        <span className="flex items-center">
-                          <MapPin className="w-3.5 h-3.5 mr-1" />
-                          {listing.city}
-                        </span>
-                        <span className="flex items-center">
-                          <Briefcase className="w-3.5 h-3.5 mr-1" />
-                          {listing.workType}
-                        </span>
+                        <span className="flex items-center"><MapPin className="w-3.5 h-3.5 mr-1" />{listing.city}</span>
+                        <span className="flex items-center"><Briefcase className="w-3.5 h-3.5 mr-1" />{listing.workType}</span>
                       </div>
                       <span className={`px-2 py-1 rounded font-medium ${listing.status === "active" ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}`}>
                         {listing.status === "active" ? "Yayında" : "Bekliyor"}

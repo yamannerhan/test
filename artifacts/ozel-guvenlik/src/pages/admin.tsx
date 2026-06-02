@@ -448,7 +448,7 @@ function SupportAdminSection({ apiCall, toast }: {
 }
 
 interface AdminUser {
-  id: number; username: string; email: string; role: string;
+  id: number; username: string; email: string; displayName: string | null; role: string;
   isBanned: boolean; createdAt: string; avatarUrl: string | null;
 }
 
@@ -461,6 +461,13 @@ function UserManagementSection({ apiCall, toast }: {
   const [loading, setLoading] = useState(false);
   const [newMod, setNewMod] = useState({ username: "", email: "", password: "" });
   const [creating, setCreating] = useState(false);
+
+  // Per-user expanded state: password reset
+  const [resetPw, setResetPw] = useState<Record<number, string>>({});
+  const [resetLoading, setResetLoading] = useState<number | null>(null);
+  // Per-user display name edit
+  const [editDN, setEditDN] = useState<Record<number, string>>({});
+  const [dnLoading, setDnLoading] = useState<number | null>(null);
 
   const searchUsers = async () => {
     setLoading(true);
@@ -493,6 +500,30 @@ function UserManagementSection({ apiCall, toast }: {
         toast({ title: "Kullanıcı yasaklandı" });
       }
     } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const resetPassword = async (id: number) => {
+    const pw = resetPw[id]?.trim();
+    if (!pw || pw.length < 6) { toast({ title: "Şifre en az 6 karakter olmalıdır", variant: "destructive" }); return; }
+    setResetLoading(id);
+    try {
+      await apiCall(`/admin/users/${id}/reset-password`, "POST", { newPassword: pw });
+      toast({ title: "Şifre sıfırlandı" });
+      setResetPw(prev => { const n = { ...prev }; delete n[id]; return n; });
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+    finally { setResetLoading(null); }
+  };
+
+  const saveDisplayName = async (id: number) => {
+    const dn = editDN[id] ?? "";
+    setDnLoading(id);
+    try {
+      await apiCall(`/admin/users/${id}/display-name`, "PATCH", { displayName: dn.trim() || null });
+      toast({ title: "İsim güncellendi" });
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, displayName: dn.trim() || null } : u));
+      setEditDN(prev => { const n = { ...prev }; delete n[id]; return n; });
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+    finally { setDnLoading(null); }
   };
 
   const createModerator = async () => {
@@ -555,14 +586,16 @@ function UserManagementSection({ apiCall, toast }: {
           ) : users.length === 0 ? (
             <p className="text-xs text-center text-muted-foreground py-4">Kullanıcı bulunamadı</p>
           ) : users.map(u => (
-            <div key={u.id} className={`bg-white/5 rounded-xl p-3 ${u.isBanned ? "opacity-60" : ""}`}>
-              <div className="flex items-center gap-2 mb-2">
+            <div key={u.id} className={`bg-white/5 rounded-xl p-3 space-y-2 ${u.isBanned ? "opacity-60" : ""}`}>
+              {/* Header row */}
+              <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold shrink-0">
                   {u.username.substring(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium truncate">{u.username}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-sm font-semibold truncate">{u.displayName || u.username}</p>
+                    {u.displayName && <p className="text-[10px] text-muted-foreground">@{u.username}</p>}
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${roleBg[u.role] ?? "bg-white/10 text-muted-foreground"}`}>
                       {roleLabel[u.role] ?? u.role}
                     </span>
@@ -571,6 +604,44 @@ function UserManagementSection({ apiCall, toast }: {
                   <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
                 </div>
               </div>
+
+              {/* Display name edit */}
+              <div className="flex gap-1.5">
+                <input
+                  value={editDN[u.id] ?? u.displayName ?? ""}
+                  onChange={e => setEditDN(prev => ({ ...prev, [u.id]: e.target.value }))}
+                  placeholder="Sohbet adı (displayName)"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40"
+                />
+                <button
+                  onClick={() => saveDisplayName(u.id)}
+                  disabled={dnLoading === u.id}
+                  className="text-[10px] px-2 py-1 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors disabled:opacity-50"
+                >
+                  {dnLoading === u.id ? "..." : "Kaydet"}
+                </button>
+              </div>
+
+              {/* Password reset */}
+              <div className="flex gap-1.5">
+                <input
+                  type="password"
+                  value={resetPw[u.id] ?? ""}
+                  onChange={e => setResetPw(prev => ({ ...prev, [u.id]: e.target.value }))}
+                  placeholder="Yeni şifre (en az 6 karakter)"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500/40"
+                />
+                <button
+                  onClick={() => resetPassword(u.id)}
+                  disabled={resetLoading === u.id}
+                  className="text-[10px] px-2 py-1 bg-amber-500/20 text-amber-400 rounded-lg hover:bg-amber-500/30 transition-colors disabled:opacity-50 flex items-center gap-0.5"
+                >
+                  <Lock className="w-3 h-3" />
+                  {resetLoading === u.id ? "..." : "Şifre"}
+                </button>
+              </div>
+
+              {/* Role + ban buttons */}
               {u.role !== "admin" && (
                 <div className="flex gap-1.5 flex-wrap">
                   {u.role !== "moderator" ? (

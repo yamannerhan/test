@@ -9,14 +9,32 @@ import { authMiddleware } from "../middlewares/auth";
 
 const router = Router();
 
-// ── Avatar upload setup ──────────────────────────────────────────
+function userJson(u: typeof usersTable.$inferSelect) {
+  return {
+    id: u.id,
+    username: u.username,
+    email: u.email,
+    displayName: u.displayName ?? null,
+    role: u.role,
+    avatarUrl: u.avatarUrl,
+    bio: u.bio,
+    nameColor: u.nameColor,
+    nameAnimated: u.nameAnimated,
+    isBanned: u.isBanned,
+    banReason: u.banReason,
+    banExpiresAt: u.banExpiresAt?.toISOString() ?? null,
+    createdAt: u.createdAt.toISOString(),
+  };
+}
+
+// ── Avatar upload ─────────────────────────────────────────────────
 const UPLOADS_DIR = path.join(process.cwd(), "uploads", "avatars");
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB max
+  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp"];
     cb(null, allowed.includes(file.mimetype));
@@ -24,42 +42,19 @@ const upload = multer({
 });
 
 router.post("/users/avatar", authMiddleware, upload.single("avatar"), async (req, res): Promise<void> => {
-  if (!req.file) {
-    res.status(400).json({ error: "Resim dosyası gerekli (jpg, png, webp, gif)" });
-    return;
-  }
+  if (!req.file) { res.status(400).json({ error: "Resim dosyası gerekli (jpg, png, webp, gif)" }); return; }
 
   const filename = `${req.user!.id}_${Date.now()}.jpg`;
   const filepath = path.join(UPLOADS_DIR, filename);
 
-  // Resize and convert to JPEG — max 256x256, quality 85
   await sharp(req.file.buffer)
     .resize(256, 256, { fit: "cover", position: "center" })
     .jpeg({ quality: 85 })
     .toFile(filepath);
 
   const avatarUrl = `/api/avatars/${filename}`;
-
-  const [updated] = await db
-    .update(usersTable)
-    .set({ avatarUrl })
-    .where(eq(usersTable.id, req.user!.id))
-    .returning();
-
-  res.json({
-    id: updated.id,
-    username: updated.username,
-    email: updated.email,
-    role: updated.role,
-    avatarUrl: updated.avatarUrl,
-    bio: updated.bio,
-    nameColor: updated.nameColor,
-    nameAnimated: updated.nameAnimated,
-    isBanned: updated.isBanned,
-    banReason: updated.banReason,
-    banExpiresAt: updated.banExpiresAt?.toISOString() ?? null,
-    createdAt: updated.createdAt.toISOString(),
-  });
+  const [updated] = await db.update(usersTable).set({ avatarUrl }).where(eq(usersTable.id, req.user!.id)).returning();
+  res.json(userJson(updated));
 });
 
 // ── User search for @ mention ─────────────────────────────────────
@@ -68,7 +63,7 @@ router.get("/users/search", async (req, res): Promise<void> => {
   if (!q) { res.json([]); return; }
 
   const all = await db
-    .select({ id: usersTable.id, username: usersTable.username, avatarUrl: usersTable.avatarUrl, role: usersTable.role })
+    .select({ id: usersTable.id, username: usersTable.username, displayName: usersTable.displayName, avatarUrl: usersTable.avatarUrl, role: usersTable.role })
     .from(usersTable)
     .limit(8);
 
@@ -76,7 +71,7 @@ router.get("/users/search", async (req, res): Promise<void> => {
   res.json(filtered);
 });
 
-// ── Profile ───────────────────────────────────────────────────────
+// ── Public profile ────────────────────────────────────────────────
 router.get("/users/profile/:username", async (req, res): Promise<void> => {
   const username = Array.isArray(req.params["username"]) ? req.params["username"][0] : req.params["username"];
   if (!username) { res.status(400).json({ error: "Geçersiz kullanıcı adı" }); return; }
@@ -89,6 +84,7 @@ router.get("/users/profile/:username", async (req, res): Promise<void> => {
   res.json({
     id: user.id,
     username: user.username,
+    displayName: user.displayName ?? null,
     role: user.role,
     avatarUrl: user.avatarUrl,
     bio: user.bio,
@@ -99,29 +95,19 @@ router.get("/users/profile/:username", async (req, res): Promise<void> => {
   });
 });
 
+// ── Update own profile ────────────────────────────────────────────
 router.patch("/users/me", authMiddleware, async (req, res): Promise<void> => {
-  const { bio, avatarUrl } = req.body as { bio?: string | null; avatarUrl?: string | null };
+  const { bio, avatarUrl, displayName } = req.body as { bio?: string | null; avatarUrl?: string | null; displayName?: string | null };
   const updates: Partial<typeof usersTable.$inferInsert> = {};
   if (bio !== undefined) updates.bio = bio ?? null;
   if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl ?? null;
+  if (displayName !== undefined) updates.displayName = displayName?.trim() || null;
 
   const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, req.user!.id)).returning();
-  res.json({
-    id: updated.id,
-    username: updated.username,
-    email: updated.email,
-    role: updated.role,
-    avatarUrl: updated.avatarUrl,
-    bio: updated.bio,
-    nameColor: updated.nameColor,
-    nameAnimated: updated.nameAnimated,
-    isBanned: updated.isBanned,
-    banReason: updated.banReason,
-    banExpiresAt: updated.banExpiresAt?.toISOString() ?? null,
-    createdAt: updated.createdAt.toISOString(),
-  });
+  res.json(userJson(updated));
 });
 
+// ── Favorites ─────────────────────────────────────────────────────
 router.get("/users/favorites", authMiddleware, async (req, res): Promise<void> => {
   const userId = req.user!.id;
   const favs = await db.select({ listingId: listingFavoritesTable.listingId }).from(listingFavoritesTable).where(eq(listingFavoritesTable.userId, userId));

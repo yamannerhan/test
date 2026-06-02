@@ -37,6 +37,7 @@ async function formatMessage(msg: typeof chatMessagesTable.$inferSelect, userMap
     content: msg.content,
     userId: msg.userId,
     username: user?.username ?? "Silindi",
+    displayName: user?.displayName ?? null,
     userAvatarUrl: user?.avatarUrl ?? null,
     userNameColor: user?.nameColor ?? null,
     userNameAnimated: user?.nameAnimated ?? false,

@@ -6,8 +6,27 @@ import { authMiddleware, signToken } from "../middlewares/auth";
 
 const router = Router();
 
+function userJson(user: typeof usersTable.$inferSelect) {
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    displayName: user.displayName ?? null,
+    role: user.role,
+    avatarUrl: user.avatarUrl,
+    bio: user.bio,
+    nameColor: user.nameColor,
+    nameAnimated: user.nameAnimated,
+    isBanned: user.isBanned,
+    banReason: user.banReason,
+    banExpiresAt: user.banExpiresAt?.toISOString() ?? null,
+    createdAt: user.createdAt.toISOString(),
+  };
+}
+
 router.post("/auth/register", async (req, res): Promise<void> => {
-  const { username, email, password } = req.body as { username?: string; email?: string; password?: string };
+  const { username, email, password, firstName, lastName } =
+    req.body as { username?: string; email?: string; password?: string; firstName?: string; lastName?: string };
 
   if (!username || !email || !password) {
     res.status(400).json({ error: "Tüm alanlar zorunludur" });
@@ -23,16 +42,13 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }
 
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email));
-  if (existing) {
-    res.status(400).json({ error: "Bu e-posta adresi zaten kayıtlı" });
-    return;
-  }
+  if (existing) { res.status(400).json({ error: "Bu e-posta adresi zaten kayıtlı" }); return; }
 
   const [existingUsername] = await db.select().from(usersTable).where(eq(usersTable.username, username));
-  if (existingUsername) {
-    res.status(400).json({ error: "Bu kullanıcı adı zaten alınmış" });
-    return;
-  }
+  if (existingUsername) { res.status(400).json({ error: "Bu kullanıcı adı zaten alınmış" }); return; }
+
+  // Build displayName from firstName (only first name shown in chat)
+  const displayName = firstName?.trim() || null;
 
   const passwordHash = await bcrypt.hash(password, 10);
   const [user] = await db.insert(usersTable).values({
@@ -40,26 +56,11 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     email,
     passwordHash,
     role: "user",
+    displayName,
   }).returning();
 
   const token = signToken(user.id, user.role);
-  res.status(201).json({
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-      avatarUrl: user.avatarUrl,
-      bio: user.bio,
-      nameColor: user.nameColor,
-      nameAnimated: user.nameAnimated,
-      isBanned: user.isBanned,
-      banReason: user.banReason,
-      banExpiresAt: user.banExpiresAt?.toISOString() ?? null,
-      createdAt: user.createdAt.toISOString(),
-    },
-    token,
-  });
+  res.status(201).json({ user: userJson(user), token });
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -70,22 +71,15 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  // Allow login with either email or username
   const [user] = await db
     .select()
     .from(usersTable)
     .where(or(eq(usersTable.email, email), eq(usersTable.username, email)));
 
-  if (!user) {
-    res.status(401).json({ error: "E-posta/kullanıcı adı veya şifre hatalı" });
-    return;
-  }
+  if (!user) { res.status(401).json({ error: "E-posta/kullanıcı adı veya şifre hatalı" }); return; }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) {
-    res.status(401).json({ error: "E-posta/kullanıcı adı veya şifre hatalı" });
-    return;
-  }
+  if (!valid) { res.status(401).json({ error: "E-posta/kullanıcı adı veya şifre hatalı" }); return; }
 
   if (user.isBanned) {
     const now = new Date();
@@ -96,23 +90,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   }
 
   const token = signToken(user.id, user.role);
-  res.json({
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-      avatarUrl: user.avatarUrl,
-      bio: user.bio,
-      nameColor: user.nameColor,
-      nameAnimated: user.nameAnimated,
-      isBanned: user.isBanned,
-      banReason: user.banReason,
-      banExpiresAt: user.banExpiresAt?.toISOString() ?? null,
-      createdAt: user.createdAt.toISOString(),
-    },
-    token,
-  });
+  res.json({ user: userJson(user), token });
 });
 
 router.post("/auth/logout", (_req, res): void => {
@@ -120,21 +98,32 @@ router.post("/auth/logout", (_req, res): void => {
 });
 
 router.get("/auth/me", authMiddleware, (req, res): void => {
-  const user = req.user!;
-  res.json({
-    id: user.id,
-    username: user.username,
-    email: user.email,
-    role: user.role,
-    avatarUrl: user.avatarUrl,
-    bio: user.bio,
-    nameColor: user.nameColor,
-    nameAnimated: user.nameAnimated,
-    isBanned: user.isBanned,
-    banReason: user.banReason,
-    banExpiresAt: user.banExpiresAt?.toISOString() ?? null,
-    createdAt: user.createdAt.toISOString(),
-  });
+  res.json(userJson(req.user!));
+});
+
+// Change password — available to all authenticated users
+router.post("/auth/change-password", authMiddleware, async (req, res): Promise<void> => {
+  const { currentPassword, newPassword } =
+    req.body as { currentPassword?: string; newPassword?: string };
+
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "Mevcut ve yeni şifre zorunludur" });
+    return;
+  }
+  if (newPassword.length < 6) {
+    res.status(400).json({ error: "Yeni şifre en az 6 karakter olmalıdır" });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.id));
+  if (!user) { res.status(404).json({ error: "Kullanıcı bulunamadı" }); return; }
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) { res.status(401).json({ error: "Mevcut şifre hatalı" }); return; }
+
+  const hash = await bcrypt.hash(newPassword, 10);
+  await db.update(usersTable).set({ passwordHash: hash }).where(eq(usersTable.id, user.id));
+  res.json({ success: true, message: "Şifre güncellendi" });
 });
 
 export default router;
