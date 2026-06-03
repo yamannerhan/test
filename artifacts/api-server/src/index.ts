@@ -4,7 +4,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { onlineSockets } from "./routes/chat";
 import { setBotIo } from "./lib/chat-bot";
-import { db, usersTable, listingsTable, adminSettingsTable } from "@workspace/db";
+import { db, usersTable, listingsTable, adminSettingsTable, chatMessagesTable } from "@workspace/db";
 import { eq, count, sql } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
@@ -19,6 +19,14 @@ const io = new SocketIOServer(httpServer, {
 });
 app.set("io", io);
 setBotIo(io);
+
+async function saveToDB(userId: number, content: string): Promise<void> {
+  try {
+    await db.insert(chatMessagesTable).values({ userId, content, isPinned: false });
+  } catch (e) {
+    logger.error(e, "saveToDB error");
+  }
+}
 
 // ── GuvenlikBot ───────────────────────────────────────────────────
 const BOT_USER = {
@@ -98,9 +106,13 @@ function scheduleHourlyReminder() {
   const trNow = new Date(now.getTime() + trOffset);
   const msUntilNextHour = (60 - trNow.getUTCMinutes()) * 60 * 1000 - trNow.getUTCSeconds() * 1000 - trNow.getUTCMilliseconds();
   setTimeout(() => {
-    io.emit("chat:message", makeBotMsg(getHourlyMsg(turkeyHour())));
+    const hourlyMsg = getHourlyMsg(turkeyHour());
+    void saveToDB(0, hourlyMsg);
+    io.emit("chat:message", makeBotMsg(hourlyMsg));
     setInterval(() => {
-      io.emit("chat:message", makeBotMsg(getHourlyMsg(turkeyHour())));
+      const m = getHourlyMsg(turkeyHour());
+      void saveToDB(0, m);
+      io.emit("chat:message", makeBotMsg(m));
     }, 60 * 60 * 1000);
   }, msUntilNextHour);
 }
@@ -148,6 +160,7 @@ function scheduleBotMessage() {
   const delay = 5 * 60 * 1000 + Math.random() * 8 * 60 * 1000;
   setTimeout(async () => {
     const msg = await getDynamicBotMsg();
+    void saveToDB(0, msg);
     io.emit("chat:message", makeBotMsg(msg));
     scheduleBotMessage();
   }, delay);
@@ -633,6 +646,7 @@ async function maybeBotReply(question: string, askerUsername: string) {
   const replyFn = botReplies[Math.floor(Math.random() * botReplies.length)]!;
   const content = `@${askerUsername} ${replyFn(stats)}`;
   setTimeout(() => {
+    void saveToDB(0, content);
     io.emit("chat:message", { ...makeBotMsg(content, askerUsername), content });
   }, 8000 + Math.random() * 12000);
 }
@@ -643,13 +657,16 @@ function scheduleFakeConversation() {
     const roll = Math.random();
     if (roll < 0.35) {
       const user = getRandomUser();
-      io.emit("chat:message", makeFakeMsg(user, getNextStandalone()));
+      const standaloneContent = getNextStandalone();
+      void saveToDB(user.id, standaloneContent);
+      io.emit("chat:message", makeFakeMsg(user, standaloneContent));
     } else {
       const pair = getNextConvPair();
       const stats = await getListingStats();
       const userA = getRandomUser();
       const userB = getRandomUser(userA);
 
+      void saveToDB(userA.id, pair.a);
       io.emit("chat:message", makeFakeMsg(userA, pair.a));
 
       // Bot bazen soruya cevap verir
@@ -657,6 +674,8 @@ function scheduleFakeConversation() {
 
       setTimeout(() => {
         const answer = pair.bTemplate(stats);
+        const fullAnswer = `@${userA.username} ${answer}`;
+        void saveToDB(userB.id, fullAnswer);
         io.emit("chat:message", makeFakeMsg(userB, answer, userA.username));
       }, pair.delay);
     }
@@ -822,7 +841,9 @@ function getNextInfoMsg(): string {
 function scheduleInfoBot() {
   const delay = 3 * 60 * 1000 + Math.random() * 4 * 60 * 1000;
   setTimeout(() => {
-    io.emit("chat:message", makeInfoMsg(getNextInfoMsg()));
+    const infoContent = getNextInfoMsg();
+    void saveToDB(-999, infoContent);
+    io.emit("chat:message", makeInfoMsg(infoContent));
     scheduleInfoBot();
   }, delay);
 }

@@ -4,6 +4,7 @@ import { eq, desc, and, lt, inArray } from "drizzle-orm";
 import { authMiddleware, optionalAuthMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
 import { triggerContextualReply } from "../lib/chat-bot";
 import { filterProfanity } from "../lib/profanity";
+import { VIRTUAL_USERS } from "../lib/virtual-users";
 
 const router = Router();
 
@@ -26,6 +27,7 @@ async function formatMessage(
   userMap: Map<number, typeof usersTable.$inferSelect>,
   reactionsMap?: Map<number, Array<{ emoji: string; userId: number; username: string; displayName: string | null }>>
 ) {
+  const vUser = VIRTUAL_USERS[msg.userId];
   const user = userMap.get(msg.userId);
   let replyToUsername: string | null = null;
   let replyToContent: string | null = null;
@@ -34,8 +36,9 @@ async function formatMessage(
     const [replyMsg] = await db.select().from(chatMessagesTable).where(eq(chatMessagesTable.id, msg.replyToId));
     if (replyMsg) {
       replyToContent = replyMsg.content;
+      const replyVUser = VIRTUAL_USERS[replyMsg.userId];
       const replyUser = userMap.get(replyMsg.userId);
-      replyToUsername = replyUser?.username ?? null;
+      replyToUsername = replyVUser?.username ?? replyUser?.username ?? null;
     }
   }
 
@@ -43,12 +46,14 @@ async function formatMessage(
     id: msg.id,
     content: msg.content,
     userId: msg.userId,
-    username: user?.username ?? "Silindi",
-    displayName: user?.displayName ?? null,
-    userAvatarUrl: user?.avatarUrl ?? null,
-    userNameColor: user?.nameColor ?? null,
-    userNameAnimated: user?.nameAnimated ?? false,
-    userRole: user?.role ?? "user",
+    username:        vUser?.username        ?? user?.username        ?? "Silindi",
+    displayName:     vUser?.displayName     ?? user?.displayName     ?? null,
+    userAvatarUrl:   vUser?.avatarUrl       ?? user?.avatarUrl       ?? null,
+    userNameColor:   vUser?.nameColor       ?? user?.nameColor       ?? null,
+    userNameAnimated:vUser?.nameAnimated    ?? user?.nameAnimated    ?? false,
+    userRole:        vUser?.role            ?? user?.role            ?? "user",
+    isBot:           vUser?.isBot           ?? false,
+    isFake:          vUser?.isFake          ?? false,
     replyToId: msg.replyToId,
     replyToUsername,
     replyToContent,
