@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import fs from "node:fs";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT;
@@ -26,9 +27,30 @@ if (!basePath) {
   );
 }
 
+const swVersionPlugin = {
+  name: "sw-version-inject",
+  configureServer(server: { middlewares: { use: (path: string, fn: (req: unknown, res: { setHeader: (k: string, v: string) => void; end: (s: string) => void }, next: () => void) => void) => void } }) {
+    server.middlewares.use("/sw.js", (_req, res) => {
+      const swPath = path.resolve(import.meta.dirname, "public/sw.js");
+      const content = fs.readFileSync(swPath, "utf-8").replace("__CACHE_VERSION__", Date.now().toString());
+      res.setHeader("Content-Type", "application/javascript");
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      res.end(content);
+    });
+  },
+  closeBundle() {
+    const outPath = path.resolve(import.meta.dirname, "dist/public/sw.js");
+    if (fs.existsSync(outPath)) {
+      const content = fs.readFileSync(outPath, "utf-8").replace("__CACHE_VERSION__", Date.now().toString());
+      fs.writeFileSync(outPath, content);
+    }
+  },
+};
+
 export default defineConfig({
   base: basePath,
   plugins: [
+    swVersionPlugin,
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
