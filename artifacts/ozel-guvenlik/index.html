@@ -30,20 +30,54 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ("serviceWorker" in navigator) {
-        var _swRefreshing = false;
-        navigator.serviceWorker.addEventListener("controllerchange", function() {
-          if (!_swRefreshing) { _swRefreshing = true; window.location.reload(); }
-        });
-        window.addEventListener("load", function() {
-          navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
-            .then(function(reg) {
-              reg.update();
-              setInterval(function() { reg.update(); }, 20000);
-            })
-            .catch(function() {});
-        });
-      }
+      (function() {
+        // Katman 1: BUILD_TS kontrolü (en güvenilir yöntem)
+        // Vite her sunucu başlangıcında bu değeri taze timestamp ile değiştirir
+        var BUILD_TS = "__BUILD_TS__";
+        var _reloading = false;
+
+        function doReload() {
+          if (_reloading) return;
+          _reloading = true;
+          try {
+            if ("caches" in window) {
+              caches.keys().then(function(keys) {
+                return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+              }).then(function() { window.location.reload(); });
+            } else {
+              window.location.reload();
+            }
+          } catch(e) { window.location.reload(); }
+        }
+
+        // BUILD_TS değişmişse hemen yenile
+        var stored = localStorage.getItem("_bts");
+        if (stored && stored !== BUILD_TS) {
+          localStorage.setItem("_bts", BUILD_TS);
+          doReload();
+        } else {
+          localStorage.setItem("_bts", BUILD_TS);
+        }
+
+        // Katman 2: Service Worker güncelleme olayları
+        if ("serviceWorker" in navigator) {
+          // Yeni SW kontrolü devraldığında
+          navigator.serviceWorker.addEventListener("controllerchange", doReload);
+          // Eski SW'lerden gelen SW_UPDATED mesajı (geri uyumluluk)
+          navigator.serviceWorker.addEventListener("message", function(e) {
+            if (e.data && e.data.type === "SW_UPDATED") doReload();
+          });
+
+          window.addEventListener("load", function() {
+            navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
+              .then(function(reg) {
+                reg.update();
+                setInterval(function() { reg.update(); }, 20000);
+              })
+              .catch(function() {});
+          });
+        }
+      })();
     </script>
   </body>
 </html>

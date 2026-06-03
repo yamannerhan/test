@@ -37,6 +37,10 @@ fs.writeFileSync(SW_OUTPUT_PATH, swTemplate.replace("__CACHE_VERSION__", DEV_CAC
 
 const swVersionPlugin = {
   name: "sw-version-inject",
+  transformIndexHtml(html: string) {
+    // Her sunucu başlangıcında index.html içindeki __BUILD_TS__ yerine taze timestamp yaz
+    return html.replace(/__BUILD_TS__/g, DEV_CACHE_VERSION);
+  },
   closeBundle() {
     // Build sırasında dist/sw.js'e de timestamp yaz
     const outPath = path.resolve(import.meta.dirname, "dist/sw.js");
