@@ -1,8 +1,8 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "./contexts/AuthContext";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Listings from "@/pages/listings";
@@ -21,6 +21,13 @@ import CvOlustur from "@/pages/cv-olustur";
 
 const queryClient = new QueryClient();
 
+function RequireAuth({ component: Component }: { component: React.ComponentType }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (!user) return <Redirect to="/kayit" />;
+  return <Component />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -35,7 +42,7 @@ function Router() {
       <Route path="/ilan-ekle" component={AddListing} />
       <Route path="/bildirimler" component={Notifications} />
       <Route path="/favoriler" component={Favorites} />
-      <Route path="/cv-olustur" component={CvOlustur} />
+      <Route path="/cv-olustur">{() => <RequireAuth component={CvOlustur} />}</Route>
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/moderator" component={ModeratorDashboard} />
       <Route component={NotFound} />
