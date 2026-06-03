@@ -74,7 +74,7 @@ function WorkerCard({ w, isAdmin, onFeature, onBan, onDelete, isMine }: {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       className={`relative glass-card rounded-2xl p-4 ${w.isFeatured
-        ? "border border-amber-400/50 shadow-[0_0_18px_rgba(251,191,36,0.25)]"
+        ? "border border-amber-400/70 animate-pt-glow"
         : "border border-white/5"}`}
     >
       {w.isFeatured && (

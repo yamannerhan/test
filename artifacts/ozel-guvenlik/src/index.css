@@ -167,6 +167,16 @@
   100% { opacity: 0; transform: scale(0.97); }
 }
 
+/* ── Part Time öne çıkan parlayan çerçeve ──────────────────── */
+@keyframes pt-featured-glow {
+  0%   { box-shadow: 0 0 8px 2px rgba(251,191,36,0.35), 0 0 0 1px rgba(251,191,36,0.5); }
+  50%  { box-shadow: 0 0 22px 6px rgba(251,191,36,0.65), 0 0 0 1.5px rgba(251,191,36,0.9); }
+  100% { box-shadow: 0 0 8px 2px rgba(251,191,36,0.35), 0 0 0 1px rgba(251,191,36,0.5); }
+}
+.animate-pt-glow {
+  animation: pt-featured-glow 2s ease-in-out infinite;
+}
+
 /* ── Glass card ────────────────────────────────────────────── */
 .glass-card {
   @apply bg-card/80 backdrop-blur-md border border-white/10 shadow-[0_0_15px_rgba(79,70,229,0.1)];
