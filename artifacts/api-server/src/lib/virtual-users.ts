@@ -16,7 +16,7 @@ export const VIRTUAL_USERS: Record<number, VirtualUser> = {
     role: "bot", isBot: true, isFake: false,
   },
   [-999]: {
-    username: "BilgiBot", displayName: "Bilgi Botu",
+    username: "BİLGİ_BOTU", displayName: "BİLGİ BOTU",
     avatarUrl: null, nameColor: "#22C55E", nameAnimated: false,
     role: "bot", isBot: true, isFake: false,
   },

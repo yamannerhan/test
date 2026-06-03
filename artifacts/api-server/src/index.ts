@@ -759,7 +759,7 @@ io.on("connection", (socket) => {
 
 // ── BİLGİ BOTU ───────────────────────────────────────────────────
 const INFO_BOT = {
-  id: -999, username: "BilgiBot", displayName: "Bilgi Botu",
+  id: -999, username: "BİLGİ_BOTU", displayName: "BİLGİ BOTU",
   userRole: "bot", userAvatarUrl: null,
   userNameColor: "#22C55E", userNameAnimated: false, isBot: true,
 };
@@ -768,7 +768,7 @@ function makeInfoMsg(content: string) {
   return {
     ...INFO_BOT,
     id: Date.now() + Math.random(),
-    content,
+    content: `🔎 Bunu biliyor muydunuz?\n\n${content}`,
     replyToId: null, replyToUsername: null, replyToContent: null,
     isPinned: false, mentions: [], reactions: [],
     createdAt: new Date().toISOString(),
