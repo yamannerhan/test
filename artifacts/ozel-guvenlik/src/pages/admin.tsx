@@ -835,6 +835,91 @@ function UserManagementSection({ apiCall, toast }: {
   );
 }
 
+interface PTWorker {
+  id: number; userId: number; fullName: string; age: number; isRetired: boolean;
+  gender: string; phone: string; city: string; district: string; hasVehicle: string;
+  description: string | null; photoUrl: string | null; isFeatured: boolean;
+  isBanned: boolean; status: string; createdAt: string;
+}
+
+function PartTimeAdminSection({ apiCall, toast }: {
+  apiCall: (path: string, method?: string, body?: unknown) => Promise<unknown>;
+  toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const { data: workers, loading, refetch } = useAdminApi<PTWorker[]>("/admin/parttime");
+
+  const handleFeature = async (id: number, current: boolean) => {
+    try {
+      await apiCall(`/parttime/${id}/feature`, "POST");
+      toast({ title: current ? "Öne çıkarma kaldırıldı" : "Öne çıkarıldı" });
+      refetch();
+    } catch { toast({ title: "Hata", variant: "destructive" }); }
+  };
+
+  const handleBan = async (id: number, currentlyBanned: boolean) => {
+    try {
+      const reason = !currentlyBanned ? (prompt("Yasaklama sebebi:") || "Kural ihlali") : "";
+      await apiCall(`/parttime/${id}/ban`, "POST", { ban: !currentlyBanned, reason });
+      toast({ title: currentlyBanned ? "Yasak kaldırıldı" : "Yasaklandı" });
+      refetch();
+    } catch { toast({ title: "Hata", variant: "destructive" }); }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Bu kaydı silmek istediğinize emin misiniz?")) return;
+    try {
+      await apiCall(`/parttime/${id}`, "DELETE");
+      toast({ title: "Kayıt silindi" });
+      refetch();
+    } catch { toast({ title: "Hata", variant: "destructive" }); }
+  };
+
+  return (
+    <Section title="Part Time Yönetimi" icon={Clock}>
+      {loading && <p className="text-xs text-muted-foreground py-2">Yükleniyor...</p>}
+      {!loading && !workers?.length && <p className="text-xs text-muted-foreground py-2 text-center">Henüz kayıt yok</p>}
+      <div className="space-y-2">
+        {workers?.map(w => (
+          <div key={w.id} className={`rounded-xl p-3 space-y-2 ${w.isBanned ? "bg-red-500/10 border border-red-500/20" : "bg-white/5"}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-sm font-semibold">{w.fullName}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${w.gender === "Bayan" ? "bg-pink-500/20 text-pink-300" : "bg-blue-500/20 text-blue-300"}`}>{w.gender}</span>
+                  {w.isRetired && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-medium">Emekli</span>}
+                  {w.isFeatured && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">Öne Çıkan</span>}
+                  {w.isBanned && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 font-medium">Yasaklı</span>}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {w.age} yaş · {w.city}/{w.district} · {w.hasVehicle} · {w.phone}
+                </p>
+                {w.description && <p className="text-[11px] text-foreground/60 line-clamp-1 mt-0.5">{w.description}</p>}
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Kayıt: {new Date(w.createdAt).toLocaleDateString("tr-TR")} · ID:{w.id}
+                </p>
+              </div>
+              {w.photoUrl && <img src={w.photoUrl} className="w-12 h-12 rounded-lg object-cover ring-1 ring-white/10 shrink-0" alt="" />}
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              <button onClick={() => handleFeature(w.id, w.isFeatured)}
+                className={`text-[10px] flex items-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${w.isFeatured ? "bg-amber-500/20 text-amber-400" : "bg-white/10 text-muted-foreground hover:bg-white/20"}`}>
+                {w.isFeatured ? <><StarOff className="w-3 h-3" /> Öne çıkarmayı kaldır</> : <><Star className="w-3 h-3" /> Öne çıkar</>}
+              </button>
+              <button onClick={() => handleBan(w.id, w.isBanned)}
+                className={`text-[10px] flex items-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${w.isBanned ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
+                {w.isBanned ? <><CheckCircle className="w-3 h-3" /> Yasağı Kaldır</> : <><XCircle className="w-3 h-3" /> Yasakla</>}
+              </button>
+              <button onClick={() => handleDelete(w.id)} className="text-[10px] flex items-center gap-0.5 px-2 py-1 bg-destructive/10 text-destructive/80 rounded-lg hover:bg-destructive/20 transition-colors ml-auto">
+                <Trash2 className="w-3 h-3" /> Sil
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 export default function AdminDashboard() {
   const { user, isAdmin, isLoading } = useAuth();
   const { toast } = useToast();
@@ -1388,6 +1473,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         </Section>
+
+        <PartTimeAdminSection apiCall={apiCall} toast={toast} />
 
         <Section title="İlan Listesi" icon={Briefcase}>
           <div className="space-y-2">

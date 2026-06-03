@@ -18,6 +18,7 @@ import Notifications from "@/pages/notifications";
 import Favorites from "@/pages/favorites";
 import Destek from "@/pages/destek";
 import CvOlustur from "@/pages/cv-olustur";
+import PartTime from "@/pages/part-time";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/bildirimler" component={Notifications} />
       <Route path="/favoriler" component={Favorites} />
       <Route path="/cv-olustur">{() => <RequireAuth component={CvOlustur} />}</Route>
+      <Route path="/part-time" component={PartTime} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/moderator" component={ModeratorDashboard} />
       <Route component={NotFound} />
