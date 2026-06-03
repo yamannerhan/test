@@ -35,6 +35,10 @@ const SW_OUTPUT_PATH = path.resolve(import.meta.dirname, "public/sw.js");
 const swTemplate = fs.readFileSync(SW_TEMPLATE_PATH, "utf-8");
 fs.writeFileSync(SW_OUTPUT_PATH, swTemplate.replace("__CACHE_VERSION__", DEV_CACHE_VERSION));
 
+// version.json: SW'den bağımsız versiyon kontrolü için
+const VERSION_JSON_PATH = path.resolve(import.meta.dirname, "public/version.json");
+fs.writeFileSync(VERSION_JSON_PATH, JSON.stringify({ v: DEV_CACHE_VERSION }));
+
 const swVersionPlugin = {
   name: "sw-version-inject",
   transformIndexHtml(html: string) {

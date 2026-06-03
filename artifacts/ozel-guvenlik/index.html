@@ -31,50 +31,54 @@
     <script type="module" src="/src/main.tsx"></script>
     <script>
       (function() {
-        // Katman 1: BUILD_TS kontrolü (en güvenilir yöntem)
-        // Vite her sunucu başlangıcında bu değeri taze timestamp ile değiştirir
-        var BUILD_TS = "__BUILD_TS__";
         var _reloading = false;
-
         function doReload() {
           if (_reloading) return;
           _reloading = true;
           try {
             if ("caches" in window) {
-              caches.keys().then(function(keys) {
-                return Promise.all(keys.map(function(k) { return caches.delete(k); }));
-              }).then(function() { window.location.reload(); });
-            } else {
-              window.location.reload();
-            }
-          } catch(e) { window.location.reload(); }
+              caches.keys().then(function(k) {
+                return Promise.all(k.map(function(c) { return caches.delete(c); }));
+              }).then(function() { window.location.reload(true); });
+            } else { window.location.reload(true); }
+          } catch(e) { window.location.reload(true); }
         }
 
-        // BUILD_TS değişmişse hemen yenile
-        var stored = localStorage.getItem("_bts");
-        if (stored && stored !== BUILD_TS) {
+        // Katman 1: BUILD_TS (transformIndexHtml her restarttan sonra yeni değer yazar)
+        var BUILD_TS = "__BUILD_TS__";
+        var btsStored = localStorage.getItem("_bts");
+        if (btsStored && btsStored !== BUILD_TS && BUILD_TS.indexOf("BUILD_TS") === -1) {
           localStorage.setItem("_bts", BUILD_TS);
-          doReload();
-        } else {
-          localStorage.setItem("_bts", BUILD_TS);
+          doReload(); return;
         }
+        localStorage.setItem("_bts", BUILD_TS);
 
-        // Katman 2: Service Worker güncelleme olayları
+        // Katman 2: /version.json polling — SW'den tamamen bağımsız
+        // Eski SW bu dosyayı önbelleğe almadı, network-first ile taze okur
+        function checkVersion() {
+          fetch("/version.json?_=" + Date.now(), { cache: "no-store" })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+              var vs = localStorage.getItem("_ver");
+              if (vs && vs !== d.v) { localStorage.setItem("_ver", d.v); doReload(); }
+              else { localStorage.setItem("_ver", d.v); }
+            }).catch(function() {});
+        }
+        checkVersion();
+        setInterval(checkVersion, 15000);
+
+        // Katman 3: Service Worker olayları (geri uyumluluk + yeni SW)
         if ("serviceWorker" in navigator) {
-          // Yeni SW kontrolü devraldığında
           navigator.serviceWorker.addEventListener("controllerchange", doReload);
-          // Eski SW'lerden gelen SW_UPDATED mesajı (geri uyumluluk)
           navigator.serviceWorker.addEventListener("message", function(e) {
             if (e.data && e.data.type === "SW_UPDATED") doReload();
           });
-
           window.addEventListener("load", function() {
             navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
               .then(function(reg) {
                 reg.update();
                 setInterval(function() { reg.update(); }, 20000);
-              })
-              .catch(function() {});
+              }).catch(function() {});
           });
         }
       })();
