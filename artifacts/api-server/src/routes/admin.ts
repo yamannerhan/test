@@ -729,28 +729,45 @@ function parseListingText(raw: string): Record<string, string> {
 
   // ── Salary ─────────────────────────────────────────────────────────────────
   let salary = "";
-  const salaryPatterns: RegExp[] = [
-    /(?:maaş|ücret|aylık)\s*[:\-]?\s*((?:net|brüt)?\s*\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?\s*(?:bin\s*)?(?:tl|₺))/i,
-    /(?:net|brüt)\s+(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)\s*(?:bin\s*)?(?:tl|₺)/i,
-    /(\d[\d\.]+)\s*[-–]\s*(\d[\d\.]+)\s*(?:bin\s*)?(?:tl|₺)/i,
-    /(\d[\d\.]{3,})\s*(?:bin\s*)?(?:tl|₺)\s*(?:maaş|ücret|aylık)?/i,
-    /(\d{2,3})\s*bin\s*(?:tl|₺)/i,
-    /₺\s*(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)/i,
+  // Each pattern: [regex, useCaptureGroup]
+  // useCaptureGroup=true → use m[1], false → use m[0]
+  const salaryPatterns: [RegExp, boolean][] = [
+    // "Maaş: herşey dahil 50000" / "Maaş: net 25.000 TL"
+    [/(?:maaş|ücret|aylık)\s*[:\-]?\s*((?:net|brüt|herşey\s*dahil|her\s*şey\s*dahil|tüm\s*dahil|hepsi\s*dahil)?\s*\d[\d\.]{2,}(?:\s*[-–]\s*\d[\d\.]+)?(?:\s*bin)?\s*(?:tl|₺)?)/i, true],
+    // "Net 25.000 TL" / "Brüt 30.000 TL"
+    [/(?:net|brüt)\s+(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)\s*(?:bin\s*)?(?:tl|₺)/i, true],
+    // "25.000 – 30.000 TL"
+    [/(\d[\d\.]+)\s*[-–]\s*(\d[\d\.]+)\s*(?:bin\s*)?(?:tl|₺)/i, false],
+    // "25000 TL" / "25.000TL"
+    [/(\d[\d\.]{3,})\s*(?:bin\s*)?(?:tl|₺)/i, false],
+    // "25 bin TL"
+    [/(\d{2,3})\s*bin\s*(?:tl|₺)/i, false],
+    // "₺25000"
+    [/₺\s*(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)/i, false],
   ];
   function normalizeSalary(r: string): string {
     let s = r.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+    // Strip label prefix: "Maaş:", "Ücret:"
+    s = s.replace(/^(?:maaş|ücret|aylık)\s*[:\-]?\s*/i, "");
     s = s.charAt(0).toUpperCase() + s.slice(1);
     if (!/tl|₺/i.test(s)) s += " TL";
+    // Format bare large numbers for readability: 50000 → 50.000
+    s = s.replace(/\b(\d{4,6})\b/g, n => parseInt(n, 10).toLocaleString("tr-TR"));
     return s;
   }
-  for (const pat of salaryPatterns) {
+  for (const [pat, useGroup] of salaryPatterns) {
     const m = text.match(pat);
-    if (m) { salary = normalizeSalary(m[0]); break; }
+    if (m) {
+      const raw = useGroup ? (m[1] ?? m[0]) : m[0];
+      salary = normalizeSalary(raw);
+      break;
+    }
   }
 
   // ── Work type ──────────────────────────────────────────────────────────────
   let workType = "Tam Zamanlı";
-  if (/vardiy/i.test(text)) workType = "Vardiyalı";
+  // Shift patterns: "2+2", "2+2+2", "12+12", "24+24" etc.
+  if (/vardiy/i.test(text) || /\b\d{1,2}\s*\+\s*\d{1,2}\b/.test(text)) workType = "Vardiyalı";
   else if (/yarı\s*zamanl/i.test(text) || /part[\s\-]?time/i.test(text)) workType = "Yarı Zamanlı";
   else if (/proje\s*baz/i.test(text) || /freelance/i.test(text)) workType = "Proje Bazlı";
 
