@@ -129,10 +129,11 @@ async function scrapeTelegramChannel(username: string): Promise<ScrapedMessage[]
   try {
     const res = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; bot)",
-        "Accept": "text/html",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
       },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!res.ok) {
@@ -142,36 +143,37 @@ async function scrapeTelegramChannel(username: string): Promise<ScrapedMessage[]
     const html = await res.text();
     const messages: ScrapedMessage[] = [];
 
-    // Extract messages from HTML
-    // Pattern: data-post="username/123" and tgme_widget_message_text
-    const messageBlockRegex = /data-post="([^"]+\/(\d+))"[\s\S]*?class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+    // Split HTML into per-message sections on data-post boundaries
+    const sections = html.split(/(?=<div[^>]+data-post=")/);
 
-    let match: RegExpExecArray | null;
-    while ((match = messageBlockRegex.exec(html)) !== null) {
-      const postPath = match[1] ?? "";
-      const msgId = match[2] ?? "";
-      const rawHtml = match[3] ?? "";
-      const text = stripHtmlTags(rawHtml);
+    for (const section of sections) {
+      const postMatch = section.match(/data-post="([^"/]+)\/(\d+)"/);
+      if (!postMatch) continue;
 
-      if (text.trim().length > 0) {
+      const postPath = postMatch[1] ?? "";
+      const msgId = postMatch[2] ?? "";
+
+      // Locate the message text div by its unique class
+      const markerIdx = section.indexOf("js-message_text");
+      if (markerIdx === -1) continue;
+
+      // Find the opening tag's closing ">"
+      const openEnd = section.indexOf(">", markerIdx);
+      if (openEnd === -1) continue;
+
+      // Find the closing </div> — inline elements (<b>,<a>,<br>) don't nest divs
+      const closeDiv = section.indexOf("</div>", openEnd);
+      const rawHtml = closeDiv === -1
+        ? section.slice(openEnd + 1, openEnd + 2000)
+        : section.slice(openEnd + 1, closeDiv);
+
+      const text = stripHtmlTags(rawHtml).trim();
+      if (text.length > 0) {
         messages.push({
           id: msgId,
-          text: text.trim(),
-          url: `https://t.me/${postPath}`,
+          text,
+          url: `https://t.me/${postPath}/${msgId}`,
         });
-      }
-    }
-
-    // Fallback: simpler pattern if above didn't match
-    if (messages.length === 0) {
-      const simpleRegex = /<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-      let idx = 0;
-      while ((match = simpleRegex.exec(html)) !== null) {
-        const text = stripHtmlTags(match[1] ?? "");
-        if (text.trim().length > 0) {
-          messages.push({ id: String(Date.now()) + idx, text: text.trim(), url });
-          idx++;
-        }
       }
     }
 
