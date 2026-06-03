@@ -24,7 +24,7 @@ function RoleBadge({ role }: { role: string }) {
     <span className="badge-mod text-[7px] font-black tracking-widest uppercase">MODERATÖR</span>
   );
   return (
-    <span className="text-[7px] font-semibold tracking-wider uppercase" style={{ color: "rgba(148,163,184,0.35)" }}>ÜYE</span>
+    <span className="text-[7px] font-semibold tracking-wider uppercase text-white/70">ÜYE</span>
   );
 }
 
