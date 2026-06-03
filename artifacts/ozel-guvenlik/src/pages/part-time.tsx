@@ -68,6 +68,7 @@ function WorkerCard({ w, isAdmin, onFeature, onBan, onDelete, isMine }: {
   onDelete?: (id: number) => void;
   isMine?: boolean;
 }) {
+  const [descExpanded, setDescExpanded] = useState(false);
   const vehicleIcon = w.hasVehicle === "Yok" ? null : w.hasVehicle === "Motor" ? "🏍️" : "🚗";
   return (
     <motion.div
@@ -102,7 +103,30 @@ function WorkerCard({ w, isAdmin, onFeature, onBan, onDelete, isMine }: {
             {vehicleIcon && <span className="flex items-center gap-1">{vehicleIcon} {w.hasVehicle}</span>}
           </div>
           {w.description && (
-            <p className="text-xs text-foreground/70 mt-2 line-clamp-2 leading-relaxed">{w.description}</p>
+            <div className="mt-2">
+              <p
+                onClick={() => setDescExpanded(e => !e)}
+                className={`text-xs text-foreground/70 leading-relaxed cursor-pointer select-none transition-all ${descExpanded ? "" : "line-clamp-2"}`}
+              >
+                {w.description}
+              </p>
+              {!descExpanded && w.description.length > 80 && (
+                <button
+                  onClick={() => setDescExpanded(true)}
+                  className="text-[10px] text-primary/70 mt-0.5 hover:text-primary transition-colors"
+                >
+                  daha fazla
+                </button>
+              )}
+              {descExpanded && (
+                <button
+                  onClick={() => setDescExpanded(false)}
+                  className="text-[10px] text-primary/70 mt-0.5 hover:text-primary transition-colors"
+                >
+                  gizle
+                </button>
+              )}
+            </div>
           )}
           <div className="flex items-center justify-between mt-2.5">
             <a href={`tel:${w.phone}`} className="flex items-center gap-1.5 text-xs font-semibold text-cyan-400 hover:text-cyan-300 transition-colors">
@@ -308,7 +332,7 @@ export default function PartTime() {
         {/* ── Kayan duyurular ─────────────────────────────────────────── */}
         {announcements.length > 0 && (
           <div className="overflow-hidden bg-primary/10 border-b border-primary/20 py-2">
-            <div className="flex animate-ticker whitespace-nowrap">
+            <div className="flex animate-ticker whitespace-nowrap" style={{ animationDelay: `-${((Date.now() / 1000) % 60).toFixed(2)}s` }}>
               {[...announcements, ...announcements].map((a, i) => (
                 <span key={i} className="inline-flex items-center gap-2 mx-8 text-xs font-medium text-primary/90">
                   <span className="text-primary">●</span>{a.content}

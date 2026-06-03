@@ -87,8 +87,8 @@
 
 /* ── Ticker ────────────────────────────────────────────────── */
 @keyframes ticker {
-  0%   { transform: translateX(100vw); }
-  100% { transform: translateX(-100%); }
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 .animate-ticker {
   animation: ticker 60s linear infinite;

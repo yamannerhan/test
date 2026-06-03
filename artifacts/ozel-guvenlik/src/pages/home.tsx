@@ -122,7 +122,7 @@ export default function Home() {
       {announcements.length > 0 && (
         <div className="bg-primary/10 border-b border-primary/20 overflow-hidden relative h-9 flex items-center">
           <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-          <div className="whitespace-nowrap animate-ticker flex space-x-16 text-sm font-medium" style={{ color: "rgba(148,163,184,0.95)" }}>
+          <div className="whitespace-nowrap animate-ticker flex space-x-16 text-sm font-medium" style={{ color: "rgba(148,163,184,0.95)", animationDelay: `-${((Date.now() / 1000) % 60).toFixed(2)}s` }}>
             {[...announcements, ...announcements].map((a, i) => (
               <span key={i} className="inline-flex items-center gap-2">
                 <span className="text-primary text-xs">◆</span>
