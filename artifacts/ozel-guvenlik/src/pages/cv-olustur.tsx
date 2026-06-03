@@ -789,11 +789,11 @@ const TEMPLATES = [
 ];
 
 // ── Stabil FInput ─────────────────────────────────────────────────────────────
-const FInput = React.memo(function FI({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+const FInput = React.memo(function FI({ label, value, onChange, onBlur, placeholder }: { label: string; value: string; onChange: (v: string) => void; onBlur?: () => void; placeholder?: string }) {
   return (
     <div>
       <label className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>
-      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder || ""}
+      <input value={value} onChange={e => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder || ""}
         className="w-full bg-card border border-white/10 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50 transition-colors" />
     </div>
   );
@@ -827,34 +827,70 @@ export default function CvOlustur() {
     reader.readAsDataURL(file);
   };
 
-  // ── Profilden doldur ──────────────────────────────────────────────
-  const handleFillFromProfile = useCallback(() => {
+  // ── Format yardımcıları ───────────────────────────────────────────
+  const formatPhone = (v: string): string => {
+    const d = v.replace(/\D/g, "");
+    if (!d) return v;
+    // 90XXXXXXXXXX → 0XXXXXXXXXX
+    const n = d.startsWith("90") && d.length === 12 ? "0" + d.slice(2) : d;
+    // 5XXXXXXXXX (10 hane başı 5) veya 0XXXXXXXXX (10 hane başı 0)
+    const t = n.startsWith("0") ? n : n.length === 10 ? "0" + n : n;
+    if (t.length === 11)
+      return `${t.slice(0,4)} ${t.slice(4,7)} ${t.slice(7,9)} ${t.slice(9,11)}`;
+    return v;
+  };
+
+  const formatDate = (v: string): string => {
+    const d = v.replace(/\D/g, "");
+    if (d.length === 8) {
+      // DDMMYYYY veya YYYYMMDD?
+      const day = parseInt(d.slice(0, 2));
+      const mon = parseInt(d.slice(2, 4));
+      if (day >= 1 && day <= 31 && mon >= 1 && mon <= 12)
+        return `${d.slice(0,2)}.${d.slice(2,4)}.${d.slice(4,8)}`;
+    }
+    // zaten noktalı ise olduğu gibi döndür
+    return v;
+  };
+
+  // ── Profilden doldur (taze API isteği) ────────────────────────────
+  const handleFillFromProfile = useCallback(async () => {
     if (!user) return;
-    const u = user as unknown as {
-      displayName?: string | null; email?: string; bio?: string | null; avatarUrl?: string | null;
-      phone?: string | null; birthDate?: string | null;
-      height?: string | null; weight?: string | null; address?: string | null; maritalStatus?: string | null;
-    };
-    const fullName = u.displayName?.trim() || "";
-    const parts = fullName.split(" ");
-    const ad    = parts[0] ?? "";
-    const soyad = parts.slice(1).join(" ");
-    setData(prev => ({
-      ...prev,
-      ad:           ad                || prev.ad,
-      soyad:        soyad             || prev.soyad,
-      email:        u.email           || prev.email,
-      telefon:      u.phone           || prev.telefon,
-      dogumTarihi:  u.birthDate       || prev.dogumTarihi,
-      boy:          u.height          || prev.boy,
-      kilo:         u.weight          || prev.kilo,
-      adres:        u.address         || prev.adres,
-      medeniDurum:  u.maritalStatus   || prev.medeniDurum,
-      hakkimda:     u.bio             || prev.hakkimda,
-    }));
-    if (u.avatarUrl && !photo) setPhoto(u.avatarUrl);
-    setSyncMsg("Profil bilgileri getirildi!");
-    setTimeout(() => setSyncMsg(""), 2500);
+    setSyncMsg("Yükleniyor...");
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/users/me", {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error();
+      const u = await res.json() as {
+        displayName?: string | null; email?: string; bio?: string | null; avatarUrl?: string | null;
+        phone?: string | null; birthDate?: string | null;
+        height?: string | null; weight?: string | null; address?: string | null; maritalStatus?: string | null;
+      };
+      const fullName = u.displayName?.trim() || "";
+      const parts = fullName.split(" ");
+      const rawPhone = u.phone || "";
+      const rawDate  = u.birthDate || "";
+      setData(prev => ({
+        ...prev,
+        ad:          parts[0]                       || prev.ad,
+        soyad:       parts.slice(1).join(" ")       || prev.soyad,
+        email:       u.email                        || prev.email,
+        telefon:     (rawPhone ? formatPhone(rawPhone) : "")  || prev.telefon,
+        dogumTarihi: (rawDate  ? formatDate(rawDate)  : "")   || prev.dogumTarihi,
+        boy:         u.height                       || prev.boy,
+        kilo:        u.weight                       || prev.kilo,
+        adres:       u.address                      || prev.adres,
+        medeniDurum: u.maritalStatus                || prev.medeniDurum,
+        hakkimda:    u.bio                          || prev.hakkimda,
+      }));
+      if (u.avatarUrl && !photo) setPhoto(u.avatarUrl);
+      setSyncMsg("Profil bilgileri getirildi!");
+    } catch {
+      setSyncMsg("Profil alınamadı, tekrar deneyin.");
+    }
+    setTimeout(() => setSyncMsg(""), 3000);
   }, [user, photo]);
 
   // ── Profili geri kaydet (step 1 → 2 geçişinde) ───────────────────
@@ -1009,7 +1045,7 @@ export default function CvOlustur() {
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <FInput label="Doğum Tarihi" value={data.dogumTarihi} onChange={v => upd("dogumTarihi", v)} placeholder="10.09.1990" />
+              <FInput label="Doğum Tarihi" value={data.dogumTarihi} onChange={v => upd("dogumTarihi", v)} onBlur={() => upd("dogumTarihi", formatDate(data.dogumTarihi))} placeholder="10.09.1990" />
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Medeni Durum</label>
                 <select value={data.medeniDurum} onChange={e => upd("medeniDurum", e.target.value)}
@@ -1024,7 +1060,7 @@ export default function CvOlustur() {
             </div>
             <FInput label="Adres" value={data.adres} onChange={v => upd("adres", v)} placeholder="Mahalle, İlçe / Şehir" />
             <div className="grid grid-cols-2 gap-3">
-              <FInput label="Telefon" value={data.telefon} onChange={v => upd("telefon", v)} placeholder="0555 555 55 55" />
+              <FInput label="Telefon" value={data.telefon} onChange={v => upd("telefon", v)} onBlur={() => upd("telefon", formatPhone(data.telefon))} placeholder="0555 555 55 55" />
               <FInput label="E-posta" value={data.email} onChange={v => upd("email", v)} placeholder="ornek@mail.com" />
             </div>
           </div>
