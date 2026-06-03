@@ -17,6 +17,7 @@ import AddListing from "@/pages/add-listing";
 import Notifications from "@/pages/notifications";
 import Favorites from "@/pages/favorites";
 import Destek from "@/pages/destek";
+import CvOlustur from "@/pages/cv-olustur";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/ilan-ekle" component={AddListing} />
       <Route path="/bildirimler" component={Notifications} />
       <Route path="/favoriler" component={Favorites} />
+      <Route path="/cv-olustur" component={CvOlustur} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/moderator" component={ModeratorDashboard} />
       <Route component={NotFound} />

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Search, MessageCircle, Headphones, User } from "lucide-react";
+import { Home, Search, FileText, Headphones, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function BottomNav() {
@@ -10,7 +10,7 @@ export function BottomNav() {
   const navItems = [
     { icon: Home, label: "Ana Sayfa", path: "/" },
     { icon: Search, label: "İlanlar", path: "/ilanlar" },
-    { icon: MessageCircle, label: "Sohbet", path: "/sohbet" },
+    { icon: FileText, label: "CV Oluştur", path: "/cv-olustur" },
     { icon: Headphones, label: "Destek", path: "/destek" },
     {
       icon: User,
@@ -24,6 +24,7 @@ export function BottomNav() {
       <div className="flex items-center justify-around h-16 max-w-md mx-auto px-4">
         {navItems.map((item) => {
           const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path));
+          const isCv = item.path === "/cv-olustur";
 
           return (
             <Link
@@ -35,11 +36,18 @@ export function BottomNav() {
               data-testid={`nav-${item.label.toLowerCase()}`}
             >
               <div className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 ${
-                isActive ? "bg-accent/20 shadow-[0_0_15px_rgba(6,182,212,0.3)]" : ""
+                isActive
+                  ? "bg-accent/20 shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                  : isCv
+                  ? "bg-primary/10 border border-primary/20"
+                  : ""
               }`}>
                 <item.icon className={`w-5 h-5 ${isActive ? "animate-pulse" : ""}`} />
+                {isCv && !isActive && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full border border-background" />
+                )}
               </div>
-              <span className="text-[10px] font-medium">{item.label}</span>
+              <span className={`text-[10px] font-medium ${isCv && !isActive ? "text-primary" : ""}`}>{item.label}</span>
             </Link>
           );
         })}
