@@ -9,6 +9,8 @@ import announcementsRouter from "./announcements";
 import adminRouter from "./admin";
 import supportRouter from "./support";
 import parttimeRouter from "./parttime";
+import sourcesRouter from "./sources";
+import pendingJobsRouter from "./pending-jobs";
 
 const router: IRouter = Router();
 
@@ -22,5 +24,7 @@ router.use(announcementsRouter);
 router.use(adminRouter);
 router.use(supportRouter);
 router.use(parttimeRouter);
+router.use(sourcesRouter);
+router.use(pendingJobsRouter);
 
 export default router;

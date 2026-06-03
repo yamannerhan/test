@@ -11,7 +11,8 @@ import {
   ToggleLeft, ToggleRight, Star, StarOff, CheckCircle, XCircle, Clock,
   ChevronDown, ChevronUp, Calendar, Infinity, Headphones, ChevronLeft, Send,
   Sparkles, Eye, RefreshCw, Phone, User, MapPin, Building2, Lock, Shield, Search,
-  MessageSquareDot, ListChecks, Eraser, Pin
+  MessageSquareDot, ListChecks, Eraser, Pin,
+  Link, Globe, Radio, AlertCircle, Edit2, ExternalLink, Filter, Zap
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -1008,6 +1009,345 @@ function PartTimeAdminSection({ apiCall, toast }: {
   );
 }
 
+// ── İlan Kaynakları ───────────────────────────────────────────────
+interface Source {
+  id: number; name: string; platform: string; url: string;
+  active: boolean; checkInterval: number; autoPublish: boolean;
+  requireApproval: boolean; lastCheckedAt: string | null;
+  lastError: string | null; totalImported: number; createdAt: string;
+}
+
+function SourcesSection({ apiCall, toast }: { apiCall: (path: string, method?: string, body?: unknown) => Promise<unknown>; toast: ReturnType<typeof useToast>["toast"] }) {
+  const [sources, setSources] = useState<Source[]>([]);
+  const [telegramTokenSet, setTelegramTokenSet] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const defaultForm = { name: "", platform: "telegram", url: "", active: true, checkInterval: 15, autoPublish: false, requireApproval: true };
+  const [form, setForm] = useState<typeof defaultForm>(defaultForm);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const d = await apiCall("/admin/sources") as { sources: Source[]; telegramTokenSet: boolean };
+      setSources(d.sources ?? []);
+      setTelegramTokenSet(d.telegramTokenSet ?? false);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  const saveSource = async () => {
+    if (!form.name.trim() || !form.url.trim()) { toast({ title: "Hata", description: "Ad ve URL zorunlu", variant: "destructive" }); return; }
+    try {
+      if (editingId) {
+        await apiCall(`/admin/sources/${editingId}`, "PATCH", form);
+        toast({ title: "Kaynak güncellendi" });
+      } else {
+        await apiCall("/admin/sources", "POST", form);
+        toast({ title: "Kaynak eklendi" });
+      }
+      setForm(defaultForm); setEditingId(null); setShowAddForm(false);
+      void load();
+    } catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+  };
+
+  const toggleActive = async (id: number) => {
+    try {
+      const r = await apiCall(`/admin/sources/${id}/toggle`, "POST") as { active: boolean };
+      setSources(ss => ss.map(s => s.id === id ? { ...s, active: r.active } : s));
+    } catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+  };
+
+  const deleteSource = async (id: number) => {
+    if (!confirm("Bu kaynağı silmek istediğinizden emin misiniz?")) return;
+    try { await apiCall(`/admin/sources/${id}`, "DELETE"); void load(); toast({ title: "Kaynak silindi" }); }
+    catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+  };
+
+  const startEdit = (s: Source) => {
+    setForm({ name: s.name, platform: s.platform, url: s.url, active: s.active, checkInterval: s.checkInterval, autoPublish: s.autoPublish, requireApproval: s.requireApproval });
+    setEditingId(s.id); setShowAddForm(true);
+  };
+
+  const INTERVALS = [{ v: 1, l: "1 dakika" }, { v: 5, l: "5 dakika" }, { v: 15, l: "15 dakika" }, { v: 30, l: "30 dakika" }, { v: 60, l: "1 saat" }];
+
+  return (
+    <Section title="İlan Kaynakları" icon={Radio}>
+      {!telegramTokenSet && (
+        <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-4">
+          <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+          <div className="text-xs text-amber-300">
+            <strong>Telegram entegrasyonu pasif.</strong> Telegram kaynaklarını etkinleştirmek için <code className="bg-white/10 px-1 rounded">TELEGRAM_BOT_TOKEN</code> ortam değişkenini ayarlayın, ardından botunuzu kanalınıza/grubunuza ekleyin veya admin yapın.
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center mb-3">
+        <span className="text-xs text-muted-foreground">{sources.length} kaynak</span>
+        <button onClick={() => { setForm(defaultForm); setEditingId(null); setShowAddForm(s => !s); }} className="flex items-center gap-1 text-xs px-3 py-1.5 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors">
+          <Plus className="w-3 h-3" /> Kaynak Ekle
+        </button>
+      </div>
+
+      {showAddForm && (
+        <div className="bg-white/5 rounded-xl p-3 mb-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground">{editingId ? "Kaynağı Düzenle" : "Yeni Kaynak"}</p>
+          <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Kaynak adı" className="h-8 text-sm bg-white/5 border-white/10" />
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={form.platform} onValueChange={v => setForm(f => ({ ...f, platform: v }))}>
+              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="telegram">Telegram</SelectItem>
+                <SelectItem value="facebook">Facebook</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={String(form.checkInterval)} onValueChange={v => setForm(f => ({ ...f, checkInterval: Number(v) }))}>
+              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {INTERVALS.map(i => <SelectItem key={i.v} value={String(i.v)}>{i.l}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))} placeholder={form.platform === "telegram" ? "https://t.me/kanal_adi" : "https://facebook.com/sayfaadi"} className="h-8 text-sm bg-white/5 border-white/10" />
+          <div className="flex gap-4 flex-wrap">
+            <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+              <input type="checkbox" checked={form.autoPublish} onChange={e => setForm(f => ({ ...f, autoPublish: e.target.checked }))} className="w-3.5 h-3.5 rounded accent-primary" />
+              <Zap className="w-3 h-3 text-amber-400" /> Otomatik yayınla
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+              <input type="checkbox" checked={form.requireApproval} onChange={e => setForm(f => ({ ...f, requireApproval: e.target.checked }))} className="w-3.5 h-3.5 rounded accent-primary" />
+              <Shield className="w-3 h-3 text-primary" /> Admin onayı
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+              <input type="checkbox" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} className="w-3.5 h-3.5 rounded accent-green-400" />
+              Aktif
+            </label>
+          </div>
+          {form.platform === "facebook" && (
+            <div className="flex items-start gap-2 bg-blue-500/10 border border-blue-500/20 rounded-lg p-2">
+              <AlertCircle className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
+              <p className="text-[10px] text-blue-300">Facebook kaynaklarını çekmek için Meta erişim tokenı gereklidir. <code className="bg-white/10 px-0.5 rounded">FACEBOOK_ACCESS_TOKEN</code> ortam değişkeni ayarlanmamışsa bu kaynak pasif kalır.</p>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button onClick={saveSource} size="sm" className="flex-1 text-xs h-8 bg-gradient-to-r from-primary to-secondary">{editingId ? "Güncelle" : "Ekle"}</Button>
+            <Button onClick={() => { setShowAddForm(false); setEditingId(null); }} size="sm" variant="outline" className="text-xs h-8 border-white/10">İptal</Button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-xs text-muted-foreground text-center py-4">Yükleniyor…</p>
+      ) : sources.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-4">Henüz kaynak eklenmemiş</p>
+      ) : (
+        <div className="space-y-2">
+          {sources.map(s => (
+            <div key={s.id} className="bg-white/5 rounded-xl p-3">
+              <div className="flex items-start gap-2">
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${s.platform === "telegram" ? "bg-sky-500/20 text-sky-400" : "bg-blue-600/20 text-blue-400"}`}>
+                  {s.platform === "telegram" ? <Radio className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium">{s.name}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${s.active ? "bg-green-500/20 text-green-400" : "bg-white/10 text-muted-foreground"}`}>{s.active ? "Aktif" : "Pasif"}</span>
+                    {s.autoPublish && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400"><Zap className="w-2.5 h-2.5 inline" /> Oto</span>}
+                    {s.requireApproval && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary"><Shield className="w-2.5 h-2.5 inline" /> Onay</span>}
+                  </div>
+                  <a href={s.url} target="_blank" rel="noreferrer" className="text-[10px] text-muted-foreground hover:text-primary flex items-center gap-0.5 truncate mt-0.5">
+                    <Link className="w-2.5 h-2.5 shrink-0" />{s.url}
+                  </a>
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{s.checkInterval}dk</span>
+                    <span className="text-[10px] text-muted-foreground">{s.totalImported} ilan çekildi</span>
+                    {s.lastCheckedAt && <span className="text-[10px] text-muted-foreground">Son: {new Date(s.lastCheckedAt).toLocaleString("tr-TR")}</span>}
+                  </div>
+                  {s.lastError && (
+                    <div className="flex items-start gap-1 mt-1 bg-destructive/10 rounded p-1.5">
+                      <AlertCircle className="w-3 h-3 text-destructive shrink-0 mt-0.5" />
+                      <p className="text-[10px] text-destructive">{s.lastError}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-1.5 mt-2 flex-wrap">
+                <button onClick={() => toggleActive(s.id)} className={`text-[10px] flex items-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${s.active ? "bg-white/10 text-muted-foreground hover:bg-white/20" : "bg-green-500/20 text-green-400 hover:bg-green-500/30"}`}>
+                  {s.active ? <><ToggleRight className="w-3 h-3" /> Pasif yap</> : <><ToggleLeft className="w-3 h-3" /> Aktif yap</>}
+                </button>
+                <button onClick={() => startEdit(s)} className="text-[10px] flex items-center gap-0.5 px-2 py-1 bg-white/10 text-muted-foreground rounded-lg hover:bg-white/20 transition-colors">
+                  <Edit2 className="w-3 h-3" /> Düzenle
+                </button>
+                <button onClick={() => deleteSource(s.id)} className="text-[10px] flex items-center gap-0.5 px-2 py-1 bg-destructive/10 text-destructive/80 rounded-lg hover:bg-destructive/20 transition-colors ml-auto">
+                  <Trash2 className="w-3 h-3" /> Sil
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// ── Bekleyen İlanlar ──────────────────────────────────────────────
+interface PendingJob {
+  id: number; sourceId: number; sourceName: string; platform: string;
+  title: string | null; company: string | null; city: string | null;
+  salary: string | null; phone: string | null; description: string | null;
+  applicationUrl: string | null; sourceUrl: string | null;
+  status: string; rawText: string; createdAt: string;
+}
+
+function PendingJobsSection({ apiCall, toast }: { apiCall: (path: string, method?: string, body?: unknown) => Promise<unknown>; toast: ReturnType<typeof useToast>["toast"] }) {
+  const [jobs, setJobs] = useState<PendingJob[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [statusFilter, setStatusFilter] = useState("pending");
+  const [loading, setLoading] = useState(true);
+  const [editingJob, setEditingJob] = useState<PendingJob | null>(null);
+  const [editForm, setEditForm] = useState<{ title: string; company: string; city: string; salary: string; phone: string; description: string; applicationUrl: string }>({ title: "", company: "", city: "", salary: "", phone: "", description: "", applicationUrl: "" });
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const load = async (status = statusFilter) => {
+    setLoading(true);
+    try {
+      const [d, c] = await Promise.all([
+        apiCall(`/admin/pending-jobs?status=${status}`) as Promise<PendingJob[]>,
+        apiCall("/admin/pending-jobs/counts") as Promise<Record<string, number>>,
+      ]);
+      setJobs(d ?? []); setCounts(c ?? {});
+    } catch { /* ignore */ } finally { setLoading(false); }
+  };
+
+  useEffect(() => { void load(); }, [statusFilter]);
+
+  const approve = async (id: number) => {
+    try { await apiCall(`/admin/pending-jobs/${id}/approve`, "POST"); toast({ title: "İlan yayınlandı" }); void load(); }
+    catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+  };
+
+  const reject = async (id: number) => {
+    try { await apiCall(`/admin/pending-jobs/${id}/reject`, "POST"); toast({ title: "İlan reddedildi" }); void load(); }
+    catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+  };
+
+  const saveEdit = async () => {
+    if (!editingJob) return;
+    try {
+      await apiCall(`/admin/pending-jobs/${editingJob.id}`, "PATCH", editForm);
+      toast({ title: "İlan güncellendi" });
+      setEditingJob(null); void load();
+    } catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+  };
+
+  const startEdit = (job: PendingJob) => {
+    setEditForm({ title: job.title ?? "", company: job.company ?? "", city: job.city ?? "", salary: job.salary ?? "", phone: job.phone ?? "", description: job.description ?? job.rawText, applicationUrl: job.applicationUrl ?? "" });
+    setEditingJob(job);
+  };
+
+  const STATUS_TABS = [
+    { v: "pending", l: "Bekleyenler" }, { v: "published", l: "Yayınlandı" },
+    { v: "rejected", l: "Reddedildi" },
+  ];
+
+  const platformBadge = (platform: string) => platform === "telegram"
+    ? <span className="text-[9px] px-1 py-0.5 bg-sky-500/20 text-sky-400 rounded-full"><Radio className="w-2 h-2 inline" /> Telegram</span>
+    : <span className="text-[9px] px-1 py-0.5 bg-blue-600/20 text-blue-400 rounded-full"><Globe className="w-2 h-2 inline" /> Facebook</span>;
+
+  return (
+    <Section title="Bekleyen İlanlar" icon={ListChecks}>
+      <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
+        {STATUS_TABS.map(t => (
+          <button key={t.v} onClick={() => { setStatusFilter(t.v); void load(t.v); }} className={`flex items-center gap-1 whitespace-nowrap text-xs px-3 py-1.5 rounded-lg transition-colors ${statusFilter === t.v ? "bg-primary/30 text-primary font-medium" : "bg-white/5 text-muted-foreground hover:bg-white/10"}`}>
+            {t.l}
+            {counts[t.v] !== undefined && <span className="bg-white/10 px-1.5 py-0.5 rounded-full text-[10px]">{counts[t.v]}</span>}
+          </button>
+        ))}
+      </div>
+
+      {editingJob && (
+        <div className="bg-white/5 rounded-xl p-3 mb-4 space-y-2 border border-primary/20">
+          <p className="text-xs font-semibold text-primary">İlanı Düzenle — #{editingJob.id}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} placeholder="Başlık" className="h-8 text-xs bg-white/5 border-white/10" />
+            <Input value={editForm.company} onChange={e => setEditForm(f => ({ ...f, company: e.target.value }))} placeholder="Firma" className="h-8 text-xs bg-white/5 border-white/10" />
+            <Input value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} placeholder="Şehir" className="h-8 text-xs bg-white/5 border-white/10" />
+            <Input value={editForm.salary} onChange={e => setEditForm(f => ({ ...f, salary: e.target.value }))} placeholder="Maaş" className="h-8 text-xs bg-white/5 border-white/10" />
+            <Input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} placeholder="Telefon" className="h-8 text-xs bg-white/5 border-white/10" />
+            <Input value={editForm.applicationUrl} onChange={e => setEditForm(f => ({ ...f, applicationUrl: e.target.value }))} placeholder="Başvuru linki" className="h-8 text-xs bg-white/5 border-white/10" />
+          </div>
+          <Textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Açıklama" rows={4} className="text-xs bg-white/5 border-white/10 resize-none" />
+          <div className="flex gap-2">
+            <Button onClick={saveEdit} size="sm" className="flex-1 text-xs h-8 bg-primary/20 text-primary hover:bg-primary/30">Kaydet</Button>
+            <Button onClick={() => setEditingJob(null)} size="sm" variant="outline" className="text-xs h-8 border-white/10">İptal</Button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <p className="text-xs text-muted-foreground text-center py-4">Yükleniyor…</p>
+      ) : jobs.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-4">Bu durumda ilan yok</p>
+      ) : (
+        <div className="space-y-2">
+          {jobs.map(job => (
+            <div key={job.id} className="bg-white/5 rounded-xl overflow-hidden">
+              <div className="p-3">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{job.title ?? "Başlık çıkarılamadı"}</span>
+                      {platformBadge(job.platform)}
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${job.status === "pending" ? "bg-amber-500/20 text-amber-400" : job.status === "published" ? "bg-green-500/20 text-green-400" : "bg-destructive/20 text-destructive"}`}>
+                        {job.status === "pending" ? "Bekliyor" : job.status === "published" ? "Yayında" : "Reddedildi"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                      {job.city && <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5" />{job.city}</span>}
+                      {job.salary && <span className="text-[10px] text-muted-foreground">{job.salary}</span>}
+                      {job.phone && <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Phone className="w-2.5 h-2.5" />{job.phone}</span>}
+                      <span className="text-[10px] text-muted-foreground">{job.sourceName}</span>
+                    </div>
+                  </div>
+                  <button onClick={() => setExpandedId(expandedId === job.id ? null : job.id)} className="shrink-0 text-muted-foreground hover:text-foreground">
+                    {expandedId === job.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {expandedId === job.id && (
+                  <div className="mt-2 pt-2 border-t border-white/5">
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-6">{job.rawText}</p>
+                    {job.sourceUrl && (
+                      <a href={job.sourceUrl} target="_blank" rel="noreferrer" className="text-[10px] text-primary flex items-center gap-0.5 mt-1 hover:underline">
+                        <ExternalLink className="w-2.5 h-2.5" /> Kaynağa git
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {job.status === "pending" && (
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    <button onClick={() => approve(job.id)} className="text-[10px] flex items-center gap-0.5 px-2 py-1 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors">
+                      <CheckCircle className="w-3 h-3" /> Onayla & Yayınla
+                    </button>
+                    <button onClick={() => startEdit(job)} className="text-[10px] flex items-center gap-0.5 px-2 py-1 bg-white/10 text-muted-foreground rounded-lg hover:bg-white/20 transition-colors">
+                      <Edit2 className="w-3 h-3" /> Düzenle
+                    </button>
+                    <button onClick={() => reject(job.id)} className="text-[10px] flex items-center gap-0.5 px-2 py-1 bg-destructive/10 text-destructive/80 rounded-lg hover:bg-destructive/20 transition-colors ml-auto">
+                      <XCircle className="w-3 h-3" /> Reddet
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 export default function AdminDashboard() {
   const { user, isAdmin, isLoading } = useAuth();
   const { toast } = useToast();
@@ -1563,6 +1903,10 @@ export default function AdminDashboard() {
         </Section>
 
         <PartTimeAdminSection apiCall={apiCall} toast={toast} />
+
+        <SourcesSection apiCall={apiCall} toast={toast} />
+
+        <PendingJobsSection apiCall={apiCall} toast={toast} />
 
         <Section title="İlan Listesi" icon={Briefcase}>
           <div className="space-y-2">
