@@ -216,11 +216,9 @@ export function ChatBubble() {
           100% { background-position: 250% 0; }
         }
         @keyframes smoke-yellow {
-          0%   { background-position: 0% 50%;   filter: drop-shadow(0 0 3px rgba(245,158,11,0.25)); }
-          25%  { background-position: 80% 50%;  filter: drop-shadow(0 0 12px rgba(251,191,36,0.9)); }
-          55%  { background-position: 200% 50%; filter: drop-shadow(0 0 20px rgba(254,243,199,0.95)); }
-          80%  { background-position: 300% 50%; filter: drop-shadow(0 0 9px rgba(245,158,11,0.6));  }
-          100% { background-position: 0% 50%;   filter: drop-shadow(0 0 3px rgba(245,158,11,0.25)); }
+          0%   { background-position: 0% 50%; }
+          50%  { background-position: 220% 50%; }
+          100% { background-position: 0% 50%; }
         }
         @keyframes smoke-mod {
           0%   { background-position: 0% 50%;   filter: drop-shadow(0 0 3px rgba(159,18,57,0.3)); }
@@ -251,12 +249,13 @@ export function ChatBubble() {
         }
         .name-admin {
           background: linear-gradient(90deg,
-            #78350f 0%, #d97706 12%, #fbbf24 28%, #fef9c3 48%, #fde68a 62%, #f59e0b 80%, #78350f 100%);
-          background-size: 350% auto;
+            #000 0%, #1c0f00 8%, #7c3500 18%, #d97706 32%, #fbbf24 46%, #fef08a 52%, #d97706 66%, #7c3500 80%, #1c0f00 92%, #000 100%);
+          background-size: 300% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: smoke-yellow 5s ease-in-out infinite;
+          animation: smoke-yellow 7s ease-in-out infinite;
+          filter: drop-shadow(0 0 5px rgba(251,191,36,0.4));
         }
         .name-mod {
           background: linear-gradient(90deg,
