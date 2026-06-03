@@ -1,10 +1,7 @@
 import crypto from "crypto";
 import { db, sourcesTable, importedPostsTable, pendingJobsTable, listingsTable } from "@workspace/db";
-import { eq, and, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
-
-const TELEGRAM_TOKEN = process.env["TELEGRAM_BOT_TOKEN"] ?? "";
-const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
 
 // ── Keyword lists ──────────────────────────────────────────────────
 const JOB_KEYWORDS = [
@@ -45,13 +42,6 @@ function normalizeText(text: string): string {
     .trim();
 }
 
-function createDuplicateHash(text: string): string {
-  const phone = extractPhone(text) ?? "";
-  const city = extractCity(text) ?? "";
-  const normalized = normalizeText(text).slice(0, 250);
-  return crypto.createHash("sha256").update(`${phone}|${city}|${normalized}`).digest("hex");
-}
-
 function extractPhone(text: string): string | null {
   const m = text.match(/(?:\+90|0)?[\s\-.]?(?:5\d{2})[\s\-.]?\d{3}[\s\-.]?\d{2}[\s\-.]?\d{2}/);
   return m ? m[0].replace(/[\s\-.]/g, "") : null;
@@ -64,10 +54,10 @@ function extractCity(text: string): string | null {
 }
 
 function extractSalary(text: string): string | null {
-  const m = text.match(/(\d[\d.,]*)\s*(?:TL|₺|tl)/i);
-  if (m) return `${m[1]} TL`;
   const range = text.match(/(\d[\d.]+)\s*[-–]\s*(\d[\d.]+)\s*(?:TL|₺)/i);
   if (range) return `${range[1]}-${range[2]} TL`;
+  const m = text.match(/(\d[\d.,]*)\s*(?:TL|₺|tl)/i);
+  if (m) return `${m[1]} TL`;
   return null;
 }
 
@@ -76,14 +66,20 @@ function extractTitle(text: string): string {
   const TITLES = [
     "silahlı güvenlik görevlisi", "silahsız güvenlik görevlisi",
     "güvenlik amiri", "güvenlik şefi", "güvenlik müdürü",
-    "özel güvenlik görevlisi", "güvenlik personeli",
-    "güvenlik görevlisi",
+    "özel güvenlik görevlisi", "güvenlik personeli", "güvenlik görevlisi",
   ];
   const found = TITLES.find(t => lower.includes(t));
   if (found) return found.charAt(0).toUpperCase() + found.slice(1);
   if (lower.includes("silahlı")) return "Silahlı Güvenlik Görevlisi Aranıyor";
   if (lower.includes("silahsız")) return "Silahsız Güvenlik Görevlisi Aranıyor";
   return "Güvenlik Personeli Aranıyor";
+}
+
+function createDuplicateHash(text: string): string {
+  const phone = extractPhone(text) ?? "";
+  const city = extractCity(text) ?? "";
+  const normalized = normalizeText(text).slice(0, 250);
+  return crypto.createHash("sha256").update(`${phone}|${city}|${normalized}`).digest("hex");
 }
 
 function isJobPosting(text: string): boolean {
@@ -100,38 +96,89 @@ function isChatMessage(text: string): boolean {
 }
 
 function extractTelegramUsername(url: string): string | null {
-  const m = url.match(/t\.me\/([^/?+\s]+)/);
-  return m ? m[1].toLowerCase() : null;
+  const m = url.match(/t\.me\/(?:s\/)?([^/?+\s]+)/);
+  if (!m) return null;
+  const name = m[1];
+  return name.startsWith("+") ? null : name.toLowerCase();
 }
 
-// ── Telegram polling ───────────────────────────────────────────────
-let telegramOffset = 0;
+// ── Telegram web scraping (no bot token needed) ────────────────────
+interface ScrapedMessage { id: string; text: string; url: string }
 
-interface TgMessage {
-  message_id: number;
-  text?: string;
-  caption?: string;
-  chat: { id: number; username?: string; type: string };
-  date: number;
+function decodeHtmlEntities(html: string): string {
+  return html
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
 }
 
-interface TgUpdate {
-  update_id: number;
-  message?: TgMessage;
-  channel_post?: TgMessage;
+function stripHtmlTags(html: string): string {
+  return decodeHtmlEntities(
+    html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+  ).trim();
 }
 
-async function telegramGetUpdates(): Promise<TgUpdate[]> {
+async function scrapeTelegramChannel(username: string): Promise<ScrapedMessage[]> {
+  const url = `https://t.me/s/${username}`;
   try {
-    const res = await fetch(
-      `${TELEGRAM_API}/getUpdates?offset=${telegramOffset + 1}&limit=100&timeout=0&allowed_updates=["message","channel_post"]`,
-      { signal: AbortSignal.timeout(15_000) }
-    );
-    if (!res.ok) return [];
-    const data = await res.json() as { ok: boolean; result: TgUpdate[] };
-    return data.ok ? data.result : [];
-  } catch {
-    return [];
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; bot)",
+        "Accept": "text/html",
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} — kanal bulunamadı veya erişilemiyor`);
+    }
+
+    const html = await res.text();
+    const messages: ScrapedMessage[] = [];
+
+    // Extract messages from HTML
+    // Pattern: data-post="username/123" and tgme_widget_message_text
+    const messageBlockRegex = /data-post="([^"]+\/(\d+))"[\s\S]*?class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+
+    let match: RegExpExecArray | null;
+    while ((match = messageBlockRegex.exec(html)) !== null) {
+      const postPath = match[1] ?? "";
+      const msgId = match[2] ?? "";
+      const rawHtml = match[3] ?? "";
+      const text = stripHtmlTags(rawHtml);
+
+      if (text.trim().length > 0) {
+        messages.push({
+          id: msgId,
+          text: text.trim(),
+          url: `https://t.me/${postPath}`,
+        });
+      }
+    }
+
+    // Fallback: simpler pattern if above didn't match
+    if (messages.length === 0) {
+      const simpleRegex = /<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+      let idx = 0;
+      while ((match = simpleRegex.exec(html)) !== null) {
+        const text = stripHtmlTags(match[1] ?? "");
+        if (text.trim().length > 0) {
+          messages.push({ id: String(Date.now()) + idx, text: text.trim(), url });
+          idx++;
+        }
+      }
+    }
+
+    return messages;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(msg.includes("kanal bulunamadı") ? msg : `Kanal verisi alınamadı: ${msg}`);
   }
 }
 
@@ -147,14 +194,12 @@ async function processMessage(
 
   const hash = createDuplicateHash(text);
 
-  // Duplicate check
   const existing = await db.select({ id: importedPostsTable.id })
     .from(importedPostsTable)
     .where(eq(importedPostsTable.duplicateHash, hash))
     .limit(1);
   if (existing.length > 0) return;
 
-  // Save imported post
   const [imported] = await db.insert(importedPostsTable).values({
     sourceId: source.id,
     platform: source.platform,
@@ -168,7 +213,6 @@ async function processMessage(
 
   if (!imported) return;
 
-  // Increment counter
   await db.update(sourcesTable)
     .set({ totalImported: (source.totalImported ?? 0) + 1 })
     .where(eq(sourcesTable.id, source.id));
@@ -179,7 +223,6 @@ async function processMessage(
   const phone = extractPhone(text);
 
   if (source.autoPublish && !source.requireApproval) {
-    // Auto-publish directly to listings
     await db.insert(listingsTable).values({
       title: title ?? "Güvenlik Personeli Aranıyor",
       company: "Belirtilmemiş",
@@ -194,7 +237,6 @@ async function processMessage(
       .set({ status: "approved" })
       .where(eq(importedPostsTable.id, imported.id));
   } else {
-    // Add to pending jobs queue
     await db.insert(pendingJobsTable).values({
       sourceId: source.id,
       importedPostId: imported.id,
@@ -214,101 +256,101 @@ async function processMessage(
   }
 }
 
-// ── Telegram poll cycle ────────────────────────────────────────────
-async function runTelegramPoll(): Promise<void> {
-  if (!TELEGRAM_TOKEN) return;
-
-  const updates = await telegramGetUpdates();
-  if (updates.length === 0) return;
-
-  // Update offset
-  telegramOffset = Math.max(...updates.map(u => u.update_id));
-
-  // Get active Telegram sources
-  const sources = await db.select().from(sourcesTable)
-    .where(and(eq(sourcesTable.platform, "telegram"), eq(sourcesTable.active, true)));
-
-  if (sources.length === 0) return;
-
-  for (const update of updates) {
-    const msg = update.message ?? update.channel_post;
-    if (!msg) continue;
-
-    const text = msg.text ?? msg.caption ?? "";
-    if (!text.trim()) continue;
-
-    const chatId = String(msg.chat.id);
-    const chatUsername = msg.chat.username?.toLowerCase() ?? "";
-
-    // Match to a source
-    const source = sources.find(s => {
-      // Match by stored chat ID
-      if (s.telegramChatId === chatId) return true;
-      // Match by username from URL
-      const urlUsername = extractTelegramUsername(s.url);
-      if (urlUsername && chatUsername === urlUsername) return true;
-      return false;
-    });
-
-    if (!source) continue;
-
-    // Check interval
-    const now = new Date();
-    const intervalMs = (source.checkInterval ?? 15) * 60 * 1000;
-    if (source.lastCheckedAt && (now.getTime() - source.lastCheckedAt.getTime()) < intervalMs) continue;
-
-    // Store chat ID if not already set
-    if (!source.telegramChatId && chatId) {
-      await db.update(sourcesTable)
-        .set({ telegramChatId: chatId })
-        .where(eq(sourcesTable.id, source.id));
-    }
-
-    const msgUrl = chatUsername
-      ? `https://t.me/${chatUsername}/${msg.message_id}`
-      : source.url;
-
-    try {
-      await processMessage(source, `${chatId}_${msg.message_id}`, text, msgUrl);
-      await db.update(sourcesTable)
-        .set({ lastCheckedAt: now, lastError: null })
-        .where(eq(sourcesTable.id, source.id));
-    } catch (e) {
-      const errMsg = e instanceof Error ? e.message : String(e);
-      logger.error(e, `scraper: error processing message from source ${source.id}`);
-      await db.update(sourcesTable)
-        .set({ lastError: errMsg.slice(0, 500) })
-        .where(eq(sourcesTable.id, source.id));
-    }
-  }
-}
-
-// ── Public API ────────────────────────────────────────────────────
-export function startScraperWorker(): void {
-  if (!TELEGRAM_TOKEN) {
-    logger.warn("scraper: TELEGRAM_BOT_TOKEN not set — Telegram scraping disabled");
+// ── Check a single Telegram source ────────────────────────────────
+async function checkTelegramSource(source: typeof sourcesTable.$inferSelect): Promise<void> {
+  const username = extractTelegramUsername(source.url);
+  if (!username) {
+    await db.update(sourcesTable)
+      .set({ lastError: "Geçersiz Telegram kanal linki. Örnek: https://t.me/kanal_adi" })
+      .where(eq(sourcesTable.id, source.id));
     return;
   }
 
-  logger.info("scraper: worker started");
+  logger.info(`scraper: checking Telegram channel @${username}`);
 
-  // Poll every 30 seconds
+  const messages = await scrapeTelegramChannel(username);
+
+  if (messages.length === 0) {
+    await db.update(sourcesTable)
+      .set({
+        lastCheckedAt: new Date(),
+        lastError: "Kanal boş veya mesajlar okunamadı. Kanal herkese açık olmalı.",
+      })
+      .where(eq(sourcesTable.id, source.id));
+    return;
+  }
+
+  let processed = 0;
+  for (const msg of messages) {
+    try {
+      await processMessage(source, `${username}_${msg.id}`, msg.text, msg.url);
+      processed++;
+    } catch (e) {
+      logger.error(e, `scraper: error processing msg ${msg.id} from @${username}`);
+    }
+  }
+
+  await db.update(sourcesTable)
+    .set({ lastCheckedAt: new Date(), lastError: null })
+    .where(eq(sourcesTable.id, source.id));
+
+  logger.info(`scraper: @${username} — ${messages.length} mesaj tarandı, ${processed} işlendi`);
+}
+
+// ── Main scraper loop ──────────────────────────────────────────────
+async function runScraperCycle(): Promise<void> {
+  const sources = await db.select().from(sourcesTable)
+    .where(eq(sourcesTable.active, true));
+
+  const now = new Date();
+
+  for (const source of sources) {
+    const intervalMs = (source.checkInterval ?? 15) * 60 * 1000;
+    const lastChecked = source.lastCheckedAt?.getTime() ?? 0;
+
+    if (now.getTime() - lastChecked < intervalMs) continue;
+
+    if (source.platform === "telegram") {
+      try {
+        await checkTelegramSource(source);
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        logger.error(e, `scraper: source ${source.id} error`);
+        await db.update(sourcesTable)
+          .set({ lastError: errMsg.slice(0, 500), lastCheckedAt: now })
+          .where(eq(sourcesTable.id, source.id));
+      }
+    } else if (source.platform === "facebook") {
+      await db.update(sourcesTable)
+        .set({ lastError: "Facebook entegrasyonu henüz aktif değil. Meta Graph API erişim tokenı gereklidir." })
+        .where(eq(sourcesTable.id, source.id));
+    }
+  }
+}
+
+// ── Public API ─────────────────────────────────────────────────────
+export function startScraperWorker(): void {
+  logger.info("scraper: worker started (Telegram web scraping — no bot token required)");
+
+  // Run every minute, but each source respects its own checkInterval
   setInterval(async () => {
     try {
-      await runTelegramPoll();
+      await runScraperCycle();
     } catch (e) {
-      logger.error(e, "scraper: poll error");
+      logger.error(e, "scraper: cycle error");
     }
-  }, 30_000);
+  }, 60_000);
 
-  // Also run immediately after startup
+  // Run immediately after 10 seconds
   setTimeout(async () => {
     try {
-      await runTelegramPoll();
-    } catch {}
-  }, 5_000);
+      await runScraperCycle();
+    } catch (e) {
+      logger.error(e, "scraper: initial run error");
+    }
+  }, 10_000);
 }
 
 export function isTelegramTokenSet(): boolean {
-  return !!TELEGRAM_TOKEN;
+  return true; // Web scraping doesn't need a token
 }

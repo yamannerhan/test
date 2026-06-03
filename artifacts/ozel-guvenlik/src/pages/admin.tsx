@@ -1074,14 +1074,12 @@ function SourcesSection({ apiCall, toast }: { apiCall: (path: string, method?: s
 
   return (
     <Section title="İlan Kaynakları" icon={Radio}>
-      {!telegramTokenSet && (
-        <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-4">
-          <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-          <div className="text-xs text-amber-300">
-            <strong>Telegram entegrasyonu pasif.</strong> Telegram kaynaklarını etkinleştirmek için <code className="bg-white/10 px-1 rounded">TELEGRAM_BOT_TOKEN</code> ortam değişkenini ayarlayın, ardından botunuzu kanalınıza/grubunuza ekleyin veya admin yapın.
-          </div>
+      <div className="flex items-start gap-2 bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4">
+        <Radio className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+        <div className="text-xs text-primary/80">
+          Telegram için bot gerekmez. <strong>Herkese açık</strong> kanal veya grup linkini ekleyin, sistem otomatik tarar. Örnek: <code className="bg-white/10 px-1 rounded">https://t.me/kanal_adi</code>
         </div>
-      )}
+      </div>
 
       <div className="flex justify-between items-center mb-3">
         <span className="text-xs text-muted-foreground">{sources.length} kaynak</span>
