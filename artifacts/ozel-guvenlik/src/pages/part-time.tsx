@@ -294,8 +294,13 @@ export default function PartTime() {
     }
   };
 
-  const featuredWorkers = workers.filter(w => w.isFeatured);
-  const regularWorkers = workers.filter(w => !w.isFeatured);
+  // Öne çıkanlar her zaman üstte — sunucu sıralamasına ek frontend garantisi
+  const sortedWorkers = [...workers].sort((a, b) => {
+    if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+  const featuredWorkers = sortedWorkers.filter(w => w.isFeatured);
+  const regularWorkers = sortedWorkers.filter(w => !w.isFeatured);
 
   return (
     <Layout>
