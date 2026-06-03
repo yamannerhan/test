@@ -859,7 +859,7 @@ export default function CvOlustur() {
     setSyncMsg("Yükleniyor...");
     try {
       const token = localStorage.getItem("auth_token");
-      const res = await fetch("/api/users/me", {
+      const res = await fetch("/api/auth/me", {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
       if (!res.ok) throw new Error();

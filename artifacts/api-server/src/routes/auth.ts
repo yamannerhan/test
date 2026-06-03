@@ -21,6 +21,12 @@ function userJson(user: typeof usersTable.$inferSelect) {
     banReason: user.banReason,
     banExpiresAt: user.banExpiresAt?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
+    phone: user.phone ?? null,
+    birthDate: user.birthDate ?? null,
+    height: user.height ?? null,
+    weight: user.weight ?? null,
+    address: user.address ?? null,
+    maritalStatus: user.maritalStatus ?? null,
   };
 }
 
