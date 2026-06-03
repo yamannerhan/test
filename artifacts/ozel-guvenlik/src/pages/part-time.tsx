@@ -499,14 +499,6 @@ export default function PartTime() {
             </div>
           )}
 
-          {/* ── Kendi Kaydım ─────────────────────────────────────────── */}
-          {myListing && tab === "liste" && (
-            <div>
-              <p className="text-xs text-muted-foreground font-semibold mb-2">Benim Kaydım</p>
-              <WorkerCard w={myListing} isMine onDelete={handleDelete} isAdmin={isAdmin} onFeature={handleFeature} onBan={handleBan} />
-            </div>
-          )}
-
           {/* ── Liste ─────────────────────────────────────────────────── */}
           {loading ? (
             <div className="flex justify-center py-10">
@@ -519,17 +511,28 @@ export default function PartTime() {
             </div>
           ) : (
             <div className="space-y-3">
+              {/* Öne Çıkanlar — her zaman en üstte */}
               {featuredWorkers.length > 0 && (
                 <>
                   <p className="text-xs font-bold text-amber-400 flex items-center gap-1"><Star className="w-3.5 h-3.5" />Öne Çıkanlar</p>
                   {featuredWorkers.map(w => (
                     <WorkerCard key={w.id} w={w} isAdmin={isAdmin} onFeature={handleFeature} onBan={handleBan} onDelete={handleDelete} isMine={w.userId === user?.id} />
                   ))}
-                  {regularWorkers.length > 0 && <div className="border-t border-white/5 pt-1"><p className="text-xs text-muted-foreground font-medium">Diğerleri</p></div>}
                 </>
               )}
-              {regularWorkers.map(w => (
-                <WorkerCard key={w.id} w={w} isAdmin={isAdmin} onFeature={handleFeature} onBan={handleBan} onDelete={handleDelete} isMine={w.userId === user?.id} />
+              {/* Benim Kaydım — öne çıkan değilse öne çıkanlardan hemen sonra */}
+              {myListing && tab === "liste" && !myListing.isFeatured && (
+                <>
+                  <div className="border-t border-white/5 pt-1"><p className="text-xs text-primary/70 font-semibold">Benim Kaydım</p></div>
+                  <WorkerCard w={myListing} isMine onDelete={handleDelete} isAdmin={isAdmin} onFeature={handleFeature} onBan={handleBan} />
+                </>
+              )}
+              {/* Diğerleri */}
+              {(featuredWorkers.length > 0 || (myListing && !myListing.isFeatured)) && regularWorkers.filter(w => w.userId !== user?.id).length > 0 && (
+                <div className="border-t border-white/5 pt-1"><p className="text-xs text-muted-foreground font-medium">Diğerleri</p></div>
+              )}
+              {regularWorkers.filter(w => w.userId !== user?.id).map(w => (
+                <WorkerCard key={w.id} w={w} isAdmin={isAdmin} onFeature={handleFeature} onBan={handleBan} onDelete={handleDelete} isMine={false} />
               ))}
             </div>
           )}

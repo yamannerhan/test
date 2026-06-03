@@ -1,4 +1,4 @@
-const CACHE_NAME = "ozelguvenlik-1780504631576";
+const CACHE_NAME = "ozelguvenlik-1780510413131";
 
 self.addEventListener("install", () => self.skipWaiting());
 
