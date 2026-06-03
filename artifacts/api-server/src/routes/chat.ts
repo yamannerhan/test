@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, chatMessagesTable, usersTable, adminSettingsTable, chatReactionsTable } from "@workspace/db";
 import { eq, desc, and, lt, inArray } from "drizzle-orm";
-import { authMiddleware, optionalAuthMiddleware, requireAdmin } from "../middlewares/auth";
+import { authMiddleware, optionalAuthMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
 
 const router = Router();
 
@@ -195,6 +195,15 @@ router.delete("/chat/messages/:id", authMiddleware, requireAdmin, async (req, re
     io.emit("chat:delete", { id });
   }
 
+  res.sendStatus(204);
+});
+
+router.delete("/chat/messages", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
+  await db.update(chatMessagesTable).set({ isDeleted: true }).where(eq(chatMessagesTable.isDeleted, false));
+  const io = (req as unknown as { app: { get: (key: string) => unknown } }).app.get("io") as { emit: (event: string, data: unknown) => void } | null;
+  if (io) {
+    io.emit("chat:cleared", { clearedBy: req.user!.username, role: req.user!.role });
+  }
   res.sendStatus(204);
 });
 

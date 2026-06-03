@@ -5,13 +5,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { io, Socket } from "socket.io-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send, X, Bot, Zap, CornerUpLeft } from "lucide-react";
+import { Send, X, Bot, Zap, CornerUpLeft, Trash2 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "framer-motion";
 import type { ChatMessage } from "@workspace/api-client-react";
 
 function getToken() { return localStorage.getItem("auth_token") ?? ""; }
 
-interface SystemMsg { id: number; type: "join" | "welcome"; text: string; createdAt: string; }
+interface SystemMsg { id: number; type: "join" | "welcome" | "cleared"; text: string; createdAt: string; }
 type Reaction = { emoji: string; userId: number; username: string; displayName: string | null };
 type ExtMsg = ChatMessage & { displayName?: string | null; isFake?: boolean; reactions?: Reaction[] };
 type AnyMsg = ExtMsg | SystemMsg;
@@ -153,6 +153,14 @@ export default function Chat() {
         !isSystem(m) && (m as ExtMsg).id === messageId ? { ...(m as ExtMsg), reactions } : m
       ));
     });
+    s.on("chat:cleared", ({ clearedBy }: { clearedBy: string; role: string }) => {
+      setMessages([{
+        id: Date.now(),
+        type: "cleared",
+        text: `Sohbet ${clearedBy} tarafından temizlendi`,
+        createdAt: new Date().toISOString(),
+      }]);
+    });
     return () => { s.disconnect(); };
   }, [user?.id]);
 
@@ -186,6 +194,16 @@ export default function Chat() {
     setMentionQuery(null);
     setSuggestions([]);
     inputRef.current?.focus();
+  };
+
+  const handleClearChat = async () => {
+    if (!window.confirm("Tüm sohbet mesajları silinecek. Emin misiniz?")) return;
+    try {
+      await fetch("/api/chat/messages", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+    } catch {}
   };
 
   const handleReact = async (msgId: number, emoji: string) => {
@@ -226,6 +244,14 @@ export default function Chat() {
         <motion.div key={msg.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="flex justify-center my-1">
           <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] font-semibold px-3 py-1 rounded-full">
             <Zap className="w-2.5 h-2.5" />{msg.text}
+          </div>
+        </motion.div>
+      );
+      if (msg.type === "cleared") return (
+        <motion.div key={msg.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex justify-center my-3 px-4">
+          <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/25 text-red-400 text-[11px] font-semibold px-4 py-2 rounded-xl">
+            <Trash2 className="w-3 h-3 shrink-0" />
+            <span>Yönetici tarafından sohbet temizlendi</span>
           </div>
         </motion.div>
       );
@@ -462,6 +488,17 @@ export default function Chat() {
         }
       `}</style>
       <div className="flex flex-col h-[calc(100vh-7rem)] bg-background relative">
+        {/* Admin/Moderatör sohbet temizleme butonu */}
+        {user && (user.role === "admin" || user.role === "moderator") && (
+          <div className="flex items-center justify-end px-4 py-2 border-b border-white/5 bg-background/60 backdrop-blur shrink-0">
+            <button
+              onClick={handleClearChat}
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-red-400/70 hover:text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-all active:scale-95">
+              <Trash2 className="w-3.5 h-3.5" />
+              Sohbeti Temizle
+            </button>
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto py-4 space-y-3 pb-36">
           {isLoading ? (
             <div className="flex justify-center items-center h-full">
