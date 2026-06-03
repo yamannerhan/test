@@ -224,7 +224,11 @@ export default function Profile() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/bmp"
+                  accept={
+                    user?.role === "admin" || user?.role === "moderator"
+                      ? "image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                      : "image/jpeg,image/jpg,image/png,image/webp"
+                  }
                   className="hidden"
                   onChange={handleAvatarChange}
                 />

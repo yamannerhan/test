@@ -44,6 +44,25 @@ const upload = multer({
 router.post("/users/avatar", authMiddleware, upload.single("avatar"), async (req, res): Promise<void> => {
   if (!req.file) { res.status(400).json({ error: "Resim dosyası gerekli (jpg, png, webp, gif)" }); return; }
 
+  const isGif = req.file.mimetype === "image/gif";
+
+  if (isGif) {
+    const role = req.user!.role;
+    if (role !== "admin" && role !== "moderator") {
+      res.status(403).json({ error: "Hareketli GIF yükleme sadece yönetici ve moderatörlere özeldir." });
+      return;
+    }
+    // GIF'i olduğu gibi kaydet — sharp animasyonu bozar
+    const filename = `${req.user!.id}_${Date.now()}.gif`;
+    const filepath = path.join(UPLOADS_DIR, filename);
+    fs.writeFileSync(filepath, req.file.buffer);
+    const avatarUrl = `/api/avatars/${filename}`;
+    const [updated] = await db.update(usersTable).set({ avatarUrl }).where(eq(usersTable.id, req.user!.id)).returning();
+    res.json(userJson(updated));
+    return;
+  }
+
+  // Statik görseller için normal sharp işlemi
   const filename = `${req.user!.id}_${Date.now()}.jpg`;
   const filepath = path.join(UPLOADS_DIR, filename);
 
