@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, chatMessagesTable, usersTable, adminSettingsTable, chatReactionsTable } from "@workspace/db";
 import { eq, desc, and, lt, inArray } from "drizzle-orm";
 import { authMiddleware, optionalAuthMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
+import { triggerContextualReply } from "../lib/chat-bot";
 
 const router = Router();
 
@@ -139,6 +140,9 @@ router.post("/chat/messages", authMiddleware, async (req, res): Promise<void> =>
   if (io) {
     io.emit("chat:message", formatted);
   }
+
+  // GuvenlikBot — kullanıcı mesajına anahtar kelime bazlı akıllı yanıt
+  triggerContextualReply(formatted.content, formatted.username, formatted.userRole);
 
   res.status(201).json(formatted);
 });

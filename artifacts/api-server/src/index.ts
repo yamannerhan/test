@@ -3,6 +3,7 @@ import { Server as SocketIOServer } from "socket.io";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { onlineSockets } from "./routes/chat";
+import { setBotIo } from "./lib/chat-bot";
 import { db, usersTable, listingsTable, adminSettingsTable } from "@workspace/db";
 import { eq, count, sql } from "drizzle-orm";
 
@@ -17,6 +18,7 @@ const io = new SocketIOServer(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
 });
 app.set("io", io);
+setBotIo(io);
 
 // ── GuvenlikBot ───────────────────────────────────────────────────
 const BOT_USER = {
@@ -160,6 +162,22 @@ const FAKE_USERS = [
   { id: -14, username: "nese_b",      displayName: "Neşe",     color: "#e879f9", avatar: "https://randomuser.me/api/portraits/women/22.jpg" },
   { id: -15, username: "cengiz_t",    displayName: "Cengiz",   color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/60.jpg" },
   { id: -16, username: "rukiye_s",    displayName: "Rukiye",   color: "#34d399", avatar: "https://randomuser.me/api/portraits/women/78.jpg" },
+  { id: -17, username: "burak_a",     displayName: "Burak",    color: "#60a5fa", avatar: "https://randomuser.me/api/portraits/men/11.jpg" },
+  { id: -18, username: "derya_m",     displayName: "Derya",    color: "#f0abfc", avatar: "https://randomuser.me/api/portraits/women/25.jpg" },
+  { id: -19, username: "serkan_o",    displayName: "Serkan",   color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/36.jpg" },
+  { id: -20, username: "emine_k",     displayName: "Emine",    color: "#fda4af", avatar: "https://randomuser.me/api/portraits/women/51.jpg" },
+  { id: -21, username: "osman_c",     displayName: "Osman",    color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/62.jpg" },
+  { id: -22, username: "hatice_b",    displayName: "Hatice",   color: "#d8b4fe", avatar: "https://randomuser.me/api/portraits/women/63.jpg" },
+  { id: -23, username: "yusuf_d",     displayName: "Yusuf",    color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/71.jpg" },
+  { id: -24, username: "merve_s",     displayName: "Merve",    color: "#6ee7b7", avatar: "https://randomuser.me/api/portraits/women/36.jpg" },
+  { id: -25, username: "kadir_y",     displayName: "Kadir",    color: "#fdba74", avatar: "https://randomuser.me/api/portraits/men/88.jpg" },
+  { id: -26, username: "sibel_t",     displayName: "Sibel",    color: "#93c5fd", avatar: "https://randomuser.me/api/portraits/women/82.jpg" },
+  { id: -27, username: "volkan_k",    displayName: "Volkan",   color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/17.jpg" },
+  { id: -28, username: "gulcan_d",    displayName: "Gülcan",   color: "#fca5a5", avatar: "https://randomuser.me/api/portraits/women/9.jpg" },
+  { id: -29, username: "erhan_m",     displayName: "Erhan",    color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/55.jpg" },
+  { id: -30, username: "ozlem_b",     displayName: "Özlem",    color: "#a5b4fc", avatar: "https://randomuser.me/api/portraits/women/40.jpg" },
+  { id: -31, username: "cem_a",       displayName: "Cem",      color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/28.jpg" },
+  { id: -32, username: "hulya_g",     displayName: "Hülya",    color: "#f9a8d4", avatar: "https://randomuser.me/api/portraits/women/66.jpg" },
 ];
 
 const STANDALONE_MSGS = [
@@ -377,6 +395,89 @@ const CONV_PAIRS: ConvPair[] = [
     bTemplate: () => "CV'nizi güncel tutun, sabıka kaydı ve sağlık raporunu hazırlayın. Deneyiminizi somut rakamlarla yazın.",
     delay: 22000,
   },
+  // Ek soru çiftleri
+  {
+    a: "Tatil günleri çalışırsak ekstra ücret alıyor muyuz?",
+    bTemplate: () => "Evet, ulusal bayram ve resmi tatillerde çalışanlara o gün için ayrıca günlük ücret ödenmesi zorunlu. Haftalık ücretin dışında ek yevmiye hakkınız var.",
+    delay: 26000,
+  },
+  {
+    a: "Güvenlik amiri olmak için ne gerekiyor?",
+    bTemplate: () => "En az 5 yıl deneyim ve güvenlik amirliği sertifikası şart. Liderlik becerileri ve temiz sicil kaydı da kritik. Bazı firmalar ek yöneticilik eğitimi istiyor.",
+    delay: 29000,
+  },
+  {
+    a: "Yurt dışında güvenlik işi var mı?",
+    bTemplate: () => "Körfez ülkeleri başta olmak üzere bazı Türk şirketleri yurt dışı güvenlik personeli alıyor. Dil bilmek ve pasaportunuzun açık olması şart. Fırsatlar için özel ajansları takip edin.",
+    delay: 31000,
+  },
+  {
+    a: "Sendika üyesi olmak avantajlı mı?",
+    bTemplate: () => "Sendikalı işyerlerinde toplu iş sözleşmesi kapsamında daha iyi maaş ve haklar elde edilebiliyor. Ancak sektörde sendikalı şirket bulmak giderek zorlaşıyor maalesef.",
+    delay: 27000,
+  },
+  {
+    a: "Fabrika mı yoksa AVM mi daha iyi çalışma ortamı?",
+    bTemplate: () => "AVM'lerde müşteri yoğun ama ortam daha kontrollü. Fabrikalarda iş sağlığı riskleri var ama genellikle yemek ve servis imkânı daha iyi. İkisi de kişiye göre değişiyor.",
+    delay: 23000,
+  },
+  {
+    a: "Kamera sistemleri eğitimi almak şart mı?",
+    bTemplate: () => "Zorunlu değil ama büyük fark yaratıyor. CCTV ve alarm sistemleri konusunda sertifika alanlar hem daha kolay iş buluyor hem de daha yüksek maaş alıyor.",
+    delay: 20000,
+  },
+  {
+    a: "Banka güvenliğine nasıl başvurabilirim?",
+    bTemplate: () => "Banka güvenliği için silahlı güvenlik lisansı genellikle şart. Bunun yanı sıra temiz sicil kaydı ve psikolojik değerlendirme gerekiyor. Rekabet yüksek ama maaşlar çok iyi.",
+    delay: 24000,
+  },
+  {
+    a: "Güvenlik sektöründe stres çok mu oluyor?",
+    bTemplate: () => "Pozisyona göre çok değişiyor. Havaalanı veya banka güvenliği gergin olabiliyor. Site veya okul güvenliği görece daha sakin. Psikolojik destek almaktan çekinmeyin.",
+    delay: 28000,
+  },
+  {
+    a: "Yazın sezonluk iş bulmak mümkün mü?",
+    bTemplate: s => s.total > 0
+      ? `Evet, yaz döneminde otel, tatil köyü ve sahil güvenliği ilanları çok artıyor. Şu an ${s.total} ilan var, sezonluk filtresine bak.`
+      : "Yaz döneminde turizm bölgelerinde sezonluk güvenlik ilanları çok artıyor. Otel ve tatil köyleri özellikle Mayıs'tan itibaren alım yapıyor.",
+    delay: 22000,
+  },
+  {
+    a: "Özel hastane güvenliği çalışmak zor mu?",
+    bTemplate: () => "Sağlık tesislerinde gerginlik yaşanabiliyor, özellikle acil servislerde. Ama maaşlar iyi ve çalışma koşulları genellikle düzgün. Sağlık kurumu tecrübesi kariyerinize değer katıyor.",
+    delay: 25000,
+  },
+  {
+    a: "Parmak izi sistemi olan yerlerde çalışmak nasıl?",
+    bTemplate: () => "Biyometrik giriş kontrol sistemleri artık yaygınlaşıyor. Bu tür sistemleri bilen personel daha değerli. Temel IT bilgisi ile bu sistemleri rahatça öğrenebilirsiniz.",
+    delay: 19000,
+  },
+  {
+    a: "Vardiya değişimi sırasında sorun çıkarsa ne yapmalı?",
+    bTemplate: () => "Her vardiya devir-teslimini yazılı tutanakla kayıt altına alın. Sorun varsa amirlerinizi bilgilendirin ve işyeri güvenlik defterine düşün. Belgesiz kalmak hukuki açıdan sizi zor durumda bırakır.",
+    delay: 30000,
+  },
+  {
+    a: "Çalışırken üniversite okumak mümkün mü?",
+    bTemplate: () => "Açıköğretim programları bu sektör için idealdir. Vardiyalı çalışanlar gündüz derslerini ayarlayabiliyor. Güvenlik yönetimi veya hukuk bölümleri kariyer açısından çok işe yarıyor.",
+    delay: 26000,
+  },
+  {
+    a: "İşyeri kıyafeti firmadan mı veriliyor?",
+    bTemplate: () => "Büyük firmaların büyük çoğunluğu üniforma ve temel ekipmanı temin ediyor. Başvuru öncesinde iş ilanında veya mülakatta bunu netleştirmenizi öneririm.",
+    delay: 21000,
+  },
+  {
+    a: "Güvenlik görevlisi olmak için boy sınırı var mı?",
+    bTemplate: () => "Yasal olarak belirlenmiş bir boy sınırı yok. Ancak bazı firmalar iç kriterleri olarak 170 cm üzeri tercih edebiliyor. Tüm pozisyonlarda sağlık raporu ve fiziksel uygunluk aranıyor.",
+    delay: 23000,
+  },
+  {
+    a: "Bu platformu tavsiye ediyorum, ilanlar gerçekten kapsamlı.",
+    bTemplate: () => "Teşekkürler! Güvenlik sektörüne özel ilanları bir arada bulmak gerçekten zaman kazandırıyor. Arkadaşlarınıza da önerin, birlikte daha güçlüyüz.",
+    delay: 18000,
+  },
 ];
 
 const usedConvIdx = new Set<number>();
@@ -577,7 +678,7 @@ function getNextInfoMsg(): string {
 }
 
 function scheduleInfoBot() {
-  const delay = 8 * 60 * 1000 + Math.random() * 7 * 60 * 1000;
+  const delay = 5 * 60 * 1000 + Math.random() * 5 * 60 * 1000;
   setTimeout(() => {
     io.emit("chat:message", makeInfoMsg(getNextInfoMsg()));
     scheduleInfoBot();
@@ -614,7 +715,7 @@ void expireListings();
 setInterval(() => { void expireListings(); }, 30 * 60 * 1000);
 setTimeout(() => scheduleBotMessage(), 3 * 60 * 1000);
 setTimeout(() => scheduleFakeConversation(), 30000);
-setTimeout(() => scheduleInfoBot(), 10 * 60 * 1000);
+setTimeout(() => scheduleInfoBot(), 2 * 60 * 1000);
 scheduleHourlyReminder();
 setInterval(() => { void broadcastOnlineCount(); }, 45000);
 
