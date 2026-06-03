@@ -616,11 +616,13 @@ function ChatManagementSection({ apiCall, toast }: {
 interface AdminUser {
   id: number; username: string; email: string; displayName: string | null; role: string;
   isBanned: boolean; createdAt: string; avatarUrl: string | null;
+  mutedUntil: string | null; lastKnownIp: string | null; lastDeviceId: string | null;
 }
 
-function UserManagementSection({ apiCall, toast }: {
+function UserManagementSection({ apiCall, toast, viewerIsAdmin }: {
   apiCall: (path: string, method: string, body?: unknown) => Promise<unknown>;
   toast: ReturnType<typeof useToast>["toast"];
+  viewerIsAdmin: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -628,12 +630,13 @@ function UserManagementSection({ apiCall, toast }: {
   const [newMod, setNewMod] = useState({ username: "", email: "", password: "" });
   const [creating, setCreating] = useState(false);
 
-  // Per-user expanded state: password reset
   const [resetPw, setResetPw] = useState<Record<number, string>>({});
   const [resetLoading, setResetLoading] = useState<number | null>(null);
-  // Per-user display name edit
   const [editDN, setEditDN] = useState<Record<number, string>>({});
   const [dnLoading, setDnLoading] = useState<number | null>(null);
+  const [muteLoading, setMuteLoading] = useState<number | null>(null);
+  const [ipBanLoading, setIpBanLoading] = useState<number | null>(null);
+  const [deviceBanLoading, setDeviceBanLoading] = useState<number | null>(null);
 
   const searchUsers = async () => {
     setLoading(true);
@@ -666,6 +669,46 @@ function UserManagementSection({ apiCall, toast }: {
         toast({ title: "Kullanıcı yasaklandı" });
       }
     } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const muteUser = async (id: number, hours?: number, days?: number) => {
+    setMuteLoading(id);
+    try {
+      const res = await apiCall(`/admin/users/${id}/mute`, "POST", { hours, days }) as { mutedUntil: string };
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, mutedUntil: res.mutedUntil } : u));
+      toast({ title: "Kullanıcı susturuldu" });
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+    finally { setMuteLoading(null); }
+  };
+
+  const unmuteUser = async (id: number) => {
+    setMuteLoading(id);
+    try {
+      await apiCall(`/admin/users/${id}/unmute`, "POST");
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, mutedUntil: null } : u));
+      toast({ title: "Susturma kaldırıldı" });
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+    finally { setMuteLoading(null); }
+  };
+
+  const ipBanUser = async (id: number) => {
+    if (!confirm("Bu kullanıcının IP adresi kalıcı olarak yasaklanacak. Emin misiniz?")) return;
+    setIpBanLoading(id);
+    try {
+      await apiCall(`/admin/users/${id}/ip-ban`, "POST", {});
+      toast({ title: "IP adresi yasaklandı" });
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+    finally { setIpBanLoading(null); }
+  };
+
+  const deviceBanUser = async (id: number) => {
+    if (!confirm("Bu kullanıcının cihazı kalıcı olarak yasaklanacak. Emin misiniz?")) return;
+    setDeviceBanLoading(id);
+    try {
+      await apiCall(`/admin/users/${id}/device-ban`, "POST", {});
+      toast({ title: "Cihaz yasaklandı" });
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+    finally { setDeviceBanLoading(null); }
   };
 
   const resetPassword = async (id: number) => {
@@ -751,84 +794,129 @@ function UserManagementSection({ apiCall, toast }: {
             <div className="flex justify-center py-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>
           ) : users.length === 0 ? (
             <p className="text-xs text-center text-muted-foreground py-4">Kullanıcı bulunamadı</p>
-          ) : users.map(u => (
-            <div key={u.id} className={`bg-white/5 rounded-xl p-3 space-y-2 ${u.isBanned ? "opacity-60" : ""}`}>
-              {/* Header row */}
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold shrink-0">
-                  {u.username.substring(0, 2).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="text-sm font-semibold truncate">{u.displayName || u.username}</p>
-                    {u.displayName && <p className="text-[10px] text-muted-foreground">@{u.username}</p>}
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${roleBg[u.role] ?? "bg-white/10 text-muted-foreground"}`}>
-                      {roleLabel[u.role] ?? u.role}
-                    </span>
-                    {u.isBanned && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-destructive/20 text-destructive">Yasaklı</span>}
+          ) : users.map(u => {
+            const isMuted = !!u.mutedUntil && new Date(u.mutedUntil) > new Date();
+            return (
+              <div key={u.id} className={`bg-white/5 rounded-xl p-3 space-y-2 ${u.isBanned ? "opacity-60" : ""}`}>
+                {/* Header row */}
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold shrink-0">
+                    {u.username.substring(0, 2).toUpperCase()}
                   </div>
-                  <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-sm font-semibold truncate">{u.displayName || u.username}</p>
+                      {u.displayName && <p className="text-[10px] text-muted-foreground">@{u.username}</p>}
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${roleBg[u.role] ?? "bg-white/10 text-muted-foreground"}`}>
+                        {roleLabel[u.role] ?? u.role}
+                      </span>
+                      {u.isBanned && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-destructive/20 text-destructive">Yasaklı</span>}
+                      {isMuted && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400">Susturulmuş</span>}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
+                    {u.lastKnownIp && viewerIsAdmin && (
+                      <p className="text-[9px] text-muted-foreground/60 truncate">IP: {u.lastKnownIp}</p>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Display name edit */}
-              <div className="flex gap-1.5">
-                <input
-                  value={editDN[u.id] ?? u.displayName ?? ""}
-                  onChange={e => setEditDN(prev => ({ ...prev, [u.id]: e.target.value }))}
-                  placeholder="Sohbet adı (displayName)"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40"
-                />
-                <button
-                  onClick={() => saveDisplayName(u.id)}
-                  disabled={dnLoading === u.id}
-                  className="text-[10px] px-2 py-1 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors disabled:opacity-50"
-                >
-                  {dnLoading === u.id ? "..." : "Kaydet"}
-                </button>
-              </div>
-
-              {/* Password reset */}
-              <div className="flex gap-1.5">
-                <input
-                  type="password"
-                  value={resetPw[u.id] ?? ""}
-                  onChange={e => setResetPw(prev => ({ ...prev, [u.id]: e.target.value }))}
-                  placeholder="Yeni şifre (en az 6 karakter)"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500/40"
-                />
-                <button
-                  onClick={() => resetPassword(u.id)}
-                  disabled={resetLoading === u.id}
-                  className="text-[10px] px-2 py-1 bg-amber-500/20 text-amber-400 rounded-lg hover:bg-amber-500/30 transition-colors disabled:opacity-50 flex items-center gap-0.5"
-                >
-                  <Lock className="w-3 h-3" />
-                  {resetLoading === u.id ? "..." : "Şifre"}
-                </button>
-              </div>
-
-              {/* Role + ban buttons */}
-              {u.role !== "admin" && (
-                <div className="flex gap-1.5 flex-wrap">
-                  {u.role !== "moderator" ? (
-                    <button onClick={() => changeRole(u.id, "moderator")}
-                      className="text-[10px] px-2 py-1 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors flex items-center gap-0.5">
-                      <Shield className="w-3 h-3" /> Moderatör Yap
-                    </button>
-                  ) : (
-                    <button onClick={() => changeRole(u.id, "user")}
-                      className="text-[10px] px-2 py-1 bg-white/10 text-muted-foreground rounded-lg hover:bg-white/20 transition-colors flex items-center gap-0.5">
-                      <User className="w-3 h-3" /> Üye Yap
-                    </button>
-                  )}
-                  <button onClick={() => banUser(u.id, u.isBanned)}
-                    className={`text-[10px] px-2 py-1 rounded-lg transition-colors flex items-center gap-0.5 ml-auto ${u.isBanned ? "bg-green-500/20 text-green-400 hover:bg-green-500/30" : "bg-destructive/20 text-destructive hover:bg-destructive/30"}`}>
-                    {u.isBanned ? <><CheckCircle className="w-3 h-3" /> Yasağı Kaldır</> : <><XCircle className="w-3 h-3" /> Yasakla</>}
+                {/* Display name edit */}
+                <div className="flex gap-1.5">
+                  <input
+                    value={editDN[u.id] ?? u.displayName ?? ""}
+                    onChange={e => setEditDN(prev => ({ ...prev, [u.id]: e.target.value }))}
+                    placeholder="Sohbet adı (displayName)"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40"
+                  />
+                  <button
+                    onClick={() => saveDisplayName(u.id)}
+                    disabled={dnLoading === u.id}
+                    className="text-[10px] px-2 py-1 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-colors disabled:opacity-50"
+                  >
+                    {dnLoading === u.id ? "..." : "Kaydet"}
                   </button>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* Password reset */}
+                <div className="flex gap-1.5">
+                  <input
+                    type="password"
+                    value={resetPw[u.id] ?? ""}
+                    onChange={e => setResetPw(prev => ({ ...prev, [u.id]: e.target.value }))}
+                    placeholder="Yeni şifre (en az 6 karakter)"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500/40"
+                  />
+                  <button
+                    onClick={() => resetPassword(u.id)}
+                    disabled={resetLoading === u.id}
+                    className="text-[10px] px-2 py-1 bg-amber-500/20 text-amber-400 rounded-lg hover:bg-amber-500/30 transition-colors disabled:opacity-50 flex items-center gap-0.5"
+                  >
+                    <Lock className="w-3 h-3" />
+                    {resetLoading === u.id ? "..." : "Şifre"}
+                  </button>
+                </div>
+
+                {/* Mute row (admin + moderator, non-admin targets only) */}
+                {u.role !== "admin" && (
+                  <div className="flex gap-1 flex-wrap">
+                    {isMuted ? (
+                      <button onClick={() => unmuteUser(u.id)} disabled={muteLoading === u.id}
+                        className="text-[10px] px-2 py-1 bg-orange-500/20 text-orange-400 rounded-lg hover:bg-orange-500/30 transition-colors flex items-center gap-0.5 disabled:opacity-50">
+                        {muteLoading === u.id ? "..." : "Susturmayı Kaldır"}
+                      </button>
+                    ) : (
+                      <>
+                        <span className="text-[9px] text-muted-foreground self-center pr-0.5">Sustir:</span>
+                        {[{ label: "1s", hours: 1 }, { label: "8s", hours: 8 }, { label: "24s", hours: 24 }, { label: "7g", days: 7 }].map(opt => (
+                          <button key={opt.label}
+                            onClick={() => muteUser(u.id, opt.hours, opt.days)}
+                            disabled={muteLoading === u.id}
+                            className="text-[10px] px-2 py-1 bg-orange-500/10 text-orange-400 rounded-lg hover:bg-orange-500/20 transition-colors disabled:opacity-50">
+                            {muteLoading === u.id ? "..." : opt.label}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Role + ban + IP/device ban buttons */}
+                {u.role !== "admin" && (
+                  <div className="flex gap-1.5 flex-wrap">
+                    {u.role !== "moderator" ? (
+                      <button onClick={() => changeRole(u.id, "moderator")}
+                        className="text-[10px] px-2 py-1 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors flex items-center gap-0.5">
+                        <Shield className="w-3 h-3" /> Mod Yap
+                      </button>
+                    ) : (
+                      <button onClick={() => changeRole(u.id, "user")}
+                        className="text-[10px] px-2 py-1 bg-white/10 text-muted-foreground rounded-lg hover:bg-white/20 transition-colors flex items-center gap-0.5">
+                        <User className="w-3 h-3" /> Üye Yap
+                      </button>
+                    )}
+                    <button onClick={() => banUser(u.id, u.isBanned)}
+                      className={`text-[10px] px-2 py-1 rounded-lg transition-colors flex items-center gap-0.5 ${u.isBanned ? "bg-green-500/20 text-green-400 hover:bg-green-500/30" : "bg-destructive/20 text-destructive hover:bg-destructive/30"}`}>
+                      {u.isBanned ? <><CheckCircle className="w-3 h-3" /> Yasağı Kaldır</> : <><XCircle className="w-3 h-3" /> Yasakla</>}
+                    </button>
+                    {viewerIsAdmin && (
+                      <>
+                        <button onClick={() => ipBanUser(u.id)} disabled={ipBanLoading === u.id || !u.lastKnownIp}
+                          title={u.lastKnownIp ? `IP: ${u.lastKnownIp}` : "IP henüz bilinmiyor"}
+                          className="text-[10px] px-2 py-1 bg-red-900/30 text-red-400 rounded-lg hover:bg-red-900/50 transition-colors flex items-center gap-0.5 disabled:opacity-40">
+                          <Shield className="w-3 h-3" /> {ipBanLoading === u.id ? "..." : "IP Ban"}
+                        </button>
+                        <button onClick={() => deviceBanUser(u.id)} disabled={deviceBanLoading === u.id || !u.lastDeviceId}
+                          title={u.lastDeviceId ? "Cihaz kimliği biliniyor" : "Cihaz kimliği henüz bilinmiyor"}
+                          className="text-[10px] px-2 py-1 bg-red-900/30 text-red-400 rounded-lg hover:bg-red-900/50 transition-colors flex items-center gap-0.5 disabled:opacity-40">
+                          <Lock className="w-3 h-3" /> {deviceBanLoading === u.id ? "..." : "Cihaz Ban"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </Section>
@@ -1367,7 +1455,7 @@ export default function AdminDashboard() {
 
         <SupportAdminSection apiCall={apiCall} toast={toast} />
 
-        <UserManagementSection apiCall={apiCall} toast={toast} />
+        <UserManagementSection apiCall={apiCall} toast={toast} viewerIsAdmin={isAdmin} />
 
         <Section title="Yetki Yönetimi (Akıllı İlan Hakkı)" icon={Shield}>
           <div className="space-y-4">

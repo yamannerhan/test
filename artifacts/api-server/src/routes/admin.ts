@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, usersTable, listingsTable, chatMessagesTable, announcementsTable, adminSettingsTable, bannedWordsTable, bannersTable, supportTicketsTable, chatRulesTable, listingPublishGrantsTable } from "@workspace/db";
-import { eq, desc, ilike, and, sql, asc } from "drizzle-orm";
+import { db, usersTable, listingsTable, chatMessagesTable, announcementsTable, adminSettingsTable, bannedWordsTable, bannersTable, supportTicketsTable, chatRulesTable, listingPublishGrantsTable, ipBansTable, deviceBansTable } from "@workspace/db";
+import { eq, desc, ilike, and, sql, asc, or, isNull, gt } from "drizzle-orm";
 import { authMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
 import { onlineSockets } from "./chat";
 import bcrypt from "bcryptjs";
@@ -38,6 +38,9 @@ function adminUserJson(u: typeof usersTable.$inferSelect) {
     isBanned: u.isBanned,
     banReason: u.banReason,
     banExpiresAt: u.banExpiresAt?.toISOString() ?? null,
+    mutedUntil: u.mutedUntil?.toISOString() ?? null,
+    lastKnownIp: u.lastKnownIp ?? null,
+    lastDeviceId: u.lastDeviceId ?? null,
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -111,6 +114,102 @@ router.post("/admin/users/:id/unban", authMiddleware, requireAdminOrModerator, a
   if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
   await db.update(usersTable).set({ isBanned: false, banReason: null, banExpiresAt: null }).where(eq(usersTable.id, id));
   res.json({ success: true, message: "Yasak kaldırıldı" });
+});
+
+// ─── Mute / Unmute ────────────────────────────────────────────────
+router.post("/admin/users/:id/mute", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  if (req.user!.role === "moderator") {
+    const [target] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, id));
+    if (!target || target.role !== "user") { res.status(403).json({ error: "Moderatörler yalnızca normal kullanıcıları susturabilir" }); return; }
+  }
+  const { hours, days } = req.body as { hours?: number; days?: number };
+  let mutedUntil: Date;
+  if (days && days > 0) {
+    mutedUntil = new Date(Date.now() + days * 24 * 3600 * 1000);
+  } else if (hours && hours > 0) {
+    mutedUntil = new Date(Date.now() + hours * 3600 * 1000);
+  } else {
+    res.status(400).json({ error: "Geçerli bir süre belirtilmeli (hours veya days)" }); return;
+  }
+  await db.update(usersTable).set({ mutedUntil }).where(eq(usersTable.id, id));
+  res.json({ success: true, mutedUntil: mutedUntil.toISOString() });
+});
+
+router.post("/admin/users/:id/unmute", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  await db.update(usersTable).set({ mutedUntil: null }).where(eq(usersTable.id, id));
+  res.json({ success: true });
+});
+
+// ─── IP Ban ───────────────────────────────────────────────────────
+router.post("/admin/users/:id/ip-ban", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  const [target] = await db.select({ lastKnownIp: usersTable.lastKnownIp }).from(usersTable).where(eq(usersTable.id, id));
+  if (!target?.lastKnownIp) { res.status(400).json({ error: "Kullanıcının IP adresi henüz bilinmiyor (giriş yapması gerekiyor)" }); return; }
+  const { reason, bannedUntil } = req.body as { reason?: string; bannedUntil?: string | null };
+  await db.insert(ipBansTable).values({
+    ip: target.lastKnownIp,
+    reason: reason ?? null,
+    bannedBy: req.user!.id,
+    bannedUntil: bannedUntil ? new Date(bannedUntil) : null,
+  });
+  res.json({ success: true, ip: target.lastKnownIp });
+});
+
+router.get("/admin/ip-bans", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {
+  const now = new Date();
+  const bans = await db.select().from(ipBansTable).orderBy(desc(ipBansTable.createdAt));
+  res.json(bans.map(b => ({
+    id: b.id, ip: b.ip, reason: b.reason, bannedBy: b.bannedBy,
+    bannedUntil: b.bannedUntil?.toISOString() ?? null,
+    isActive: !b.bannedUntil || b.bannedUntil > now,
+    createdAt: b.createdAt.toISOString(),
+  })));
+});
+
+router.delete("/admin/ip-bans/:id", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  await db.delete(ipBansTable).where(eq(ipBansTable.id, id));
+  res.json({ success: true });
+});
+
+// ─── Device Ban ───────────────────────────────────────────────────
+router.post("/admin/users/:id/device-ban", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  const [target] = await db.select({ lastDeviceId: usersTable.lastDeviceId }).from(usersTable).where(eq(usersTable.id, id));
+  if (!target?.lastDeviceId) { res.status(400).json({ error: "Kullanıcının cihaz kimliği henüz bilinmiyor" }); return; }
+  const { reason, bannedUntil } = req.body as { reason?: string; bannedUntil?: string | null };
+  await db.insert(deviceBansTable).values({
+    deviceId: target.lastDeviceId,
+    reason: reason ?? null,
+    bannedBy: req.user!.id,
+    bannedUntil: bannedUntil ? new Date(bannedUntil) : null,
+  });
+  res.json({ success: true, deviceId: target.lastDeviceId });
+});
+
+router.get("/admin/device-bans", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {
+  const now = new Date();
+  const bans = await db.select().from(deviceBansTable).orderBy(desc(deviceBansTable.createdAt));
+  res.json(bans.map(b => ({
+    id: b.id, deviceId: b.deviceId, reason: b.reason, bannedBy: b.bannedBy,
+    bannedUntil: b.bannedUntil?.toISOString() ?? null,
+    isActive: !b.bannedUntil || b.bannedUntil > now,
+    createdAt: b.createdAt.toISOString(),
+  })));
+});
+
+router.delete("/admin/device-bans/:id", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  await db.delete(deviceBansTable).where(eq(deviceBansTable.id, id));
+  res.json({ success: true });
 });
 
 // ─── Admin: reset any user's password ────────────────────────────

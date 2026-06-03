@@ -17,6 +17,11 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _deviceIdGetter: (() => string | null) | null = null;
+
+export function setDeviceIdGetter(getter: (() => string | null) | null): void {
+  _deviceIdGetter = getter;
+}
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -355,6 +360,14 @@ export async function customFetch<T = unknown>(
     const token = await _authTokenGetter();
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
+    }
+  }
+
+  // Attach device ID header for ban enforcement
+  if (_deviceIdGetter && !headers.has("x-device-id")) {
+    const deviceId = _deviceIdGetter();
+    if (deviceId) {
+      headers.set("x-device-id", deviceId);
     }
   }
 

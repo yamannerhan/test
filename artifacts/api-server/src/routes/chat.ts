@@ -130,6 +130,13 @@ router.post("/chat/messages", authMiddleware, async (req, res): Promise<void> =>
     return;
   }
 
+  // Susturma kontrolü
+  if (req.user!.mutedUntil && req.user!.mutedUntil > new Date()) {
+    const remaining = Math.ceil((req.user!.mutedUntil.getTime() - Date.now()) / 60000);
+    res.status(403).json({ error: `Sohbette susturuldunuz. ${remaining} dakika sonra mesaj gönderebilirsiniz.`, type: "muted" });
+    return;
+  }
+
   const filteredContent = filterProfanity(content.trim());
 
   const [msg] = await db.insert(chatMessagesTable).values({

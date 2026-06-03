@@ -2,7 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { setAuthTokenGetter, setDeviceIdGetter } from "@workspace/api-client-react";
 
 // Safe localStorage access — iOS Safari private mode throws on access
 function safeGetToken(): string | null {
@@ -13,7 +13,25 @@ function safeGetToken(): string | null {
   }
 }
 
+function safeGetDeviceId(): string | null {
+  try {
+    const KEY = "og_device_id";
+    let id = localStorage.getItem(KEY);
+    if (!id) {
+      id = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+        const r = (Math.random() * 16) | 0;
+        return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+      });
+      localStorage.setItem(KEY, id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
 setAuthTokenGetter(safeGetToken);
+setDeviceIdGetter(safeGetDeviceId);
 
 // Error Boundary — herhangi bir render hatası beyaz ekran yerine mesaj gösterir
 class ErrorBoundary extends React.Component<
