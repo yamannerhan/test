@@ -845,7 +845,8 @@ export default function AdminDashboard() {
   }>("/admin/stats");
 
   const { data: settings, refetch: refetchSettings } = useAdminApi<{
-    chatLocked: boolean; fakeOnlineBonus: number; maintenanceMode: boolean; welcomeMessage: string | null; hasOpenaiKey: boolean;
+    chatLocked: boolean; fakeOnlineBonus: number; fakeOnlineMin: number; fakeOnlineMax: number;
+    maintenanceMode: boolean; welcomeMessage: string | null; hasOpenaiKey: boolean;
     spamCooldown: number; chatAnnounceListings: boolean;
   }>("/admin/settings");
 
@@ -868,6 +869,8 @@ export default function AdminDashboard() {
   });
 
   const [fakeBonus, setFakeBonus] = useState("");
+  const [fakeOnlineMin, setFakeOnlineMin] = useState("");
+  const [fakeOnlineMax, setFakeOnlineMax] = useState("");
   const [welcomeMsg, setWelcomeMsg] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
@@ -875,6 +878,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (settings) {
       setFakeBonus(String(settings.fakeOnlineBonus));
+      setFakeOnlineMin(String(settings.fakeOnlineMin ?? 0));
+      setFakeOnlineMax(String(settings.fakeOnlineMax ?? 0));
       setWelcomeMsg(settings.welcomeMessage ?? "");
       setSpamCooldown(String(settings.spamCooldown ?? 3));
     }
@@ -906,6 +911,8 @@ export default function AdminDashboard() {
     try {
       const body: Record<string, unknown> = {
         fakeOnlineBonus: parseInt(fakeBonus, 10) || 0,
+        fakeOnlineMin: parseInt(fakeOnlineMin, 10) || 0,
+        fakeOnlineMax: parseInt(fakeOnlineMax, 10) || 0,
         welcomeMessage: welcomeMsg || null,
         spamCooldown: parseInt(spamCooldown, 10) || 0,
       };
@@ -1042,14 +1049,30 @@ export default function AdminDashboard() {
         <Section title="Genel Ayarlar" icon={Settings} defaultOpen>
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Sahte Online Bonus</label>
-              <Input
-                type="number"
-                value={fakeBonus}
-                onChange={e => setFakeBonus(e.target.value)}
-                placeholder="127"
-                className="glass-card border-white/10"
-              />
+              <label className="text-xs text-muted-foreground mb-1 block">Online Sayısı Aralığı (sürekli değişim)</label>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    value={fakeOnlineMin}
+                    onChange={e => setFakeOnlineMin(e.target.value)}
+                    placeholder="Min (örn. 150)"
+                    className="glass-card border-white/10"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Minimum</p>
+                </div>
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    value={fakeOnlineMax}
+                    onChange={e => setFakeOnlineMax(e.target.value)}
+                    placeholder="Max (örn. 200)"
+                    className="glass-card border-white/10"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Maksimum</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">45 saniyede bir bu aralıkta rastgele değişir. 0-0 = devre dışı.</p>
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Karşılama Mesajı</label>

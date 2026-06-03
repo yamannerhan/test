@@ -210,9 +210,14 @@ router.post("/chat/messages/:id/pin", authMiddleware, requireAdmin, async (req, 
   res.json({ success: true, message: msg.isPinned ? "Sabitleme kaldırıldı" : "Mesaj sabitlendi" });
 });
 
-router.get("/chat/online", async (req, res): Promise<void> => {
+router.get("/chat/online", async (_req, res): Promise<void> => {
   const settings = await db.select().from(adminSettingsTable).limit(1);
-  const fakeBonus = settings[0]?.fakeOnlineBonus ?? 0;
+  const s0 = settings[0];
+  const fakeMin = s0?.fakeOnlineMin ?? 0;
+  const fakeMax = s0?.fakeOnlineMax ?? 0;
+  const fakeBonus = fakeMin > 0 || fakeMax > 0
+    ? Math.floor(Math.random() * (Math.max(fakeMin, fakeMax) - Math.min(fakeMin, fakeMax) + 1)) + Math.min(fakeMin, fakeMax)
+    : (s0?.fakeOnlineBonus ?? 0);
   const realCount = onlineSockets.size;
   res.json({ count: realCount + fakeBonus, fakeBonus });
 });

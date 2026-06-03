@@ -46,7 +46,12 @@ router.get("/admin/stats", authMiddleware, requireAdminOrModerator, async (_req,
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const settings = await db.select().from(adminSettingsTable).limit(1);
-  const fakeBonus = settings[0]?.fakeOnlineBonus ?? 0;
+  const s0 = settings[0];
+  const fakeMin = s0?.fakeOnlineMin ?? 0;
+  const fakeMax = s0?.fakeOnlineMax ?? 0;
+  const fakeBonus = fakeMin > 0 || fakeMax > 0
+    ? Math.floor(Math.random() * (Math.max(fakeMin, fakeMax) - Math.min(fakeMin, fakeMax) + 1)) + Math.min(fakeMin, fakeMax)
+    : (s0?.fakeOnlineBonus ?? 0);
 
   const [totalUsers, totalListings, todayListings, totalMessages, bannedUsers, pendingListings] = await Promise.all([
     db.select({ count: sql<number>`count(*)::int` }).from(usersTable),
@@ -167,6 +172,7 @@ router.patch("/admin/users/:id/name-color", authMiddleware, requireAdmin, async 
 function settingsJson(s: typeof adminSettingsTable.$inferSelect) {
   return {
     chatLocked: s.chatLocked, fakeOnlineBonus: s.fakeOnlineBonus,
+    fakeOnlineMin: s.fakeOnlineMin ?? 0, fakeOnlineMax: s.fakeOnlineMax ?? 0,
     maintenanceMode: s.maintenanceMode, welcomeMessage: s.welcomeMessage,
     hasOpenaiKey: !!s.openaiApiKey, spamCooldown: s.spamCooldown ?? 3,
     chatAnnounceListings: s.chatAnnounceListings ?? true,
@@ -184,10 +190,12 @@ router.get("/admin/settings", authMiddleware, requireAdmin, async (_req, res): P
 });
 
 router.patch("/admin/settings", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
-  const { chatLocked, fakeOnlineBonus, maintenanceMode, welcomeMessage, openaiApiKey, spamCooldown, chatAnnounceListings } = req.body as Record<string, unknown>;
+  const { chatLocked, fakeOnlineBonus, fakeOnlineMin, fakeOnlineMax, maintenanceMode, welcomeMessage, openaiApiKey, spamCooldown, chatAnnounceListings } = req.body as Record<string, unknown>;
   const updates: Partial<typeof adminSettingsTable.$inferInsert> = {};
   if (chatLocked !== undefined) updates.chatLocked = Boolean(chatLocked);
   if (fakeOnlineBonus !== undefined) updates.fakeOnlineBonus = parseInt(String(fakeOnlineBonus), 10);
+  if (fakeOnlineMin !== undefined) updates.fakeOnlineMin = Math.max(0, parseInt(String(fakeOnlineMin), 10) || 0);
+  if (fakeOnlineMax !== undefined) updates.fakeOnlineMax = Math.max(0, parseInt(String(fakeOnlineMax), 10) || 0);
   if (maintenanceMode !== undefined) updates.maintenanceMode = Boolean(maintenanceMode);
   if (welcomeMessage !== undefined) updates.welcomeMessage = welcomeMessage == null ? null : String(welcomeMessage);
   if (openaiApiKey !== undefined) updates.openaiApiKey = openaiApiKey == null || openaiApiKey === "" ? null : String(openaiApiKey);

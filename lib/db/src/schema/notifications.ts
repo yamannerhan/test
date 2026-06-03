@@ -23,6 +23,8 @@ export const adminSettingsTable = pgTable("admin_settings", {
   id: serial("id").primaryKey(),
   chatLocked: boolean("chat_locked").notNull().default(false),
   fakeOnlineBonus: integer("fake_online_bonus").notNull().default(0),
+  fakeOnlineMin: integer("fake_online_min").notNull().default(0),
+  fakeOnlineMax: integer("fake_online_max").notNull().default(0),
   maintenanceMode: boolean("maintenance_mode").notNull().default(false),
   welcomeMessage: text("welcome_message"),
   openaiApiKey: text("openai_api_key"),

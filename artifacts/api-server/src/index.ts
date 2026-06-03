@@ -3,7 +3,7 @@ import { Server as SocketIOServer } from "socket.io";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { onlineSockets } from "./routes/chat";
-import { db, usersTable, listingsTable } from "@workspace/db";
+import { db, usersTable, listingsTable, adminSettingsTable } from "@workspace/db";
 import { eq, count, sql } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
@@ -419,10 +419,80 @@ io.on("connection", (socket) => {
   });
 });
 
+// ── BİLGİLENDİRME BOT ────────────────────────────────────────────
+const INFO_BOT = {
+  id: -999, username: "BilgilendirmeBot", displayName: "BİLGİLENDİRME BOT",
+  userRole: "bot", userAvatarUrl: null,
+  userNameColor: "#22C55E", userNameAnimated: false, isBot: true,
+};
+
+function makeInfoMsg(content: string) {
+  return {
+    ...INFO_BOT,
+    id: Date.now() + Math.random(),
+    content,
+    replyToId: null, replyToUsername: null, replyToContent: null,
+    isPinned: false, mentions: [], reactions: [],
+    createdAt: new Date().toISOString(),
+  };
+}
+
+const INFO_MESSAGES = [
+  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.1: Bu Kanunun amacı, kamu güvenliğini tamamlayıcı nitelikteki özel güvenlik hizmetlerinin yerine getirilmesine ilişkin esas ve usulleri düzenlemektir.",
+  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.3: Özel güvenlik izni, valiliklerce verilir. İzin alınmadan özel güvenlik hizmeti verilemez ve özel güvenlik şirketi kurulamaz.",
+  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.11: Özel güvenlik görevlileri, bu Kanunda belirtilen yetkilerini gürev alanları ve süreleriyle sınırlı olarak kullanabilir.",
+  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.14: Özel güvenlik görevlileri, Türkiye Cumhuriyeti vatandaşı olmak zorundadır. Yabancı uyruklu kişiler özel güvenlik görevlisi olarak çalışamaz.",
+  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.18: Özel güvenlik görevlileri kaba kuvvet kullanamaz; orantılılık ilkesine uymak zorundadır. Her türlü hak ihlali cezai sorumluluk doğurur.",
+  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.10: Silahlı özel güvenlik görevi yapılabilmesi için valiliğin onayı ve ilgili silah taşıma izninin alınmış olması gerekir.",
+  "İSG BİLGİSİ — 6331 Sayılı İş Sağlığı ve Güvenliği Kanunu: İşveren, çalışanların işle ilgili sağlık ve güvenliklerini sağlamakla yükümlüdür. Risk değerlendirmesi yapmak zorundadır.",
+  "İSG BİLGİSİ — Güvenlik görevlileri gece vardiyasında çalışıyorsa yasal olarak %25 gece zammı hakkına sahiptir. Bu oran bazı işyeri sözleşmelerinde %35-40'a çıkabilir.",
+  "İSG BİLGİSİ — Fazla mesai sınırı: Günlük 11 saati, haftalık 45 saati aşan çalışmalar yasal fazla mesai sayılır ve %50 zamlı ödenmek zorundadır.",
+  "İSG BİLGİSİ — İş kazasında ilk 48 saat: İşveren, iş kazasını Sosyal Güvenlik Kurumu'na en geç 3 iş günü içinde bildirmek zorundadır. Bildirmezse idari para cezasına çarptırılır.",
+  "İSG BİLGİSİ — Ulusal bayram ve genel tatil günlerinde çalışan güvenlik görevlisine bu süre için ayrıca günlük ücret ödenmesi zorunludur (haftalık ücreti dışında).",
+  "SEKTÖR BİLGİSİ — Özel Güvenlik Kimlik Kartı 5 yılda bir yenilenmesi zorunludur. Süresi dolan kart ile görev yapmak hem işçi hem işveren açısından yasal ihlal oluşturur.",
+  "SEKTÖR BİLGİSİ — Silahlı güvenlik ruhsatı için: Ateşli silah eğitimi ve yetkinlik belgesi, valilik onayı, psiko-teknik değerlendirme raporu gerekmektedir.",
+  "SEKTÖR BİLGİSİ — Özel güvenlik şirketleri, istihdam ettikleri personel için yıllık eğitim planı hazırlamak ve Bakanlığa sunmak zorundadır.",
+  "SEKTÖR BİLGİSİ — Kıdemli güvenlik personeli; kıdem tazminatı, ihbar tazminatı ve yıllık izin haklarına tam anlamıyla sahiptir. Bu haklardan vazgeçilemez.",
+  "HATIRLATMA — Çalıştığınız şirketin SGK bildirimlerini e-Devlet üzerinden düzenli olarak kontrol edin. Eksik ya da hatalı bildirimleri fark edince itiraz etme hakkınız vardır.",
+];
+
+const usedInfoIdx = new Set<number>();
+function getNextInfoMsg(): string {
+  if (usedInfoIdx.size >= INFO_MESSAGES.length) usedInfoIdx.clear();
+  let idx: number;
+  do { idx = Math.floor(Math.random() * INFO_MESSAGES.length); } while (usedInfoIdx.has(idx));
+  usedInfoIdx.add(idx);
+  return INFO_MESSAGES[idx]!;
+}
+
+function scheduleInfoBot() {
+  const delay = 8 * 60 * 1000 + Math.random() * 7 * 60 * 1000;
+  setTimeout(() => {
+    io.emit("chat:message", makeInfoMsg(getNextInfoMsg()));
+    scheduleInfoBot();
+  }, delay);
+}
+
+// ── Online sayısı dalgalanma intervalı ───────────────────────────
+async function broadcastOnlineCount() {
+  try {
+    const settings = await db.select().from(adminSettingsTable).limit(1);
+    const s0 = settings[0];
+    const fakeMin = s0?.fakeOnlineMin ?? 0;
+    const fakeMax = s0?.fakeOnlineMax ?? 0;
+    const fakeBonus = fakeMin > 0 || fakeMax > 0
+      ? Math.floor(Math.random() * (Math.max(fakeMin, fakeMax) - Math.min(fakeMin, fakeMax) + 1)) + Math.min(fakeMin, fakeMax)
+      : (s0?.fakeOnlineBonus ?? 0);
+    io.emit("online_count", { count: onlineSockets.size + fakeBonus });
+  } catch { /* ignore */ }
+}
+
 // Başlangıç gecikmeleri
 setTimeout(() => scheduleBotMessage(), 3 * 60 * 1000);
 setTimeout(() => scheduleFakeConversation(), 30000);
+setTimeout(() => scheduleInfoBot(), 10 * 60 * 1000);
 scheduleHourlyReminder();
+setInterval(() => { void broadcastOnlineCount(); }, 45000);
 
 httpServer.listen(port, (err?: Error) => {
   if (err) { logger.error({ err }, "Error listening on port"); process.exit(1); }
