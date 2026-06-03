@@ -292,23 +292,39 @@ export default function Chat() {
     const isMe = !isBot && user?.id === chatMsg.userId;
     const name = chatName(chatMsg);
 
-    if (isBot) return (
-      <motion.div key={chatMsg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-2 group px-2">
-        <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0 mt-5">
-          <Bot className="w-4 h-4 text-cyan-400" />
-        </div>
-        <div className="flex flex-col items-start">
-          <div className="flex items-center gap-1 mb-1 ml-1">
-            <span className="text-[10px] font-bold text-cyan-400">GuvenlikBot</span>
-            <span className="text-[8px] text-cyan-400/50">· Bot</span>
+    if (isBot) {
+      const isBilgiBot = chatMsg.userId === -999;
+      const botColor = isBilgiBot ? "#22C55E" : "#06B6D4";
+      const botBg   = isBilgiBot ? "rgba(34,197,94,0.10)"  : "rgba(6,182,212,0.10)";
+      const botBdr  = isBilgiBot ? "rgba(34,197,94,0.25)"  : "rgba(6,182,212,0.20)";
+      const botName = (chatMsg as any).displayName ?? (chatMsg as any).username ?? (isBilgiBot ? "BİLGİ BOTU" : "GuvenlikBot");
+      const lines   = chatMsg.content.split("\n").filter(l => l.trim() !== "");
+      const isInfo  = isBilgiBot && lines[0]?.startsWith("🔎");
+      return (
+        <motion.div key={chatMsg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-2 group px-2">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-5" style={{ background: botBg, border: `1px solid ${botBdr}` }}>
+            <Bot className="w-4 h-4" style={{ color: botColor }} />
           </div>
-          <div className="bg-cyan-500/10 border border-cyan-500/20 px-4 py-2.5 rounded-2xl rounded-bl-sm text-sm max-w-[80%]">
-            <p className="break-words text-foreground/90">{chatMsg.content}</p>
-            <p className="text-[10px] text-muted-foreground mt-1">{new Date(chatMsg.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</p>
+          <div className="flex flex-col items-start max-w-[82%]">
+            <div className="flex items-center gap-1 mb-1 ml-1">
+              <span className="text-[10px] font-bold" style={{ color: botColor }}>{botName}</span>
+              <span className="text-[8px]" style={{ color: `${botColor}60` }}>· Bot</span>
+            </div>
+            <div className="px-4 py-2.5 rounded-2xl rounded-bl-sm text-sm" style={{ background: botBg, border: `1px solid ${botBdr}` }}>
+              {isInfo ? (
+                <>
+                  <p className="text-[11px] font-bold mb-1.5" style={{ color: botColor }}>{lines[0]}</p>
+                  <p className="break-words text-foreground/90">{lines.slice(1).join(" ")}</p>
+                </>
+              ) : (
+                <p className="break-words text-foreground/90">{chatMsg.content}</p>
+              )}
+              <p className="text-[10px] text-muted-foreground mt-1">{new Date(chatMsg.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</p>
+            </div>
           </div>
-        </div>
-      </motion.div>
-    );
+        </motion.div>
+      );
+    }
 
     const msgReactions: Reaction[] = chatMsg.reactions ?? [];
     const reactionGroups = msgReactions.reduce((acc, r) => {

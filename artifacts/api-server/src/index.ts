@@ -768,11 +768,14 @@ function makeInfoMsg(content: string) {
   return {
     ...INFO_BOT,
     id: Date.now() + Math.random(),
-    content: `🔎 Bunu biliyor muydunuz?\n\n${content}`,
+    content,
     replyToId: null, replyToUsername: null, replyToContent: null,
     isPinned: false, mentions: [], reactions: [],
     createdAt: new Date().toISOString(),
   };
+}
+function wrapInfoContent(raw: string): string {
+  return `🔎 Bunu biliyor muydunuz?\n\n${raw}`;
 }
 
 const INFO_MESSAGES = [
@@ -879,9 +882,9 @@ function scheduleInfoBot() {
   // 90 saniye – 2,5 dakika arası rastgele aralık
   const delay = 90 * 1000 + Math.random() * 60 * 1000;
   setTimeout(() => {
-    const infoContent = getNextInfoMsg();
-    void saveToDB(-999, infoContent);
-    io.emit("chat:message", makeInfoMsg(infoContent));
+    const wrapped = wrapInfoContent(getNextInfoMsg());
+    void saveToDB(-999, wrapped);
+    io.emit("chat:message", makeInfoMsg(wrapped));
     scheduleInfoBot();
   }, delay);
 }
@@ -925,9 +928,9 @@ setTimeout(() => scheduleBotMessage(), 3 * 60 * 1000);
 setTimeout(() => scheduleFakeConversation(), 30000);
 // İlk bilgi mesajını 5 saniye sonra gönder, ardından döngü başlar
 setTimeout(() => {
-  const firstInfo = getNextInfoMsg();
-  void saveToDB(-999, firstInfo);
-  io.emit("chat:message", makeInfoMsg(firstInfo));
+  const firstWrapped = wrapInfoContent(getNextInfoMsg());
+  void saveToDB(-999, firstWrapped);
+  io.emit("chat:message", makeInfoMsg(firstWrapped));
   scheduleInfoBot();
 }, 5 * 1000);
 scheduleHourlyReminder();

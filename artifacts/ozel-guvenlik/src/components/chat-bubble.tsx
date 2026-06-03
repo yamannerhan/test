@@ -396,17 +396,31 @@ export function ChatBubble() {
 
                   /* ─── Bot message ─── */
                   if (isBot) {
+                    const isBilgiBot = chatMsg.userId === -999;
+                    const botColor = isBilgiBot ? "#22C55E" : "#06B6D4";
+                    const botBg    = isBilgiBot ? "rgba(34,197,94,0.10)"  : "rgba(6,182,212,0.10)";
+                    const botBdr   = isBilgiBot ? "rgba(34,197,94,0.25)"  : "rgba(6,182,212,0.20)";
+                    const botName  = (chatMsg as any).displayName ?? (chatMsg as any).username ?? (isBilgiBot ? "BİLGİ BOTU" : "GuvenlikBot");
+                    const lines    = chatMsg.content.split("\n").filter((l: string) => l.trim() !== "");
+                    const isInfo   = isBilgiBot && lines[0]?.startsWith("🔎");
                     return (
                       <motion.div key={chatMsg.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-2">
-                        <div className="w-7 h-7 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
-                          <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: botBg, border: `1px solid ${botBdr}` }}>
+                          <Bot className="w-3.5 h-3.5" style={{ color: botColor }} />
                         </div>
-                        <div className="max-w-[82%] bg-cyan-500/10 border border-cyan-500/20 rounded-2xl rounded-tl-sm px-3 py-2 text-xs">
+                        <div className="max-w-[82%] rounded-2xl rounded-tl-sm px-3 py-2 text-xs" style={{ background: botBg, border: `1px solid ${botBdr}` }}>
                           <div className="flex items-center gap-1 mb-0.5">
-                            <span className="text-[9px] font-bold text-cyan-400">GuvenlikBot</span>
-                            <span className="text-[8px] text-cyan-400/50">· Bot</span>
+                            <span className="text-[9px] font-bold" style={{ color: botColor }}>{botName}</span>
+                            <span className="text-[8px]" style={{ color: `${botColor}60` }}>· Bot</span>
                           </div>
-                          <p className="break-words text-foreground/90 leading-relaxed">{chatMsg.content}</p>
+                          {isInfo ? (
+                            <>
+                              <p className="text-[10px] font-bold mb-1" style={{ color: botColor }}>{lines[0]}</p>
+                              <p className="break-words text-foreground/90 leading-relaxed">{lines.slice(1).join(" ")}</p>
+                            </>
+                          ) : (
+                            <p className="break-words text-foreground/90 leading-relaxed">{chatMsg.content}</p>
+                          )}
                           <p className="text-[9px] text-white/25 mt-0.5">{formatTime(chatMsg.createdAt)}</p>
                         </div>
                       </motion.div>
