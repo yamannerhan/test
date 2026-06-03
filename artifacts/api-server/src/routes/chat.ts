@@ -3,6 +3,7 @@ import { db, chatMessagesTable, usersTable, adminSettingsTable, chatReactionsTab
 import { eq, desc, and, lt, inArray } from "drizzle-orm";
 import { authMiddleware, optionalAuthMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
 import { triggerContextualReply } from "../lib/chat-bot";
+import { filterProfanity } from "../lib/profanity";
 
 const router = Router();
 
@@ -124,8 +125,10 @@ router.post("/chat/messages", authMiddleware, async (req, res): Promise<void> =>
     return;
   }
 
+  const filteredContent = filterProfanity(content.trim());
+
   const [msg] = await db.insert(chatMessagesTable).values({
-    content: content.trim(),
+    content: filteredContent,
     userId: req.user!.id,
     replyToId: replyToId ?? null,
     isPinned: false,
