@@ -10,6 +10,7 @@ import {
   Briefcase, MapPin, CheckCircle, User, Phone, Search,
   Shield, ChevronDown, Sparkles, RefreshCw, Trash2,
   ToggleLeft, ToggleRight, Ban, UserCheck, Clock, Eye,
+  Building2, MessageSquare, Star, Infinity,
 } from "lucide-react";
 
 function getToken() { return localStorage.getItem("auth_token") ?? ""; }
@@ -49,40 +50,32 @@ function Section({ title, icon: Icon, children, defaultOpen = false }: { title: 
   );
 }
 
-interface ParsedField {
-  value: string;
-  source: "ai" | "manual";
-}
 interface ParsedListing {
-  title: ParsedField;
-  company: ParsedField;
-  city: ParsedField;
-  district?: ParsedField;
-  workType: ParsedField;
-  salary?: ParsedField;
-  description?: ParsedField;
-  requirements?: ParsedField;
-  gender?: ParsedField;
-  contactName?: ParsedField;
-  contactPhone?: ParsedField;
-  applyUrl?: ParsedField;
-  imageUrl?: ParsedField;
-  isFeatured?: boolean;
+  title: string; company: string; city: string; district: string;
+  salary: string; workType: string; description: string;
+  contactPhone: string; contactName: string; applyUrl: string;
+  gender: string;
 }
 
-function ParseField({ label, field, onChange }: { label: string; field: ParsedField; onChange: (v: string) => void }) {
+// Field bileşeni SmartListingSection DIŞINDA tanımlanmalı —
+// içinde tanımlanırsa her render'da yeniden mount olur, focus kaybolur.
+function ParseField({ icon: Icon, label, value, onChange, required }: {
+  icon: React.ElementType; label: string; value: string;
+  onChange: (v: string) => void; required?: boolean;
+}) {
   return (
-    <div className="mb-2">
-      <label className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
-        {label}
-        <span className={`ml-1 text-[10px] px-1 rounded ${field.source === "ai" ? "bg-violet-500/20 text-violet-300" : "bg-white/10 text-muted-foreground"}`}>
-          {field.source === "ai" ? "AI" : "manuel"}
-        </span>
+    <div>
+      <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+        <Icon className="w-3 h-3" /> {label}{required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
-      <Input
-        value={field.value}
+      <input
+        value={value}
         onChange={e => onChange(e.target.value)}
-        className="h-8 text-sm bg-white/5 border-white/10"
+        autoComplete="off"
+        required={required}
+        className={`w-full bg-white/5 border rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors ${
+          required && !value.trim() ? "border-red-500/50" : "border-white/10"
+        }`}
       />
     </div>
   );
@@ -93,121 +86,183 @@ function SmartListingSection({ apiCall, toast, refetchListings }: {
   toast: (opts: { title: string; description?: string; variant?: "default" | "destructive" }) => void;
   refetchListings: () => void;
 }) {
+  const [step, setStep] = useState<"input" | "preview" | "done">("input");
   const [rawText, setRawText] = useState("");
   const [parsed, setParsed] = useState<ParsedListing | null>(null);
-  const [parsing, setParsing] = useState(false);
-  const [publishing, setPublishing] = useState(false);
-
-  const update = (key: keyof ParsedListing, value: string) => {
-    setParsed(p => p ? { ...p, [key]: { value, source: "manual" as const } } : p);
-  };
+  const [loading, setLoading] = useState(false);
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [isTimed, setIsTimed] = useState(false);
+  const [expiresAt, setExpiresAt] = useState("");
 
   const parseText = async () => {
     if (!rawText.trim()) return;
-    setParsing(true);
+    setLoading(true);
     try {
       const data = await apiCall("/admin/listings/parse", "POST", { text: rawText }) as ParsedListing;
       setParsed(data);
+      setStep("preview");
     } catch (e: unknown) {
       toast({ title: "Ayıklama başarısız", description: (e as Error).message, variant: "destructive" });
-    } finally { setParsing(false); }
+    } finally { setLoading(false); }
   };
 
   const publish = async () => {
     if (!parsed) return;
     const missing: string[] = [];
-    if (!parsed.title?.value) missing.push("Başlık");
-    if (!parsed.company?.value) missing.push("Şirket");
-    if (!parsed.city?.value) missing.push("Şehir");
-    if (!parsed.workType?.value) missing.push("Çalışma şekli");
+    if (!parsed.title.trim()) missing.push("İlan Başlığı");
+    if (!parsed.city.trim()) missing.push("Şehir (İl)");
+    if (!parsed.district.trim()) missing.push("İlçe");
     if (missing.length > 0) {
       toast({ title: "Zorunlu alanlar boş", description: missing.join(", ") + " doldurulmalıdır.", variant: "destructive" });
       return;
     }
-    setPublishing(true);
+    setLoading(true);
     try {
       await apiCall("/admin/listings", "POST", {
-        title: parsed.title.value,
-        company: parsed.company.value,
-        city: parsed.city.value,
-        district: parsed.district?.value || null,
-        workType: parsed.workType.value,
-        salary: parsed.salary?.value || null,
-        description: parsed.description?.value || null,
-        requirements: parsed.requirements?.value || null,
-        gender: parsed.gender?.value || null,
-        contactName: parsed.contactName?.value || null,
-        contactPhone: parsed.contactPhone?.value || null,
-        applyUrl: parsed.applyUrl?.value || null,
-        imageUrl: parsed.imageUrl?.value || null,
-        isFeatured: false,
+        title: parsed.title,
+        company: parsed.company || "Belirtilmedi",
+        city: parsed.city,
+        workType: parsed.workType || "Tam Zamanlı",
+        salary: parsed.salary || null,
+        description: [
+          parsed.description,
+          parsed.gender ? `Cinsiyet: ${parsed.gender}` : null,
+          parsed.contactName ? `İletişim: ${parsed.contactName}` : null,
+          parsed.contactPhone ? `Tel: ${parsed.contactPhone}` : null,
+          parsed.district ? `İlçe: ${parsed.district}` : null,
+        ].filter(Boolean).join("\n\n") || null,
+        applyUrl: parsed.applyUrl || null,
+        isFeatured,
+        expiresAt: isTimed && expiresAt ? new Date(expiresAt).toISOString() : null,
       });
       toast({ title: "İlan yayınlandı!" });
-      setParsed(null);
-      setRawText("");
+      setStep("done");
+      setRawText(""); setParsed(null); setIsFeatured(false); setIsTimed(false); setExpiresAt("");
       refetchListings();
+      setTimeout(() => setStep("input"), 1500);
     } catch (e: unknown) {
       toast({ title: "Yayınlama başarısız", description: (e as Error).message, variant: "destructive" });
-    } finally { setPublishing(false); }
+    } finally { setLoading(false); }
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <label className="text-xs text-muted-foreground mb-1 block">İlan metnini yapıştır</label>
-        <Textarea
-          value={rawText}
-          onChange={e => setRawText(e.target.value)}
-          rows={5}
-          placeholder="İlan metnini buraya yapıştır..."
-          className="bg-white/5 border-white/10 text-sm resize-none"
-        />
-      </div>
-      <Button onClick={parseText} disabled={parsing || !rawText.trim()} className="w-full bg-violet-600 hover:bg-violet-700">
-        <Sparkles className="w-4 h-4 mr-2" />
-        {parsing ? "Ayıklanıyor..." : "AI ile Ayıkla"}
-      </Button>
-
-      {parsed && (
-        <div className="mt-4 space-y-1 border border-white/10 rounded-xl p-4 bg-white/5">
-          <p className="text-xs font-semibold text-amber-400 mb-3">Ayıklanan Veriler — Düzenleyebilirsiniz</p>
-          <ParseField label="Başlık *" field={parsed.title} onChange={v => update("title", v)} />
-          <ParseField label="Şirket *" field={parsed.company} onChange={v => update("company", v)} />
-          <ParseField label="Şehir *" field={parsed.city} onChange={v => update("city", v)} />
-          {parsed.district && <ParseField label="İlçe" field={parsed.district} onChange={v => update("district", v)} />}
-          <ParseField label="Çalışma Şekli *" field={parsed.workType} onChange={v => update("workType", v)} />
-          {parsed.salary && <ParseField label="Maaş" field={parsed.salary} onChange={v => update("salary", v)} />}
-          {parsed.gender && <ParseField label="Cinsiyet" field={parsed.gender} onChange={v => update("gender", v)} />}
-          {parsed.contactName && <ParseField label="İletişim Kişisi" field={parsed.contactName} onChange={v => update("contactName", v)} />}
-          {parsed.contactPhone && <ParseField label="Telefon" field={parsed.contactPhone} onChange={v => update("contactPhone", v)} />}
-          {parsed.applyUrl && <ParseField label="Başvuru URL" field={parsed.applyUrl} onChange={v => update("applyUrl", v)} />}
-          {parsed.imageUrl && <ParseField label="Görsel URL" field={parsed.imageUrl} onChange={v => update("imageUrl", v)} />}
-          <div className="mb-2">
-            <label className="text-xs text-muted-foreground mb-0.5 block">Açıklama</label>
-            <Textarea
-              value={parsed.description?.value ?? ""}
-              onChange={e => update("description", e.target.value)}
-              rows={4}
-              className="bg-white/5 border-white/10 text-sm resize-none"
-            />
-          </div>
-          {parsed.requirements && (
-            <div className="mb-2">
-              <label className="text-xs text-muted-foreground mb-0.5 block">Gereksinimler</label>
-              <Textarea
-                value={parsed.requirements.value}
-                onChange={e => update("requirements", e.target.value)}
-                rows={3}
-                className="bg-white/5 border-white/10 text-sm resize-none"
-              />
-            </div>
-          )}
-          <Button onClick={publish} disabled={publishing} className="w-full mt-2 bg-green-600 hover:bg-green-700">
-            <CheckCircle className="w-4 h-4 mr-2" />
-            {publishing ? "Yayınlanıyor..." : "Yayınla"}
-          </Button>
+    <div className="glass-card rounded-2xl overflow-hidden">
+      <div className="flex items-center justify-between p-4 border-b border-white/5">
+        <div className="flex items-center gap-2 font-semibold text-sm">
+          <Sparkles className="w-4 h-4 text-primary" />
+          Akıllı İlan Oluştur
+          <span className="text-[9px] font-bold bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">AKTİF</span>
         </div>
-      )}
+        {step !== "input" && (
+          <button onClick={() => { setStep("input"); setParsed(null); }}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+            <RefreshCw className="w-3 h-3" /> Sıfırla
+          </button>
+        )}
+      </div>
+
+      <div className="p-4 space-y-3">
+        {step === "input" ? (
+          <>
+            <p className="text-xs text-muted-foreground">WhatsApp mesajı, Telegram gönderisi veya herhangi bir iş ilanı metnini yapıştırın. Bilgiler otomatik olarak çıkarılacak.</p>
+            <textarea
+              value={rawText}
+              onChange={e => setRawText(e.target.value)}
+              placeholder={"Örnek:\n\"Acil! İstanbul Kadıköy'de güvenlik şirketi arıyor. Silahlı güvenlik görevlisi. 25.000 TL maaş. Tam zamanlı. İletişim: Ahmet Bey 0532 123 45 67\""}
+              rows={6}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 resize-none"
+            />
+            <Button onClick={parseText} disabled={loading || !rawText.trim()}
+              className="w-full bg-gradient-to-r from-primary to-secondary text-white text-sm disabled:opacity-40">
+              {loading ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Ayıklanıyor...</> : <><Sparkles className="w-4 h-4 mr-2" /> Bilgileri Ayıkla</>}
+            </Button>
+          </>
+        ) : step === "preview" && parsed ? (
+          <>
+            <div className="flex items-center gap-2 p-2.5 bg-green-500/10 rounded-xl text-xs text-green-400 font-medium">
+              <Eye className="w-3.5 h-3.5 shrink-0" /> Bilgiler ayıklandı — kontrol edip düzenleyebilirsiniz. <span className="text-red-400">* Zorunlu alan</span>
+            </div>
+            <div className="space-y-2">
+              <ParseField icon={Briefcase} label="İlan Başlığı" required value={parsed.title} onChange={v => setParsed(p => p ? { ...p, title: v } : p)} />
+              <div className="grid grid-cols-2 gap-2">
+                <ParseField icon={Building2} label="Şirket" value={parsed.company} onChange={v => setParsed(p => p ? { ...p, company: v } : p)} />
+                <ParseField icon={MapPin} label="Şehir (İl)" required value={parsed.city} onChange={v => setParsed(p => p ? { ...p, city: v } : p)} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <ParseField icon={MapPin} label="İlçe" required value={parsed.district} onChange={v => setParsed(p => p ? { ...p, district: v } : p)} />
+                <div>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+                    <Briefcase className="w-3 h-3" /> Çalışma Tipi
+                  </label>
+                  <select value={parsed.workType} onChange={e => setParsed(p => p ? { ...p, workType: e.target.value } : p)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50">
+                    <option value="Tam Zamanlı">Tam Zamanlı</option>
+                    <option value="Yarı Zamanlı">Yarı Zamanlı</option>
+                    <option value="Vardiyalı">Vardiyalı</option>
+                    <option value="Proje Bazlı">Proje Bazlı</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <ParseField icon={Star} label="Maaş" value={parsed.salary} onChange={v => setParsed(p => p ? { ...p, salary: v } : p)} />
+                <div>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+                    <User className="w-3 h-3" /> Cinsiyet
+                  </label>
+                  <select value={parsed.gender} onChange={e => setParsed(p => p ? { ...p, gender: e.target.value } : p)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50">
+                    <option value="">Belirtilmemiş</option>
+                    <option value="Bay">Bay</option>
+                    <option value="Bayan">Bayan</option>
+                    <option value="Bay / Bayan">Bay / Bayan</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+                  <MessageSquare className="w-3 h-3" /> Açıklama
+                </label>
+                <textarea value={parsed.description} onChange={e => setParsed(p => p ? { ...p, description: e.target.value } : p)}
+                  rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50 resize-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <ParseField icon={User} label="İletişim Kişisi" value={parsed.contactName} onChange={v => setParsed(p => p ? { ...p, contactName: v } : p)} />
+                <ParseField icon={Phone} label="Telefon" value={parsed.contactPhone} onChange={v => setParsed(p => p ? { ...p, contactPhone: v } : p)} />
+              </div>
+              <ParseField icon={CheckCircle} label="Başvuru / Telefon URL" value={parsed.applyUrl} onChange={v => setParsed(p => p ? { ...p, applyUrl: v } : p)} />
+
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setIsTimed(false)}
+                  className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border text-xs font-medium transition-all ${!isTimed ? "border-primary bg-primary/20 text-primary" : "border-white/10 text-muted-foreground"}`}>
+                  <Infinity className="w-3 h-3" /> Süresiz
+                </button>
+                <button onClick={() => setIsTimed(true)}
+                  className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border text-xs font-medium transition-all ${isTimed ? "border-accent bg-accent/20 text-accent" : "border-white/10 text-muted-foreground"}`}>
+                  <Clock className="w-3 h-3" /> Süreli
+                </button>
+              </div>
+              {isTimed && (
+                <input type="datetime-local" value={expiresAt} onChange={e => setExpiresAt(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none" />
+              )}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={isFeatured} onChange={e => setIsFeatured(e.target.checked)} className="w-4 h-4 rounded accent-amber-400" />
+                <span className="text-sm flex items-center gap-1"><Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> Öne çıkarılsın</span>
+              </label>
+              <Button onClick={publish} disabled={loading}
+                className="w-full bg-gradient-to-r from-primary to-secondary text-white text-sm disabled:opacity-40">
+                {loading ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Yayınlanıyor...</> : <><CheckCircle className="w-4 h-4 mr-2" /> İlanı Yayınla</>}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-6 text-green-400 font-semibold text-sm">
+            <CheckCircle className="w-10 h-10 mx-auto mb-2" />
+            İlan başarıyla yayınlandı!
+          </div>
+        )}
+      </div>
     </div>
   );
 }
