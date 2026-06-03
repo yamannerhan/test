@@ -1,5 +1,5 @@
 import React from "react";
-import { useLogin, useGetMe } from "@workspace/api-client-react";
+import { useLogin } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { Link, useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
@@ -13,8 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 const loginSchema = z.object({
-  email: z.string().email("Geçerli bir e-posta adresi girin."),
-  password: z.string().min(6, "Şifre en az 6 karakter olmalıdır."),
+  email: z.string().min(1, "Kullanıcı adı veya e-posta girin."),
+  password: z.string().min(1, "Şifre girin."),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -33,7 +33,6 @@ export default function Login() {
   const onSubmit = async (values: LoginFormValues) => {
     try {
       const response = await loginMutation.mutateAsync({ data: values });
-      // Save JWT token so every subsequent API request includes it
       if (response?.token) {
         localStorage.setItem("auth_token", response.token);
       }
@@ -41,10 +40,10 @@ export default function Login() {
       toast({ title: "Giriş başarılı", description: "Yönlendiriliyorsunuz..." });
       setLocation("/");
     } catch (error: any) {
-      toast({ 
-        title: "Hata", 
-        description: error?.message || "Giriş yapılamadı. Bilgilerinizi kontrol edin.", 
-        variant: "destructive" 
+      toast({
+        title: "Hata",
+        description: error?.message || "Giriş yapılamadı. Bilgilerinizi kontrol edin.",
+        variant: "destructive",
       });
     }
   };
@@ -71,12 +70,14 @@ export default function Login() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>E-Posta</FormLabel>
+                      <FormLabel>Kullanıcı Adı veya E-Posta</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="E-posta veya kullanıcı adı" 
-                          className="glass-card border-white/10" 
-                          {...field} 
+                        <Input
+                          placeholder="kullanici_adi veya ornek@email.com"
+                          className="glass-card border-white/10"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          {...field}
                           data-testid="input-email"
                         />
                       </FormControl>
@@ -91,11 +92,11 @@ export default function Login() {
                     <FormItem>
                       <FormLabel>Şifre</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="password" 
-                          placeholder="******" 
-                          className="glass-card border-white/10" 
-                          {...field} 
+                        <Input
+                          type="password"
+                          placeholder="******"
+                          className="glass-card border-white/10"
+                          {...field}
                           data-testid="input-password"
                         />
                       </FormControl>
@@ -103,9 +104,9 @@ export default function Login() {
                     </FormItem>
                   )}
                 />
-                
-                <Button 
-                  type="submit" 
+
+                <Button
+                  type="submit"
                   disabled={loginMutation.isPending}
                   className="w-full bg-gradient-to-r from-primary to-secondary text-white shadow-lg mt-6"
                   data-testid="button-submit-login"

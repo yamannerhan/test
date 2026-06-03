@@ -54,8 +54,10 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   const [existingUsername] = await db.select().from(usersTable).where(eq(usersTable.username, username));
   if (existingUsername) { res.status(400).json({ error: "Bu kullanıcı adı zaten alınmış" }); return; }
 
-  // Build displayName from firstName (only first name shown in chat)
+  // displayName = sadece ad (sohbette görünür)
   const displayName = firstName?.trim() || null;
+  // fullName = ad + soyad (CV için)
+  const fullName = [firstName?.trim(), lastName?.trim()].filter(Boolean).join(" ") || null;
 
   const passwordHash = await bcrypt.hash(password, 10);
   const [user] = await db.insert(usersTable).values({
@@ -64,6 +66,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     passwordHash,
     role: "user",
     displayName,
+    fullName,
   }).returning();
 
   const token = signToken(user.id, user.role);

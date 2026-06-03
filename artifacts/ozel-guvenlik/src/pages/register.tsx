@@ -12,13 +12,19 @@ import { ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
-const registerSchema = z.object({
-  firstName: z.string().min(2, "Ad en az 2 karakter olmalıdır."),
-  lastName: z.string().min(2, "Soyad en az 2 karakter olmalıdır."),
-  username: z.string().min(3, "Kullanıcı adı en az 3 karakter olmalıdır."),
-  email: z.string().email("Geçerli bir e-posta adresi girin."),
-  password: z.string().min(6, "Şifre en az 6 karakter olmalıdır."),
-});
+const registerSchema = z
+  .object({
+    firstName:       z.string().min(2, "Ad en az 2 karakter olmalıdır."),
+    lastName:        z.string().min(2, "Soyad en az 2 karakter olmalıdır."),
+    username:        z.string().min(3, "Kullanıcı adı en az 3 karakter olmalıdır."),
+    email:           z.string().email("Geçerli bir e-posta adresi girin."),
+    password:        z.string().min(6, "Şifre en az 6 karakter olmalıdır."),
+    confirmPassword: z.string().min(1, "Şifre tekrarını girin."),
+  })
+  .refine(v => v.password === v.confirmPassword, {
+    message: "Şifreler eşleşmiyor.",
+    path: ["confirmPassword"],
+  });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
@@ -30,7 +36,7 @@ export default function Register() {
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { firstName: "", lastName: "", username: "", email: "", password: "" },
+    defaultValues: { firstName: "", lastName: "", username: "", email: "", password: "", confirmPassword: "" },
   });
 
   const onSubmit = async (values: RegisterFormValues) => {
@@ -40,7 +46,6 @@ export default function Register() {
           username: values.username,
           email: values.email,
           password: values.password,
-          // Pass firstName/lastName as extra fields
           ...({ firstName: values.firstName, lastName: values.lastName } as any),
         },
       });
@@ -76,7 +81,6 @@ export default function Register() {
           <div className="glass-card rounded-2xl p-6">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                {/* Ad + Soyad yan yana */}
                 <div className="grid grid-cols-2 gap-3">
                   <FormField
                     control={form.control}
@@ -98,7 +102,7 @@ export default function Register() {
                       <FormItem>
                         <FormLabel>Soyad</FormLabel>
                         <FormControl>
-                          <Input placeholder="Yilmaz" className="glass-card border-white/10" {...field} />
+                          <Input placeholder="Yılmaz" className="glass-card border-white/10" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -153,7 +157,7 @@ export default function Register() {
                       <FormControl>
                         <Input
                           type="password"
-                          placeholder="******"
+                          placeholder="En az 6 karakter"
                           className="glass-card border-white/10"
                           {...field}
                           data-testid="input-password"
@@ -164,10 +168,30 @@ export default function Register() {
                   )}
                 />
 
+                <FormField
+                  control={form.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Şifre Tekrarı</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="Şifrenizi tekrar girin"
+                          className="glass-card border-white/10"
+                          {...field}
+                          data-testid="input-confirm-password"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <Button
                   type="submit"
                   disabled={registerMutation.isPending}
-                  className="w-full bg-gradient-to-r from-primary to-secondary text-white shadow-lg mt-6"
+                  className="w-full bg-gradient-to-r from-primary to-secondary text-white shadow-lg mt-2"
                   data-testid="button-submit-register"
                 >
                   {registerMutation.isPending ? "Kayıt olunuyor..." : "Kayıt Ol"}
