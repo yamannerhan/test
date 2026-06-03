@@ -35,6 +35,7 @@
           navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
             .then(reg => {
               reg.update();
+              setInterval(() => reg.update(), 30000);
               navigator.serviceWorker.addEventListener("message", event => {
                 if (event.data?.type === "SW_UPDATED") {
                   window.location.reload();
