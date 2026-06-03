@@ -30,20 +30,26 @@ function makeBotMsg(content: string, replyToUsername?: string) {
 // ── DB'den istatistik ──────────────────────────────────────────────
 async function getStats() {
   try {
-    const [{ total }] = await db.select({ total: count() }).from(listingsTable).where(eq(listingsTable.isActive, true));
-    const salaryRows = await db.select({
-      minSalary: sql<number>`min(${listingsTable.salaryMin})`,
-      maxSalary: sql<number>`max(${listingsTable.salaryMax})`,
-    }).from(listingsTable).where(eq(listingsTable.isActive, true));
-    const cityRows = await db.select({ city: listingsTable.city })
-      .from(listingsTable).where(eq(listingsTable.isActive, true));
-    const cities = [...new Set(cityRows.map(r => r.city).filter(Boolean))].slice(0, 5);
-    return {
-      total: Number(total),
-      minSalary: Math.round((salaryRows[0]?.minSalary ?? 25000) / 1000) * 1000,
-      maxSalary: Math.round((salaryRows[0]?.maxSalary ?? 55000) / 1000) * 1000,
-      cities,
-    };
+    const activeRows = await db
+      .select({ city: listingsTable.city, salary: listingsTable.salary })
+      .from(listingsTable)
+      .where(eq(listingsTable.status, "active"));
+
+    const total = activeRows.length;
+    const cities = [...new Set(activeRows.map(r => r.city).filter(Boolean))].slice(0, 5);
+
+    // salary alanı "28.000 - 40.000 TL" gibi metin — sayıları parse et
+    const nums: number[] = [];
+    for (const row of activeRows) {
+      if (row.salary) {
+        const matches = row.salary.replace(/\./g, "").match(/\d{4,}/g);
+        if (matches) nums.push(...matches.map(Number).filter(n => n >= 10000 && n <= 200000));
+      }
+    }
+    const minSalary = nums.length > 0 ? Math.round(Math.min(...nums) / 1000) * 1000 : 25000;
+    const maxSalary = nums.length > 0 ? Math.round(Math.max(...nums) / 1000) * 1000 : 55000;
+
+    return { total, minSalary, maxSalary, cities };
   } catch {
     return { total: 0, minSalary: 25000, maxSalary: 50000, cities: [] as string[] };
   }
@@ -228,7 +234,7 @@ const KEYWORD_RULES: Array<{
 ];
 
 const lastBotReplyAt = new Map<string, number>();
-const BOT_REPLY_COOLDOWN_MS = 20_000;
+const BOT_REPLY_COOLDOWN_MS = 8_000;
 
 function keywordFallback(content: string, username: string, stats: Stats): string | null {
   const matched = KEYWORD_RULES.find(rule => rule.keywords.test(content));
@@ -245,12 +251,11 @@ export function triggerContextualReply(content: string, username: string, role: 
   const last = lastBotReplyAt.get(username) ?? 0;
   if (now - last < BOT_REPLY_COOLDOWN_MS) return;
 
-  // Kısa mesajları (1-2 harf) doğrudan keyword ile yakala
   const trimmed = content.trim();
-  const isVeryShort = trimmed.length <= 6;
 
-  // Keyword eşleşmesi yoksa ve uzun mesajsa %40 cevap verme şansı
-  if (!isVeryShort && Math.random() > 0.60) return;
+  // Keyword eşleşmesi varsa her zaman cevap ver; yoksa %85 cevap ver
+  const hasKeyword = KEYWORD_RULES.some(rule => rule.keywords.test(trimmed));
+  if (!hasKeyword && Math.random() > 0.85) return;
 
   lastBotReplyAt.set(username, now);
 
