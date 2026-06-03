@@ -104,9 +104,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </Link>
 
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center space-x-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-2.5 py-1 text-xs font-semibold text-green-400">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              <span>{liveCount ?? onlineData?.count ?? 0} Online</span>
+            <div className="flex items-center gap-1 px-2 py-0.5">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
+              </span>
+              <span className="text-[11px] font-medium text-green-400/90 tabular-nums">{liveCount ?? onlineData?.count ?? 0}</span>
             </div>
 
             {isAdmin && (
