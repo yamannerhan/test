@@ -776,72 +776,94 @@ function makeInfoMsg(content: string) {
 }
 
 const INFO_MESSAGES = [
-  // Kanun bilgileri — 5188
-  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.1: Bu Kanunun amacı, kamu güvenliğini tamamlayıcı nitelikteki özel güvenlik hizmetlerinin yerine getirilmesine ilişkin esas ve usulleri düzenlemektir.",
-  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.3: Özel güvenlik izni, valiliklerce verilir. İzin alınmadan özel güvenlik hizmeti verilemez ve özel güvenlik şirketi kurulamaz.",
-  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.7: Özel güvenlik görevlileri; kimlik sorma, durdurma, üst ve araç arama, el koyma gibi yetkileri yalnızca görev alanlarında ve kanun çerçevesinde kullanabilir.",
-  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.11: Özel güvenlik görevlileri, bu Kanunda belirtilen yetkilerini görev alanları ve süreleriyle sınırlı olarak kullanabilir.",
-  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.14: Özel güvenlik görevlileri, Türkiye Cumhuriyeti vatandaşı olmak zorundadır. Yabancı uyruklu kişiler özel güvenlik görevlisi olarak çalışamaz.",
-  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.18: Özel güvenlik görevlileri kaba kuvvet kullanamaz; orantılılık ilkesine uymak zorundadır. Her türlü hak ihlali cezai sorumluluk doğurur.",
-  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.10: Silahlı özel güvenlik görevi yapılabilmesi için valiliğin onayı ve ilgili silah taşıma izninin alınmış olması gerekir.",
-  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.13: Özel güvenlik şirketleri, çalıştırdıkları personele ilişkin bilgileri her yıl ocak ayı sonuna kadar valiliğe bildirmek zorundadır.",
-  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.19: Özel güvenlik görevlileri görevleri dışında, başka amaçlarla istihdam edilemez. İşveren bu hükme aykırı davranırsa idari para cezasıyla karşılaşır.",
-  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.23: Kanun hükümlerine aykırı davranan özel güvenlik şirketleri ve görevlileri idari para cezası ile karşılaşır; aykırılığın tekrarı lisans iptaline yol açabilir.",
-  // İş Kanunu
-  "İŞ KANUNU — Md.41 (Fazla Mesai): Haftalık 45 saati aşan her saat çalışma, yüzde elli zamlı ücretle ödenir. İşçi, yıllık 270 saat fazla mesai sınırını aşmayı reddedebilir.",
-  "İŞ KANUNU — Md.46 (Hafta Tatili): Her işçi, kesintisiz en az 24 saat haftalık dinlenme hakkına sahiptir. Bu günde çalışmak zorunda bırakılan işçiye ilave ücret ödenmelidir.",
-  "İŞ KANUNU — Md.53 (Yıllık İzin): 1-5 yıl arasında çalışan işçi yılda 14 gün, 5-15 yıl arası 20 gün, 15 yılı aşkın çalışanlara 26 gün yıllık ücretli izin hakkı tanınır.",
-  "İŞ KANUNU — Md.17 (İhbar Süresi): 6 aya kadar çalışmada 2 hafta, 6 ay - 1.5 yıl arası 4 hafta, 1.5-3 yıl arası 6 hafta, 3 yıldan fazla çalışmada 8 hafta ihbar süresi uygulanır.",
-  "İŞ KANUNU — Md.25 (Haklı Fesih): İşçi, ücretini ödemeyen, sözleşme şartlarına uymayan veya mobbing uygulayan işvereni bekleme süresi beklemeksizin feshedip kıdem tazminatı talep edebilir.",
-  // SGK ve sosyal haklar
-  "SGK BİLGİSİ — Eksik Prim Bildirimi: İşveren, gerçek ücretin altında prim yatırırsa emeklilikte aldığınız aylık düşük hesaplanır. e-Devlet'ten 'Hizmet Dökümü' sayfasını düzenli kontrol edin.",
-  "SGK BİLGİSİ — İş Kazası Bildirimi: İşveren, iş kazasını kazadan sonra en geç 3 iş günü içinde SGK'ya bildirmek zorundadır. Bildirmezse idari para cezası alır ve tazminat yükü artar.",
-  "SGK BİLGİSİ — Emeklilik Yaşı Hesabı: 5510 Sayılı Kanun kapsamında prim gün sayısı ve yaş koşulları birlikte değerlendirilir. Güncel simülasyon için 'sigortalı hizmet dökümü'nden gün sayınızı takip edin.",
-  "SGK BİLGİSİ — Kıdem Tazminatı Hesabı: Son brüt ücretiniz üzerinden her tam çalışma yılı için 30 günlük ödeme yapılır. Kıdem tazminatı tavanını aşan kısım yasal tavan üzerinden hesaplanır.",
-  "SGK BİLGİSİ — İşsizlik Ödeneği: İşveren tarafından işten çıkarılırsanız, son 3 yılda en az 600 gün prim ödenmiş olması koşuluyla işsizlik ödeneğine başvurabilirsiniz.",
-  // İSG (İş Sağlığı ve Güvenliği)
-  "İSG BİLGİSİ — 6331 Sayılı Kanun: İşveren, çalışma ortamındaki risk faktörlerini belirlemek ve gidermek için risk değerlendirmesi yapmakla yükümlüdür. Bu belge denetçilere ibraz edilebilir olmalıdır.",
-  "İSG BİLGİSİ — Gece Çalışması: Yasal olarak gece 20:00 - 06:00 saatleri arasında çalışanlara yüzde 25 gece zammı ödenmesi zorunludur. Bazı iş sözleşmeleri bu oranı yüzde 35-40'a çıkarır.",
-  "İSG BİLGİSİ — Fazla Mesai: Günlük 11 saati veya haftalık 45 saati aşan çalışmalar yasal fazla mesai sayılır ve yüzde elli zamlı ücret gerektirir. Bu sınırların üstü işçinin onayına bağlıdır.",
-  "İSG BİLGİSİ — Vardiya Çalışması: Vardiyalı çalışanlara rotasyon düzeni uygulanmalı, aynı kişi uzun süre gece vardiyasında bırakılmamalıdır. Sağlık taramaları yılda en az bir kez yapılmalıdır.",
-  "İSG BİLGİSİ — Kişisel Koruyucu Donanım: İşveren, çalışanın sağlığını korumak için KKD (baret, yelek, eldiven vb.) sağlamakla yükümlüdür. Bunların maliyeti işçiden kesilemez.",
-  "İSG BİLGİSİ — Tatil Ücretleri: Ulusal bayram ve genel tatillerde çalıştırılan işçiye, o günün ücreti haftalık ücrete ek olarak ayrıca ödenmek zorundadır.",
-  // Sertifika ve eğitim
-  "SERTİFİKA BİLGİSİ — Özel Güvenlik Kimlik Kartı: Kimlik kartı 5 yılda bir İçişleri Bakanlığı'ndan yenilenmek zorundadır. Süresi dolmuş kartla görev yapmak 5188 sayılı Kanun kapsamında suç teşkil eder.",
-  "SERTİFİKA BİLGİSİ — Silahlı Güvenlik Ruhsatı: Silahlı görev için; psiko-teknik değerlendirme raporu, ateşli silah yetkinlik belgesi ve valilik onayı gerekmektedir. Bu belgeler 3 yılda bir yenilenir.",
-  "SERTİFİKA BİLGİSİ — İlk Yardım Sertifikası: Birinci basamak ilk yardım eğitimi artık pek çok firmada zorunlu tutuluyor. Sertifika 3 yıl geçerli; sonunda yenileme kursu zorunlu.",
-  "SERTİFİKA BİLGİSİ — Yangın Güvenliği: Yangın söndürme ve tahliye ekibi eğitimi, 6331 sayılı ISG Kanunu kapsamında zorunlu. Bu eğitimi alan personel firmada ekip kurucusu olabilir.",
-  "SERTİFİKA BİLGİSİ — Temel Güvenlik Eğitimi: MEB onaylı 120 saatlik temel eğitim; hukuk, fiziksel güvenlik, iletişim ve silah eğitimini kapsar. Bu eğitim olmadan özel güvenlik kimliği alınamaz.",
-  "SERTİFİKA BİLGİSİ — CCTV ve Alarm Sistemleri: Kamera ve alarm sistemleri operatörlüğü için ayrı sertifika programları mevcut. Bu alanda sertifikalı personelin maaşı sektör ortalamasının yüzde 15-20 üzerindedir.",
-  "SERTİFİKA BİLGİSİ — Güvenlik Amirliği Sertifikası: Güvenlik amiri olmak için en az 5 yıl deneyim ve İçişleri Bakanlığı onaylı amirlik kursu gereklidir. Kariyer planınızda buna yer açın.",
-  // Kariyer ve haklar
-  "KARİYER BİLGİSİ — Kariyer Basamakları: Güvenlik görevlisi → Ekip lideri → Vardiya amiri → Güvenlik amiri → Güvenlik müdürü. Her basamakta ek sertifika ve deneyim şartı aranır.",
-  "KARİYER BİLGİSİ — Referans Önemi: Güvenlik sektöründe referans belirleyici. Eski amirinizden veya çalıştığınız kurumdan olumlu referans almanız iş başvurularında büyük avantaj sağlar.",
-  "KARİYER BİLGİSİ — CV Hazırlama: CV'nize çalıştığınız sektörü (AVM, fabrika, banka vb.), taşıdığınız sertifikaları ve vardiya deneyimini açıkça yazın. Belirsiz ifadeler yerine somut rakamlar kullanın.",
-  "KARİYER BİLGİSİ — Mülakat Tüyoları: Mülakatta iletişim becerisi, sakin kalma kapasitesi ve hukuki farkındalık ön plana çıkar. Önceki iş yerlerinizi kötülemeyin; bunun yerine kazanımlarınızı anlatın.",
-  "HAKLARINIZ — Mobbing: İşyerinde psikolojik baskı ve taciz (mobbing) 4857 sayılı İş Kanunu kapsamında işçiye haklı fesih hakkı tanır. ALO 170 hattını arayarak Bakanlığa şikayette bulunabilirsiniz.",
-  "HAKLARINIZ — Ücret Garantisi: İşveren, ücretinizi aylık olarak ödemek zorundadır. 20 günü aşan gecikme, işçiye iş sözleşmesini haklı nedenle feshetme hakkı tanır.",
-  "HAKLARINIZ — İzin Hakkı: Yıllık ücretli izin paraya çevrilemez; işçi, izin yerine ücret talep edemez. Kullandırılmayan izinler iş sözleşmesi sonunda tazminat olarak ödenir.",
-  "HAKLARINIZ — İbraname: İşten ayrılırken 'tüm haklarımı aldım' ibareli ibranameyi imzalamayı reddetme hakkınız var. İmzalamak için baskıya maruz kalırsanız noter huzurunda itiraz edebilirsiniz.",
-  "HAKLARINIZ — Kötü Niyet Tazminatı: İşverenin geçerli neden olmaksızın iş sözleşmesini feshetmesi halinde işçi, ihbar tazminatının 3 katı tutarında kötü niyet tazminatı talep edebilir.",
-  // Teknoloji ve gelişmeler
-  "TEKNOLOJİ — Yapay Zeka Kameralar: Davranış analizi yapabilen akıllı kamera sistemleri güvenlik sektörüne hızla giriyor. Bu sistemleri kuran ve yöneten teknisyenlere olan talep artıyor.",
-  "TEKNOLOJİ — Biyometrik Sistemler: Parmak izi, yüz tanıma ve retina sistemleri AVM, havaalanı ve kritik tesislerde yaygınlaşıyor. Bu teknolojileri bilen personel daha yüksek maaşla işe alınıyor.",
-  "TEKNOLOJİ — Drone Güvenliği: 2023 yılında yürürlüğe giren düzenlemelerle insansız hava araçları güvenliği yeni bir uzmanlık alanı haline geldi. Drone pilotu sertifikası güvenlik kariyerine değer katıyor.",
-  "TEKNOLOJİ — Siber Güvenlik Farkındalığı: Fiziksel güvenlik ile siber güvenliğin kesiştiği alanlar genişliyor. Temel siber güvenlik bilgisi artık pek çok kurumun güvenlik personelinden beklediği bir nitelik.",
-  "TEKNOLOJİ — Merkezi İzleme Merkezleri: TEDES ve benzeri merkezi güvenlik izleme sistemleri büyük firmalarda yaygınlaşıyor. Operatör olarak çalışmak için özel eğitim ve sertifika gerekiyor.",
-  // Sağlık ve wellness
-  "SAĞLIK BİLGİSİ — Gece Vardiyası Etkileri: Uzun vadeli gece çalışması; uyku bozukluğu, D vitamini eksikliği ve metabolik sorunlara yol açabilir. Düzenli kan tahlili ve güneş ışığı maruziyeti şart.",
-  "SAĞLIK BİLGİSİ — Ayakta Çalışma: Uzun süre ayakta durmak eklem ve sırt problemlerine neden olabilir. Ergonomik ayakkabı, düzenli germe egzersizleri ve molaları verimli kullanmak kritik önem taşır.",
-  "SAĞLIK BİLGİSİ — Stres Yönetimi: Güvenlik görevi yüksek stres içerebilir. Nefes egzersizleri, düzenli uyku ve sosyal destek ağı oluşturmak mesleki tükenmişliği önlemede etkili yöntemlerdir.",
-  "SAĞLIK BİLGİSİ — Periyodik Sağlık Muayenesi: İşveren, tehlikeli ve çok tehlikeli işlerde çalışan güvenlik personelinin yılda en az bir kez sağlık muayenesini yaptırmak zorundadır.",
-  // Ekonomi ve güncel
-  "EKONOMİ BİLGİSİ — Asgari Ücret: Asgari ücret yılda iki kez güncellenir. Güvenlik sektöründeki maaşlar asgari ücretin genellikle yüzde 20-80 üzerinde seyreder; pozisyon ve deneyime göre değişir.",
-  "EKONOMİ BİLGİSİ — Enflasyona Karşı Hak Arama: Toplu iş sözleşmesi kapsamındaki işçiler enflasyona karşı zam güvencesine sahiptir. TİS yoksa bireysel sözleşme yenileme talebini yazılı yapın.",
-  "HATIRLATMA — SGK Kontrol: Her ay e-Devlet üzerinden 'SGK Hizmet Dökümü'nü kontrol edin. Yatırılmayan primler karşısında işverene yazılı bildirim, ardından SGK'ya şikayet yoluna başvurun.",
-  "HATIRLATMA — İş Sözleşmesi: İş sözleşmenizi iki nüsha olarak imzalayın ve bir kopyasını saklayın. Sözleşmenizde yazılmayan sözel vaatler hukuken geçersizdir.",
-  "HATIRLATMA — İşkur Kaydı: İşsizlik durumunda önce İŞKUR'a kaydolun; böylece hem işsizlik ödeneğine başvurabilir hem de ücretsiz mesleki eğitim fırsatlarından yararlanabilirsiniz.",
-  "HATIRLATMA — Yıllık İzin Takibi: Kullanmadığınız yıllık izin günlerini kayıt altına alın. İş sözleşmesi sona erdiğinde kullanılmayan izinler ücret olarak ödenmek zorundadır.",
+  // ── 5188 Sayılı Kanun ────────────────────────────────────────────
+  "📋 KANUN | 5188 Sayılı Kanun Md.1: Bu Kanunun amacı, kamu güvenliğini tamamlayıcı nitelikteki özel güvenlik hizmetlerinin yerine getirilmesine ilişkin esas ve usulleri düzenlemektir.",
+  "📋 KANUN | 5188 Md.3: Özel güvenlik izni valiliklerce verilir. İzin alınmadan özel güvenlik hizmeti verilemez ve özel güvenlik şirketi kurulamaz. İzinsiz faaliyet idari para cezasına tabidir.",
+  "📋 KANUN | 5188 Md.7: Özel güvenlik görevlileri; kimlik sorma, durdurma, üst ve araç arama, suçüstü hâlinde el koyma yetkilerini YALNIZCA görev alanlarında ve kanun çerçevesinde kullanabilir.",
+  "📋 KANUN | 5188 Md.10: Silahlı özel güvenlik görevi yapılabilmesi için valiliğin onayı ve ilgili silah taşıma ruhsatının alınmış olması şarttır. Ruhsatsız silah taşımak ağır cezai yaptırım gerektirir.",
+  "📋 KANUN | 5188 Md.11: Güvenlik görevlileri yetkilerini görev alanı ve süresiyle sınırlı kullanır. Görev alanı dışında müdahale, hukuki sorumluluk doğurur.",
+  "📋 KANUN | 5188 Md.13: Özel güvenlik şirketleri, çalıştırdıkları personele ilişkin bilgileri her yıl Ocak ayı sonuna kadar valiliğe bildirmek zorundadır. Eksik bildirim idari cezaya tabidir.",
+  "📋 KANUN | 5188 Md.14: Özel güvenlik görevlileri Türkiye Cumhuriyeti vatandaşı olmak zorundadır. Yabancı uyruklu kişiler bu görevi yapamaz. Ayrıca 18 yaşından küçükler çalıştırılamaz.",
+  "📋 KANUN | 5188 Md.18: Güvenlik görevlileri kaba kuvvet kullanamaz; müdahalede orantılılık ilkesine uymak zorundadır. Orantısız güç kullanan görevli hem disiplin hem ceza hukuku kapsamında yargılanır.",
+  "📋 KANUN | 5188 Md.19: Özel güvenlik görevlileri güvenlik görevi dışında başka amaçlarla istihdam edilemez. İşveren bu hükme aykırı davranırsa ağır idari para cezasıyla karşılaşır.",
+  "📋 KANUN | 5188 Md.23: Kanuna aykırı davranan güvenlik şirketleri ve görevlileri idari para cezasıyla karşılaşır. Tekrarlanan aykırılık faaliyet izninin iptaline yol açabilir.",
+  "📋 KANUN | 5188 Md.8 — Kimlik Kontrolü: Özel güvenlik görevlisi, görev alanına girenlerin kimliğini sorabilir ve görev alanının özelliğine göre üst ile eşya araması yapabilir.",
+  "📋 KANUN | 5188 Md.9 — Silah Teslimi: Özel güvenlik görevlisi, kanuna aykırı olarak taşınan silah ve suç delili olan eşyayı emanete alarak en kısa sürede yetkili kolluk birimine teslim etmek zorundadır.",
+  // ── İş Kanunu ────────────────────────────────────────────────────
+  "⚖️ İŞ KANUNU | Md.41 — Fazla Mesai: Haftalık 45 saati aşan her saat çalışma yüzde elli zamlı ücretle ödenir. Yıllık fazla mesai sınırı 270 saattir; aşımı için işçinin onayı şarttır.",
+  "⚖️ İŞ KANUNU | Md.46 — Hafta Tatili: Her işçi kesintisiz en az 24 saat haftalık dinlenme hakkına sahiptir. Bu günde çalıştırılan işçiye ilave bir günlük ücret ödenmek zorundadır.",
+  "⚖️ İŞ KANUNU | Md.53 — Yıllık İzin: 1-5 yıl = 14 gün | 5-15 yıl = 20 gün | 15 yıl üstü = 26 gün ücretli izin hakkı. 18 yaş altı ve 50 yaş üstü çalışanlara en az 20 gün verilmek zorundadır.",
+  "⚖️ İŞ KANUNU | Md.17 — İhbar Süresi: 6 aya kadar = 2 hafta | 6 ay–1,5 yıl = 4 hafta | 1,5–3 yıl = 6 hafta | 3 yıl üzeri = 8 hafta. İhbar önelsiz feshedilirse tazminat ödenir.",
+  "⚖️ İŞ KANUNU | Md.25 — Haklı Fesih: İşçi; ücretini ödemeyen, sözleşme şartlarına uymayan, taciz veya mobbing uygulayan işverene karşı bekleme süresi olmaksızın kıdem tazminatıyla ayrılabilir.",
+  "⚖️ İŞ KANUNU | Md.32 — Ücret Koruması: Ücret en geç ayda bir ödenmek zorundadır. 20 günden fazla geciken ücret için işçi, işi bırakma hakkını kullanabilir ve kıdem tazminatı talep edebilir.",
+  "⚖️ İŞ KANUNU | Md.56 — İzin Ücreti: Yıllık ücretli izin paraya çevrilemez. Kullandırılmayan izin günleri iş sözleşmesinin sona ermesiyle birlikte son ücret üzerinden nakde dönüştürülür.",
+  "⚖️ İŞ KANUNU | Ulusal Bayram ve Genel Tatil: Bu günlerde çalıştırılan işçiye, çalışılan gün ücreti ayrıca (ek olarak) ödenmek zorundadır. Ödenmemesi işçiye haklı fesih hakkı tanır.",
+  // ── SGK & Sosyal Haklar ───────────────────────────────────────────
+  "🏛️ SGK | Eksik Prim Bildirimi: İşveren gerçek ücretin altında prim yatırırsa emekli maaşınız düşük hesaplanır. Her ay e-Devlet → 'Sigortalı Hizmet Dökümü' sayfasından primlerinizi kontrol edin.",
+  "🏛️ SGK | İş Kazası Bildirimi: İşveren, iş kazasını kazanın gerçekleştiği günden itibaren en geç 3 iş günü içinde SGK'ya bildirmek zorundadır. Geciktirirse para cezası ve artan tazminat yükü alır.",
+  "🏛️ SGK | Kıdem Tazminatı: Son brüt ücret üzerinden her tam çalışma yılı için 30 günlük ödeme yapılır. Kıdem tazminatı tavanı yılda iki kez güncellenir; tavan aşan kısım tazminat hesabına dahil edilmez.",
+  "🏛️ SGK | İşsizlik Ödeneği: İşveren tarafından haksız işten çıkarılırsanız, son 3 yılda 600 gün prim şartıyla işsizlik ödeneğine başvurabilirsiniz. Çıkıştan itibaren 30 gün içinde İŞKUR'a başvurun.",
+  "🏛️ SGK | Emeklilik Koşulları: 5510 Sayılı Kanuna göre prim gün sayısı ve yaş birlikte değerlendirilir. e-Devlet'ten 'Emeklilik Simülasyonu' yaparak kalan sürenizi öğrenebilirsiniz.",
+  "🏛️ SGK | Meslek Hastalığı: Gürültüye bağlı işitme kaybı, kas-iskelet bozuklukları ve stres kaynaklı hastalıklar meslek hastalığı kapsamında değerlendirilebilir. Belgeleme için işyeri hekimine başvurun.",
+  "🏛️ SGK | Ölüm Aylığı: Sigortalı çalışanın vefatı durumunda eşi ve çocukları aylık bağlanma koşullarını karşılıyorsa SGK'dan ölüm aylığı alabilir. Şartlar için SGK.gov.tr'yi inceleyin.",
+  // ── İSG (İş Sağlığı ve Güvenliği) ───────────────────────────────
+  "🦺 İSG | 6331 Sayılı Kanun: İşveren, çalışma ortamındaki risk faktörlerini tespit etmek ve gidermek için risk değerlendirmesi yapmakla yükümlüdür. Bu belge SGK denetimleri sırasında ibraz edilmelidir.",
+  "🦺 İSG | Gece Zammı: Yasal olarak gece 20:00–06:00 arasında çalışanlara yüzde 25 gece zammı ödenmesi zorunludur. Toplu iş sözleşmesi olan işyerlerinde bu oran yüzde 35-40'a yükselebilir.",
+  "🦺 İSG | Vardiya Çalışması: Aynı kişi uzun süre gece vardiyasında bırakılamaz; rotasyon zorunludur. Gece vardiyası çalışanlarına yılda en az bir kez sağlık taraması yaptırılması gerekir.",
+  "🦺 İSG | Kişisel Koruyucu Donanım (KKD): İşveren; baret, reflektörlü yelek, çelik burunlu ayakkabı gibi KKD'yi ücretsiz sağlamak zorundadır. Bu malzemelerin bedeli çalışandan kesilemez.",
+  "🦺 İSG | Acil Tahliye Planı: Her işyerinin onaylı bir acil tahliye planı olmalı ve personel yılda en az bir kez tahliye tatbikatına katılmalıdır. Plan, görünür yerlere asılmak zorundadır.",
+  "🦺 İSG | Güvenlik Kamerası Kaydı: Güvenlik kamerası görüntüleri en az 30 gün saklanmalıdır. Olay anında kamera kaydına el konularak yetkili kolluk birimine teslim etmek görevlinin sorumluluğundadır.",
+  // ── Sertifika & Eğitim ────────────────────────────────────────────
+  "🎓 SERTİFİKA | Özel Güvenlik Kimlik Kartı: 5 yılda bir İçişleri Bakanlığı'na başvurarak yenilenmek zorundadır. Süresi dolmuş kartla görev yapmak 5188 Sayılı Kanun kapsamında idari ve adli suç oluşturur.",
+  "🎓 SERTİFİKA | Silahlı Güvenlik Ruhsatı: Psiko-teknik değerlendirme, ateşli silah yetkinlik belgesi ve valilik onayı gerekmektedir. Bu belgeler 3 yılda bir yenilenmek zorundadır.",
+  "🎓 SERTİFİKA | Temel Güvenlik Eğitimi: MEB onaylı 120 saatlik eğitim; hukuk, fiziksel güvenlik, iletişim ve silah derslerini kapsar. Bu eğitim alınmadan özel güvenlik kimliği çıkarılamaz.",
+  "🎓 SERTİFİKA | İlk Yardım Sertifikası: Birinci basamak ilk yardım eğitimi artık pek çok firmada işe alım şartı. Sertifika 3 yıl geçerli; süresi dolunca yenileme kursu zorunludur.",
+  "🎓 SERTİFİKA | Yangın Güvenliği Eğitimi: 6331 Sayılı Kanun kapsamında yangın söndürme ve tahliye eğitimi zorunludur. Bu sertifikaya sahip personel işyerinde yangın ekibi kurucusu olabilir.",
+  "🎓 SERTİFİKA | CCTV & Alarm Sistemleri: Kamera sistemleri operatörlüğü için ayrı sertifika programları mevcuttur. Bu alanda sertifikalı personelin maaşı sektör ortalamasının %15–20 üzerindedir.",
+  "🎓 SERTİFİKA | Güvenlik Amirliği Kursu: Güvenlik amiri olmak için en az 5 yıl sektör deneyimi ve İçişleri Bakanlığı onaylı amirlik kursu zorunludur. Kursu tamamlayanların terfi şansı belirgin artmaktadır.",
+  "🎓 SERTİFİKA | VIP Koruma Uzmanlığı: VIP/özel koruma sertifikası; savunma sürüşü, taktik hareket ve kalabalık yönetimi eğitimlerini kapsar. Sektörde en yüksek ücretli uzmanlık alanlarından biridir.",
+  "🎓 SERTİFİKA | Biyometrik Sistemler Eğitimi: Yüz tanıma, parmak izi ve erişim kontrol sistemleri eğitimi sektörde hızla değer kazanmaktadır. Online ve yüz yüze kurs seçenekleri mevcuttur.",
+  // ── Kariyer & Gelişim ─────────────────────────────────────────────
+  "💼 KARİYER | Kariyer Basamakları: Güvenlik Görevlisi → Ekip Lideri → Vardiya Amiri → Güvenlik Amiri → Güvenlik Müdürü → Güvenlik Direktörü. Her basamak ek sertifika ve deneyim gerektirir.",
+  "💼 KARİYER | Referans Mektubu: Güvenlik sektöründe referans kritik önem taşır. Eski amirinizden veya çalıştığınız kurumdan alacağınız güçlü bir referans mektubu mülakatlarda büyük avantaj sağlar.",
+  "💼 KARİYER | CV Hazırlama: CV'nize çalıştığınız sektörü (AVM, fabrika, banka, hastane), taşıdığınız sertifikaları, vardiya deneyimini ve yönettiğiniz personel sayısını yazın. Somut rakamlar önemlidir.",
+  "💼 KARİYER | Mülakat Tüyoları: Mülakatta iletişim becerisi, soğukkanlılık ve hukuki farkındalık ön plana çıkar. Önceki iş yerinizi eleştirmek yerine öğrendiklerinizi ve kazanımlarınızı anlatın.",
+  "💼 KARİYER | Sektör Segmentleri: AVM güvenliği, fabrika/OSB, havalimanı, banka/finans, VIP koruma, etkinlik güvenliği, elektronik güvenlik — her segment farklı sertifika ve beceri seti ister.",
+  "💼 KARİYER | Yabancı Dil Avantajı: İngilizce veya Arapça bilen güvenlik profesyonelleri; otel, havalimanı ve diplomatik tesis güvenliğinde %20–40 daha yüksek maaş alabilmektedir.",
+  "💼 KARİYER | Freelance & Etkinlik: Konser, festival ve fuar gibi büyük etkinliklerde geçici güvenlik görevlisi olarak çalışmak hem ek gelir sağlar hem de ağ genişletmeye yardımcı olur.",
+  // ── Çalışan Hakları ───────────────────────────────────────────────
+  "🛡️ HAKLARINIZ | Mobbing: Psikolojik baskı ve taciz 4857 Sayılı İş Kanunu kapsamında haklı fesih hakkı tanır. ALO 170 Çalışma Bakanlığı Hattı'nı arayarak şikayette bulunabilirsiniz.",
+  "🛡️ HAKLARINIZ | Ücret Güvencesi: İşveren ücretinizi aylık olarak ödemek zorundadır. 20 günü aşan gecikme, iş sözleşmesini haklı nedenle feshetme ve kıdem tazminatı talep etme hakkı doğurur.",
+  "🛡️ HAKLARINIZ | İbraname: İşten ayrılırken 'tüm haklarımı aldım' ibareli ibranameyi imzalamayı reddetme hakkınız vardır. Baskıya maruz kalırsanız noter huzurunda itiraz edin veya avukat alın.",
+  "🛡️ HAKLARINIZ | Kötü Niyet Tazminatı: İşverenin geçerli neden olmaksızın iş sözleşmesini feshetmesi hâlinde işçi, ihbar tazminatının 3 katı tutarında kötü niyet tazminatı isteyebilir.",
+  "🛡️ HAKLARINIZ | Sendika Hakkı: Özel güvenlik görevlileri sendikaya üye olabilir ve toplu iş sözleşmesi (TİS) haklarından yararlanabilir. TİS olan işyerlerinde maaş ve sosyal haklar çok daha güçlüdür.",
+  "🛡️ HAKLARINIZ | Fazla Mesai Reddi: Yıllık 270 saati aşan fazla mesai talebini yasal olarak reddedebilirsiniz. Red gerekçesiyle işten çıkarılmak haksız fesih sayılır ve tazminat hakkı doğurur.",
+  "🛡️ HAKLARINIZ | Ücret Bordrosu: İşveren her ay ücret bordrosu vermek zorundadır. Bordroda SGK primleri, vergi ve fazla mesai kalemleri ayrı ayrı gösterilmeli; imzalamayı sağlama hakkınız vardır.",
+  // ── Teknoloji & Gelecek ───────────────────────────────────────────
+  "💡 TEKNOLOJİ | Yapay Zeka Kameralar: Davranış analizi yapan akıllı kamera sistemleri güvenlik sektörüne hızla giriyor. Bu sistemleri kuran ve izleyen teknisyenlere talep hızla artıyor.",
+  "💡 TEKNOLOJİ | Biyometrik Erişim: Parmak izi, yüz tanıma ve retina sistemleri AVM, havalimanı ve kritik tesislerde standart hâle geliyor. Bu teknolojileri bilen personel %15–25 daha yüksek ücret alıyor.",
+  "💡 TEKNOLOJİ | Drone Güvenliği: İnsansız hava aracı güvenliği yeni bir uzmanlık alanı hâline geldi. Drone pilotu sertifikası; büyük etkinlik ve endüstriyel tesis güvenliğinde kariyer kapısı açıyor.",
+  "💡 TEKNOLOJİ | Siber-Fiziksel Güvenlik: Fiziksel güvenlik ile siber güvenliğin kesişim alanı genişliyor. Temel ağ güvenliği ve siber farkındalık bilgisi artık lider pozisyonların olmazsa olmazı.",
+  "💡 TEKNOLOJİ | Merkezi İzleme Merkezleri: TEDES ve benzeri uzaktan izleme sistemleri büyük firmalarda yaygınlaşıyor. Operatörlük için özel eğitim ve sertifika gerekiyor; ücretler yüz yüze güvenliğin üzerinde.",
+  "💡 TEKNOLOJİ | Body-Worn Kamera: Vücuda takılan kameralar Avrupa ve ABD'de standart hâle geldi, Türkiye'de de yaygınlaşıyor. Görüntü kaydı hem görevliyi hem de kurumu şikayetlere karşı koruyor.",
+  // ── Sağlık & Wellness ─────────────────────────────────────────────
+  "❤️ SAĞLIK | Gece Vardiyası: Uzun vadeli gece çalışması; uyku bozukluğu, D vitamini eksikliği ve metabolik sendroma yol açabilir. Düzenli kan tahlili, D vitamini takviyesi ve ışık terapisi faydalıdır.",
+  "❤️ SAĞLIK | Ayakta Çalışma: Uzun süre ayakta durmak eklem ve sırt problemleri yaratır. Ergonomik ayakkabı, düzenli germe egzersizleri ve molalarda kısa yürüyüşler büyük fark yaratır.",
+  "❤️ SAĞLIK | Stres Yönetimi: Güvenlik görevi yüksek stres içerir. Diyafram nefesi, düzenli uyku ve sosyal destek ağı kurmak tükenmişliği önler. Gerektiğinde psikolojik destek almaktan çekinmeyin.",
+  "❤️ SAĞLIK | Periyodik Muayene: Tehlikeli ve çok tehlikeli iş sınıfında yer alan güvenlik görevi için işveren yılda en az bir kez sağlık taraması yaptırmakla yükümlüdür. Bu hakkı mutlaka kullanın.",
+  "❤️ SAĞLIK | Beslenme & Enerji: Gece vardiyasında şekerli atıştırmalıklar yerine; fındık, yoğurt, tam tahıllı besinler tercih edin. Kafein tüketimini vardiya bitiminden 6 saat önce kesin.",
+  // ── Ekonomi & Güncel ──────────────────────────────────────────────
+  "📈 EKONOMİ | Asgari Ücret: Asgari ücret yılda iki kez Ocak ve Temmuz'da güncellenir. Güvenlik sektöründe maaşlar asgari ücretin %20–80 üzerinde seyreder; pozisyon, deneyim ve bölgeye göre değişir.",
+  "📈 EKONOMİ | Maaş Müzakeresi: Güvenlik amirliği sertifikası + 5 yıl deneyim kombinasyonu maaşı anlamlı ölçüde artırır. Mülakatta piyasa araştırması yaparak karşılıklı müzakere edin.",
+  "📈 EKONOMİ | Sosyal Yardımlar: Yemek yardımı, servis, üniformah + sağlık sigortası paketleri brüt maaşa ek %15–25 değer katabilir. Teklifi değerlendirirken bu kalemleri toplamda hesaplayın.",
+  "📈 EKONOMİ | Toplu İş Sözleşmesi: TİS kapsamındaki işyerlerinde maaş zammı enflasyona endekslidir. TİS yoksa yıllık zam talebini yazılı ve belgeleyerek işverene iletmek hukuken daha güvenlidir.",
+  // ── Hatırlatmalar ─────────────────────────────────────────────────
+  "📌 HATIRLATMA | SGK Takibi: Her ay e-Devlet üzerinden 'SGK Hizmet Dökümü'nü kontrol edin. Eksik veya yanlış prim bildiriminde işverene önce yazılı bildirim, ardından SGK'ya şikayet başvurusu yapın.",
+  "📌 HATIRLATMA | İş Sözleşmesi: Sözleşmenizi iki nüsha imzalayın ve bir kopyasını saklayın. Sözel vaatler hukuken geçersizdir; her ek anlaşmayı yazılı olarak belgeleyin.",
+  "📌 HATIRLATMA | İŞKUR Kaydı: İşsizlik durumunda ilk 30 gün içinde İŞKUR'a başvurun. Hem işsizlik ödeneğine hem de ücretsiz mesleki eğitim fırsatlarına erişebilirsiniz.",
+  "📌 HATIRLATMA | Yıllık İzin Takibi: Kullanmadığınız izin günlerini kayıt altına alın. İş sözleşmesi sonunda bu günler son ücret üzerinden nakde çevrilmek zorundadır.",
+  "📌 HATIRLATMA | Kimlik Kartı Yenileme: Özel güvenlik kimlik kartınızın geçerlilik süresini takvime not alın. Süre dolmadan en az 2 ay önce valilik başvurusunu yapın; işlem süresi 4–8 hafta sürebilir.",
+  "📌 HATIRLATMA | Hukuki Yardım: Haklarınızın ihlal edildiğini düşünüyorsanız; ALO 170 (Çalışma Bakanlığı), ALO 182 (SGK) veya barodan ücretsiz hukuki danışmanlık alabilirsiniz.",
 ];
 
 const usedInfoIdx = new Set<number>();
@@ -854,7 +876,8 @@ function getNextInfoMsg(): string {
 }
 
 function scheduleInfoBot() {
-  const delay = 3 * 60 * 1000 + Math.random() * 4 * 60 * 1000;
+  // 90 saniye – 2,5 dakika arası rastgele aralık
+  const delay = 90 * 1000 + Math.random() * 60 * 1000;
   setTimeout(() => {
     const infoContent = getNextInfoMsg();
     void saveToDB(-999, infoContent);
@@ -900,7 +923,13 @@ void trimChatHistory();
 setInterval(() => { void trimChatHistory(); }, 5 * 60 * 1000);
 setTimeout(() => scheduleBotMessage(), 3 * 60 * 1000);
 setTimeout(() => scheduleFakeConversation(), 30000);
-setTimeout(() => scheduleInfoBot(), 10 * 1000);
+// İlk bilgi mesajını 5 saniye sonra gönder, ardından döngü başlar
+setTimeout(() => {
+  const firstInfo = getNextInfoMsg();
+  void saveToDB(-999, firstInfo);
+  io.emit("chat:message", makeInfoMsg(firstInfo));
+  scheduleInfoBot();
+}, 5 * 1000);
 scheduleHourlyReminder();
 setInterval(() => { void broadcastOnlineCount(); }, 45000);
 
