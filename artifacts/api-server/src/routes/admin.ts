@@ -726,6 +726,8 @@ function normalizeForLookup(s: string): string {
 
 function parseListingText(raw: string): Record<string, string> {
   const text = raw.trim();
+  // Turkish-locale lowercase — handles İ→i, I→ı correctly (JS /i flag cannot do this)
+  const textTR = text.toLocaleLowerCase("tr-TR");
   const lines = text.split(/\n/);
 
   // ── Phone numbers ──────────────────────────────────────────────────────────
@@ -736,46 +738,55 @@ function parseListingText(raw: string): Record<string, string> {
 
   // ── Contact name ───────────────────────────────────────────────────────────
   let contactName = "";
-  // Words that cannot be a real person name
+  // Turkish title-case (handles ALL CAPS input like "ONUR BEY")
+  const toTitleCaseTR = (s: string) => s.toLowerCase()
+    .replace(/(^|\s)([a-zçğışöüi])/g, (_, sp, c: string) => sp + c.toLocaleUpperCase("tr-TR"));
+
   const BAD_NAME_WORDS = [
     "güvenlik","security","personel","eleman","firma","şirket","merkezi","hizmet",
-    "acil","ilan","arıyoruz","aranıyor","başvuru","iletişim","bilgi","başvur",
+    "acil","ilan","arıyoruz","aranıyor","başvuru","iletişim","irtibat","bilgi","başvur",
     "tam","yarı","zaman","çalışma","görevli","uzman","şef","amir","müdür",
+    "proje","plaza","otel","avm","bölge","merkez","alım","vardiya","sgk",
   ];
+  const TRW = "[A-ZÇĞİÖŞÜa-zçğışöüİ]"; // accepts both upper and lowercase (for ALL CAPS texts)
   const isGoodName = (s: string) => {
     const sl = s.toLowerCase();
-    if (s.length < 5 || s.length > 40) return false;
+    if (s.length < 4 || s.length > 45) return false;
     if (BAD_NAME_WORDS.some(w => sl.includes(w))) return false;
-    // Must have exactly 2–3 capitalized words
+    if (/\d/.test(s)) return false;
     const parts = s.trim().split(/\s+/);
     if (parts.length < 2 || parts.length > 3) return false;
-    return parts.every(p => /^[A-ZÇĞİÖŞÜ]/.test(p));
+    return parts.every(p => p.length >= 2);
   };
 
-  // Priority patterns — highest confidence first
+  // NOTE: All name patterns run against textTR (Turkish-lowercased) — no /i flag needed
+  // The captured name will be lowercase; toTitleCaseTR converts it to proper case.
   const namePatterns: RegExp[] = [
-    // "İletişim: Ahmet Yılmaz" / "Yetkili: Fatma Demir"
-    /(?:iletişim|yetkili|irtibat|sorumlu|koordinatör|temsilci)\s*[:\-]?\s*([A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,20}\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,20}(?:\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,20})?)/i,
-    // "Ad Soyad: ..." / "Adı Soyadı: ..."
-    /(?:ad\s+soyad|adı\s+soyadı|isim|ad)\s*[:\-]\s*([A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,20}\s+[A-ZÇĞİÖŞÜ][a-zçğışöüİ]{1,20})/i,
-    // "Ahmet Bey" / "Fatma Hanım"
-    /([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20})\s+(?:bey|hanım|bay|bayan)/i,
-    // Name immediately before phone: "Ahmet Yılmaz 0532..."
-    /([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20})\s+(?:0|\+90)/,
-    // After ":" on same line: ": Ahmet Yılmaz"
-    /:\s*([A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20}\s+[A-ZÇĞİÖŞÜ][a-zçğışöü]{2,20})\s*(?:\n|$)/,
+    // "iletişim onur bey : 05..." / "iletişim: ahmet yılmaz"
+    new RegExp(`(?:ileti[şs]im|yetkili|irtibat|sorumlu|koordinatör|temsilci)\\s*[:\\-.\\s]?\\s*(${TRW}{2,20}\\s+${TRW}{2,20}(?:\\s+${TRW}{2,20})?)`),
+    // "ad soyad: ..." / "adı soyadı: ..."
+    new RegExp(`(?:ad\\s+soyad|adı\\s+soyadı|isim|ad)\\s*[:\\-]\\s*(${TRW}{2,20}\\s+${TRW}{2,20})`),
+    // "onur bey" / "fatma hanım" — name followed by Turkish honorific
+    new RegExp(`(${TRW}{2,20}\\s+${TRW}{2,20})\\s+(?:bey|hanım|bay|bayan)`),
+    // Name right before phone number
+    new RegExp(`(${TRW}{3,20}\\s+${TRW}{3,20})\\s*[:\\-]?\\s*(?:0|\\+90)5`),
+    // After colon at end of line
+    new RegExp(`:\\s*(${TRW}{2,20}\\s+${TRW}{2,20})\\s*(?:\\n|$)`),
   ];
   for (const pat of namePatterns) {
-    const m = text.match(pat);
-    if (m?.[1] && isGoodName(m[1])) { contactName = m[1].trim(); break; }
+    const m = textTR.match(pat); // match against Turkish-lowercased text
+    if (m?.[1]) {
+      const candidate = toTitleCaseTR(m[1].trim());
+      if (isGoodName(candidate)) { contactName = candidate; break; }
+    }
   }
-  // Line-by-line scan: a line that is ONLY "Ad Soyad" with no other content
   if (!contactName) {
     for (const line of lines) {
       const l = line.trim();
       const parts = l.split(/\s+/);
-      if (parts.length === 2 || parts.length === 3) {
-        if (isGoodName(l) && !/\d/.test(l)) { contactName = l; break; }
+      if ((parts.length === 2 || parts.length === 3) && !/\d/.test(l)) {
+        const candidate = toTitleCaseTR(l);
+        if (isGoodName(candidate)) { contactName = candidate; break; }
       }
     }
   }
@@ -854,37 +865,43 @@ function parseListingText(raw: string): Record<string, string> {
 
   // ── Salary ─────────────────────────────────────────────────────────────────
   let salary = "";
-  // Each pattern: [regex, useCaptureGroup]
-  // useCaptureGroup=true → use m[1], false → use m[0]
+  // NOTE: All salary patterns run against textTR (Turkish-lowercased) — no /i flag needed
   const salaryPatterns: [RegExp, boolean][] = [
-    // "Maaş: herşey dahil 50000" / "Maaş: net 25.000 TL"
-    [/(?:maaş|ücret|aylık)\s*[:\-]?\s*((?:net|brüt|herşey\s*dahil|her\s*şey\s*dahil|tüm\s*dahil|hepsi\s*dahil)?\s*\d[\d\.]{2,}(?:\s*[-–]\s*\d[\d\.]+)?(?:\s*bin)?\s*(?:tl|₺)?)/i, true],
-    // "Net 25.000 TL" / "Brüt 30.000 TL"
-    [/(?:net|brüt)\s+(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)\s*(?:bin\s*)?(?:tl|₺)/i, true],
-    // "25.000 – 30.000 TL"
-    [/(\d[\d\.]+)\s*[-–]\s*(\d[\d\.]+)\s*(?:bin\s*)?(?:tl|₺)/i, false],
-    // "25000 TL" / "25.000TL"
-    [/(\d[\d\.]{3,})\s*(?:bin\s*)?(?:tl|₺)/i, false],
-    // "25 bin TL"
-    [/(\d{2,3})\s*bin\s*(?:tl|₺)/i, false],
+    // "toplam hakediş: 47.751 tl" — highest priority (real take-home)
+    [/toplam\s+(?:hakedi[şs]|kazanç|paket)\s*[:\-]?\s*(\d[\d\.]+)\s*(?:tl|₺)/, true],
+    // "maaş: herşey dahil 50000" / "maaş: net 25.000 tl"
+    [/(?:maa[şs]|ücret|aylık)\s*[:\-]?\s*((?:net|brüt|her[şs]ey\s*dahil|her\s*[şs]ey\s*dahil|tüm\s*dahil|hepsi\s*dahil)?\s*\d[\d\.]{2,}(?:\s*[-–]\s*\d[\d\.]+)?(?:\s*bin)?\s*(?:tl|₺)?)/, true],
+    // "net 25.000 tl" / "brüt 30.000 tl"
+    [/(?:net|brüt)\s+(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)\s*(?:bin\s*)?(?:tl|₺)/, true],
+    // "25.000 – 30.000 tl"
+    [/(\d[\d\.]+)\s*[-–]\s*(\d[\d\.]+)\s*(?:bin\s*)?(?:tl|₺)/, false],
+    // "25000 tl" / "25.000tl" (min 4 chars to skip "08.00" time patterns)
+    [/(\d[\d\.]{3,})\s*(?:bin\s*)?(?:tl|₺)/, false],
+    // "25 bin tl"
+    [/(\d{2,3})\s*bin\s*(?:tl|₺)/, false],
     // "₺25000"
-    [/₺\s*(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)/i, false],
+    [/₺\s*(\d[\d\.]+(?:\s*[-–]\s*\d[\d\.]+)?)/, false],
   ];
   function normalizeSalary(r: string): string {
     let s = r.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
-    // Strip label prefix: "Maaş:", "Ücret:"
-    s = s.replace(/^(?:maaş|ücret|aylık)\s*[:\-]?\s*/i, "");
+    // Strip label prefix: "Maaş:", "Ücret:", "Net:", "Brüt:"
+    s = s.replace(/^(?:maaş|ücret|aylık|net|brüt)\s*[:\-]?\s*/i, "");
     s = s.charAt(0).toUpperCase() + s.slice(1);
-    if (!/tl|₺/i.test(s)) s += " TL";
+    // Ensure TL is always uppercase, strip trailing lowercase "tl"
+    s = s.replace(/\btl\b/gi, "TL");
+    if (!/TL|₺/.test(s)) s += " TL";
     // Format bare large numbers for readability: 50000 → 50.000
     s = s.replace(/\b(\d{4,6})\b/g, n => parseInt(n, 10).toLocaleString("tr-TR"));
     return s;
   }
-  for (const [pat, useGroup] of salaryPatterns) {
-    const m = text.match(pat);
+  // Match against Turkish-lowercased text so İ/ı/Ş/ş case-fold correctly
+  for (let si = 0; si < salaryPatterns.length; si++) {
+    const [pat, useGroup] = salaryPatterns[si]!;
+    const m = textTR.match(pat);
     if (m) {
       const raw = useGroup ? (m[1] ?? m[0]) : m[0];
       salary = normalizeSalary(raw);
+      if (si === 0) salary += " (Toplam Hakediş)";
       break;
     }
   }

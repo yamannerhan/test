@@ -45,8 +45,43 @@ function normalizeText(text: string): string {
 }
 
 function extractPhone(text: string): string | null {
-  const m = text.match(/(?:\+90|0)?[\s\-.]?(?:5\d{2})[\s\-.]?\d{3}[\s\-.]?\d{2}[\s\-.]?\d{2}/);
-  return m ? m[0].replace(/[\s\-.]/g, "") : null;
+  // Match Turkish mobile numbers with or without separators, with or without leading 0/+90
+  const m = text.match(/(?:\+90|0)[\s\-.]?5\d{2}[\s\-.]?\d{3}[\s\-.]?\d{2}[\s\-.]?\d{2}|(?<!\d)5\d{9}(?!\d)/);
+  if (!m) return null;
+  const digits = m[0].replace(/[\s\-.\(\)]/g, "");
+  // Normalize to 05XXXXXXXXX format
+  return digits.startsWith("+90") ? "0" + digits.slice(3) : digits.startsWith("0") ? digits : "0" + digits;
+}
+
+function extractContactName(text: string): string | null {
+  // Turkish title-case converter
+  const toTR = (s: string) => s.toLocaleLowerCase("tr-TR")
+    .replace(/(^|\s)([a-zçğışöüi])/g, (_, sp: string, c: string) => sp + c.toLocaleUpperCase("tr-TR"));
+
+  // Always match against Turkish-lowercased text to handle İ/ı/Ş/ş correctly
+  const textTR = text.toLocaleLowerCase("tr-TR");
+  const W = "[a-zçğışöüİA-ZÇĞİÖŞÜ]"; // word chars
+  const patterns = [
+    // "iletişim onur bey : 05..." or "iletişim: ahmet yılmaz"
+    new RegExp(`(?:ileti[şs]im|irtibat|yetkili|sorumlu)\\s*[:\\-.\\s]?\\s*(${W}{2,20}\\s+${W}{2,20})`),
+    // "onur bey" / "fatma hanım"
+    new RegExp(`(${W}{2,20}\\s+${W}{2,20})\\s+(?:bey|hanım|bay|bayan)`),
+    // Name right before phone number
+    new RegExp(`(${W}{3,20}\\s+${W}{3,20})\\s*[:\\-]?\\s*(?:0|\\+90)5`),
+  ];
+  const BAD = ["güvenlik","security","personel","eleman","firma","şirket","proje","plaza","otel","avm","iletişim","irtibat","başvuru","arıyoruz","aranıyor","alımı","bilgi","çalışma","maaş","vardiya","sgk"];
+  for (const pat of patterns) {
+    const m = textTR.match(pat);
+    if (m?.[1]) {
+      const lower = m[1].trim();
+      const parts = lower.split(/\s+/);
+      if (parts.length < 2 || parts.length > 3) continue;
+      if (BAD.some(b => lower.includes(b))) continue;
+      if (/\d/.test(lower)) continue;
+      return toTR(lower);
+    }
+  }
+  return null;
 }
 
 function extractCity(text: string): string | null {
@@ -56,25 +91,59 @@ function extractCity(text: string): string | null {
 }
 
 function extractSalary(text: string): string | null {
-  const range = text.match(/(\d[\d.]+)\s*[-–]\s*(\d[\d.]+)\s*(?:TL|₺)/i);
+  // Always match against Turkish-lowercased text so İ/Ş/ş case-fold correctly
+  const tl = text.toLocaleLowerCase("tr-TR");
+
+  // 1) Toplam hakediş/paket — highest priority (real take-home)
+  const total = tl.match(/toplam\s+(?:hakedi[şs]|kazanç|ücret|paket)\s*[:\-]?\s*(\d[\d.]+)\s*(?:tl|₺)/);
+  if (total) return `${total[1]} TL (Toplam Hakediş)`;
+
+  // 2) Labeled salary "maaş: 44.453 tl net + ..."
+  const labeled = tl.match(/(?:maa[şs]|ücret|aylık)\s*[:\-]?\s*(\d[\d.]+)\s*(?:tl|₺)/);
+  if (labeled) {
+    const extras: string[] = [];
+    if (/yol\b/.test(tl)) extras.push("Yol");
+    if (/yemek\b/.test(tl)) extras.push("Yemek");
+    const suffix = extras.length ? ` + ${extras.join(" + ")}` : "";
+    return `${labeled[1]} TL${suffix}`;
+  }
+
+  // 3) Range "25.000 – 30.000 tl"
+  const range = tl.match(/(\d[\d.]+)\s*[-–]\s*(\d[\d.]+)\s*(?:tl|₺)/);
   if (range) return `${range[1]}-${range[2]} TL`;
-  const m = text.match(/(\d[\d.,]*)\s*(?:TL|₺|tl)/i);
+
+  // 4) Generic number + tl (at least 4 chars to avoid "08.00" time patterns)
+  const m = tl.match(/(\d[\d.]{3,})\s*(?:tl|₺)/);
   if (m) return `${m[1]} TL`;
+
   return null;
 }
 
 function extractTitle(text: string): string {
   const lower = normalizeText(text);
-  const TITLES = [
-    "silahlı güvenlik görevlisi", "silahsız güvenlik görevlisi",
-    "güvenlik amiri", "güvenlik şefi", "güvenlik müdürü",
-    "özel güvenlik görevlisi", "güvenlik personeli", "güvenlik görevlisi",
+  // Try to extract location for richer title
+  const city = extractCity(text);
+
+  const TITLE_MAP: [string, string][] = [
+    ["silahlı güvenlik görevlisi", "Silahlı Güvenlik Görevlisi"],
+    ["silahsız güvenlik görevlisi", "Silahsız Güvenlik Görevlisi"],
+    ["özel güvenlik görevlisi", "Özel Güvenlik Görevlisi"],
+    ["özel güvenlik personeli", "Özel Güvenlik Personeli"],
+    ["güvenlik amiri", "Güvenlik Amiri"],
+    ["güvenlik şefi", "Güvenlik Şefi"],
+    ["güvenlik müdürü", "Güvenlik Müdürü"],
+    ["güvenlik personeli", "Güvenlik Personeli"],
+    ["güvenlik görevlisi", "Güvenlik Görevlisi"],
+    ["özel güvenlik", "Özel Güvenlik Personeli"],
+    ["silahlı", "Silahlı Güvenlik Görevlisi"],
+    ["silahsız", "Silahsız Güvenlik Görevlisi"],
   ];
-  const found = TITLES.find(t => lower.includes(t));
-  if (found) return found.charAt(0).toUpperCase() + found.slice(1);
-  if (lower.includes("silahlı")) return "Silahlı Güvenlik Görevlisi Aranıyor";
-  if (lower.includes("silahsız")) return "Silahsız Güvenlik Görevlisi Aranıyor";
-  return "Güvenlik Personeli Aranıyor";
+  for (const [kw, label] of TITLE_MAP) {
+    if (lower.includes(kw)) {
+      return city ? `${label} — ${city}` : `${label} Aranıyor`;
+    }
+  }
+  return city ? `Güvenlik Personeli — ${city}` : "Güvenlik Personeli Aranıyor";
 }
 
 function createDuplicateHash(text: string): string {
@@ -251,6 +320,7 @@ async function processMessage(
   const city = extractCity(text) ?? "Türkiye";
   const salary = extractSalary(text);
   const phone = extractPhone(text);
+  const contactName = extractContactName(text);
 
   if (source.autoPublish && !source.requireApproval) {
     await db.insert(listingsTable).values({
