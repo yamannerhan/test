@@ -163,7 +163,7 @@ export default function AddListing() {
               </div>
 
               <div>
-                <FormLabel className="mb-2 block">İlan Süresi</FormLabel>
+                <label className="text-sm font-medium mb-2 block">İlan Süresi</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
