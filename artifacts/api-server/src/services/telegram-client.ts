@@ -25,8 +25,6 @@ function buildClient(sessionStr = ""): TelegramClient {
     {
       connectionRetries: 3,
       retryDelay: 1000,
-      // Suppress verbose GramJS console output
-      baseLogger: { levels: [] as string[] } as never,
     }
   );
 }
