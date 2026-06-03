@@ -27,12 +27,14 @@ if (!basePath) {
   );
 }
 
+const DEV_CACHE_VERSION = Date.now().toString();
+
 const swVersionPlugin = {
   name: "sw-version-inject",
   configureServer(server: { middlewares: { use: (path: string, fn: (req: unknown, res: { setHeader: (k: string, v: string) => void; end: (s: string) => void }, next: () => void) => void) => void } }) {
     server.middlewares.use("/sw.js", (_req, res) => {
       const swPath = path.resolve(import.meta.dirname, "public/sw.js");
-      const content = fs.readFileSync(swPath, "utf-8").replace("__CACHE_VERSION__", Date.now().toString());
+      const content = fs.readFileSync(swPath, "utf-8").replace("__CACHE_VERSION__", DEV_CACHE_VERSION);
       res.setHeader("Content-Type", "application/javascript");
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
       res.end(content);
