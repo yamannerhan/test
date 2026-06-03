@@ -1028,7 +1028,7 @@ router.post("/admin/listings", authMiddleware, async (req, res): Promise<void> =
     salary: salary ? String(salary) : null, description: description ? String(description) : null,
     requirements: requirements ? String(requirements) : null, applyUrl: applyUrl ? String(applyUrl) : null,
     isFeatured: Boolean(isFeatured), status: "active",
-    expiresAt: expiresAt ? new Date(String(expiresAt)) : null,
+    expiresAt: expiresAt ? new Date(String(expiresAt)) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     authorId: req.user.id,
   }).returning();
   if (perm.shouldDecrement && perm.grantId) {

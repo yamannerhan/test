@@ -96,7 +96,7 @@ function isExpiringSoon(expiresAt: string | null) {
 
 export default function Home() {
   const { data: announcementsData } = useGetAnnouncements();
-  const { data: listingsData, isLoading } = useGetListings({ limit: 10 });
+  const { data: listingsData, isLoading, refetch } = useGetListings({ limit: 20 });
   const [banners, setBanners] = useState<Banner[]>([]);
   const announcements = announcementsData || [];
 
@@ -107,8 +107,15 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
+  // Son İlanlar otomatik yenileme — 30 saniyede bir
+  useEffect(() => {
+    const id = setInterval(() => { void refetch(); }, 30000);
+    return () => clearInterval(id);
+  }, [refetch]);
+
   const featured = listingsData?.listings?.filter(l => l.isFeatured) ?? [];
-  const recent = listingsData?.listings?.slice(0, 10) ?? [];
+  // Öne çıkanları Son İlanlar'dan çıkar — ikisinde de görünmesin
+  const recent = (listingsData?.listings?.filter(l => !l.isFeatured) ?? []).slice(0, 10);
 
   return (
     <Layout>

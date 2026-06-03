@@ -877,13 +877,18 @@ async function broadcastOnlineCount() {
   } catch { /* ignore */ }
 }
 
-// ── Süresi dolan ilanları otomatik pasif yap ─────────────────────
+// ── Süresi dolan ilanları otomatik pasif yap (7 gün kuralı) ─────
 async function expireListings() {
   try {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     await db.update(listingsTable)
       .set({ status: "expired" })
       .where(
-        sql`${listingsTable.status} = 'active' AND ${listingsTable.expiresAt} IS NOT NULL AND ${listingsTable.expiresAt} < NOW()`
+        sql`${listingsTable.status} = 'active' AND (
+          (${listingsTable.expiresAt} IS NOT NULL AND ${listingsTable.expiresAt} < NOW())
+          OR
+          (${listingsTable.createdAt} < ${sevenDaysAgo.toISOString()})
+        )`
       );
   } catch { /* ignore */ }
 }
