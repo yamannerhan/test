@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, Maximize2, Bot, Shield, Star, MessageSquareDot, CornerUpLeft } from "lucide-react";
+import { X, Send, Maximize2, Bot, Shield, Star, MessageSquareDot, CornerUpLeft, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "wouter";
 import { io, Socket } from "socket.io-client";
@@ -186,6 +186,16 @@ export function ChatBubble() {
     } catch {} finally { setSending(false); }
   };
 
+  const handleClearChat = async () => {
+    if (!window.confirm("Tüm sohbet mesajları silinecek. Emin misiniz?")) return;
+    try {
+      await fetch("/api/chat/messages", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+    } catch {}
+  };
+
   const startReply = (msg: ChatMessage & { isBot?: boolean }) => {
     setReplyTo(msg);
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -333,6 +343,15 @@ export function ChatBubble() {
                   <p className="text-white/60 text-[10px]">Canlı</p>
                 </div>
               </div>
+              {(user?.role === "admin" || user?.role === "moderator") && (
+                <button
+                  onClick={handleClearChat}
+                  className="w-7 h-7 rounded-lg bg-red-500/20 hover:bg-red-500/40 flex items-center justify-center transition-colors mr-1"
+                  title="Sohbeti Temizle"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-300" />
+                </button>
+              )}
               <Link href="/sohbet" onClick={() => setOpen(false)}
                 className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors mr-1" title="Tam ekranda aç">
                 <Maximize2 className="w-3 h-3 text-white/70" />

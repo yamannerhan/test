@@ -124,6 +124,8 @@ export default function Chat() {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<UserSuggestion[]>([]);
   const [activeMsg, setActiveMsg] = useState<number | null>(null);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: initialData, isLoading } = useGetChatMessages({ limit: 50 });
 
@@ -206,6 +208,17 @@ export default function Chat() {
     } catch {}
   };
 
+  const startCooldown = (seconds: number) => {
+    setCooldownLeft(seconds);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setCooldownLeft(prev => {
+        if (prev <= 1) { clearInterval(cooldownRef.current!); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const handleReact = async (msgId: number, emoji: string) => {
     if (!user) return;
     try {
@@ -219,17 +232,28 @@ export default function Chat() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || !user || sending) return;
+    if (!content.trim() || !user || sending || cooldownLeft > 0) return;
     setSending(true);
     try {
-      await fetch("/api/chat/messages", {
+      const r = await fetch("/api/chat/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ content: content.trim(), replyToId: replyTo?.id }),
       });
-      setContent("");
-      setReplyTo(null);
-      setMentionQuery(null);
+      if (r.status === 429) {
+        const data = await r.json().catch(() => ({})) as { waitSeconds?: number };
+        startCooldown(data.waitSeconds ?? 5);
+        return;
+      }
+      if (r.ok) {
+        setContent("");
+        setReplyTo(null);
+        setMentionQuery(null);
+        // Spam koruması: admin/mod hariç 5 saniye bekleme
+        if (user.role !== "admin" && user.role !== "moderator") {
+          startCooldown(5);
+        }
+      }
     } catch {} finally { setSending(false); }
   };
 
@@ -567,20 +591,35 @@ export default function Chat() {
                 )}
               </AnimatePresence>
 
+              {/* Spam geri sayımı */}
+              {cooldownLeft > 0 && (
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full bg-amber-400"
+                      initial={{ width: "100%" }}
+                      animate={{ width: "0%" }}
+                      transition={{ duration: cooldownLeft, ease: "linear" }}
+                    />
+                  </div>
+                  <span className="text-[11px] text-amber-400 font-bold shrink-0">{cooldownLeft}s</span>
+                </div>
+              )}
               <div className="flex space-x-2">
                 <Input
                   ref={inputRef}
                   value={content}
                   onChange={e => handleInputChange(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && mentionQuery === null) { e.preventDefault(); handleSend(e as any); } }}
-                  placeholder={replyTo ? `${chatName(replyTo)}'e yanıtla...` : "Mesajınızı yazın... (@ ile etiketle)"}
+                  placeholder={cooldownLeft > 0 ? `${cooldownLeft}s sonra mesaj gönderebilirsin...` : replyTo ? `${chatName(replyTo)}'e yanıtla...` : "Mesajınızı yazın... (@ ile etiketle)"}
                   className="glass-card border-white/10 rounded-full h-12 px-5 text-sm"
                   maxLength={500}
                   autoComplete="off"
+                  disabled={cooldownLeft > 0}
                 />
-                <Button type="submit" disabled={!content.trim() || sending}
+                <Button type="submit" disabled={!content.trim() || sending || cooldownLeft > 0}
                   className="rounded-full w-12 h-12 shrink-0 bg-gradient-to-r from-primary to-secondary text-white shadow-lg">
-                  {sending ? <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" /> : <Send className="w-5 h-5" />}
+                  {sending ? <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" /> : cooldownLeft > 0 ? <span className="text-xs font-bold">{cooldownLeft}</span> : <Send className="w-5 h-5" />}
                 </Button>
               </div>
             </form>
