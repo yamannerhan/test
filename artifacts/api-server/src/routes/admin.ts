@@ -667,20 +667,27 @@ function parseListingText(raw: string): Record<string, string> {
     .map(t => t.replace(TR_SUFFIX, "").trim())
     .filter(t => t.length >= 3);
 
-  // 1) Check "district/city" or "district-city" or "city district" slash patterns first
+  // 0) Explicit labeled district: "İlçe: Kadıköy", "Semt: Beşiktaş", "Bölge: ..."
+  const labeledDistrict = text.match(/(?:ilçe|semt|mahalle)\s*[:\-]?\s*([A-ZÇĞİÖŞÜa-zçğışöüİ]{3,30})/i);
+  if (labeledDistrict?.[1]) {
+    const n = normalizeForLookup(labeledDistrict[1].split(/[\s,]/)[0]!);
+    if (DISTRICT_TO_CITY[n]) { district = DISTRICT_TO_CITY[n]!.district; city = DISTRICT_TO_CITY[n]!.city; }
+  }
+
+  // 1) Check "district/city" or "district-city" slash patterns
   const slashPattern = /([A-ZÇĞİÖŞÜa-zçğışöüİ]{3,})[\/\-]([A-ZÇĞİÖŞÜa-zçğışöüİ]{3,})/g;
   let sm: RegExpExecArray | null;
   while ((sm = slashPattern.exec(text)) !== null && !city) {
     const a = normalizeForLookup(sm[1]!);
     const b = normalizeForLookup(sm[2]!);
     const da = DISTRICT_TO_CITY[a];
-    const db = DISTRICT_TO_CITY[b];
+    const db_entry = DISTRICT_TO_CITY[b];
     const ca = TR_CITIES[a];
     const cb = TR_CITIES[b];
     if (da && cb && da.city === TR_CITIES[b] || da && !cb) {
       district = da.district; city = da.city;
-    } else if (db && ca && db.city === TR_CITIES[a] || db && !ca) {
-      district = db.district; city = db.city;
+    } else if (db_entry && ca && db_entry.city === TR_CITIES[a] || db_entry && !ca) {
+      district = db_entry.district; city = db_entry.city;
     } else if (ca) {
       city = ca;
     } else if (cb) {
@@ -688,18 +695,17 @@ function parseListingText(raw: string): Record<string, string> {
     }
   }
 
-  // 2) Labeled patterns: "İl: İstanbul", "Şehir: Ankara" etc.
+  // 2) Labeled city patterns: "İl: İstanbul", "Şehir: Ankara", "Konum: ..." etc.
   if (!city) {
     const labeled = text.match(/(?:il|şehir|konum|lokasyon|bölge)\s*[:\-]?\s*([A-ZÇĞİÖŞÜa-zçğışöüİ]{3,30})/i);
     if (labeled?.[1]) {
       const n = normalizeForLookup(labeled[1].split(/[\s,]/)[0]!);
-      if (TR_CITIES[n]) city = TR_CITIES[n];
-      else if (DISTRICT_TO_CITY[n]) { city = DISTRICT_TO_CITY[n]!.city; district = DISTRICT_TO_CITY[n]!.district; }
+      if (TR_CITIES[n]) city = TR_CITIES[n]!;
+      else if (DISTRICT_TO_CITY[n]) { city = DISTRICT_TO_CITY[n]!.city; if (!district) district = DISTRICT_TO_CITY[n]!.district; }
     }
   }
 
   // 3) Scan every token: district first (more specific), then city
-  // Also try stripping direct (no-apostrophe) suffixes: de/da/te/ta/den/dan etc.
   const DIRECT_SUFFIX = /(?:de|da|te|ta|ye|ya|ne|na|nde|nda|den|dan|ten|tan|deki|daki|ler|lar|in|ın|un|ün)$/i;
   for (const tok of tokens) {
     const n = normalizeForLookup(tok);
@@ -750,17 +756,52 @@ function parseListingText(raw: string): Record<string, string> {
 
   // ── Job title ──────────────────────────────────────────────────────────────
   let title = "";
-  const titlePatterns: RegExp[] = [
-    /(?:pozisyon|görev|ünvan|iş\s*ilanı|aranan)\s*[:\-]?\s*(.+)/i,
-    /(?:güvenlik\s*(?:görevlisi|uzmanı|şefi|amiri|koordinatörü|müdürü)|özel\s*güvenlik|silahlı\s*güvenlik|koruma\s*görevlisi|resepsiyonist|kapıcı|bekçi)/i,
-  ];
-  for (const pat of titlePatterns) {
-    const m = text.match(pat);
-    if (m) { title = (m[1] ?? m[0]).trim().split(/\n/)[0]!.trim(); if (title.length > 4 && title.length < 90) break; title = ""; }
+
+  // 1) Explicit label: "Pozisyon: ...", "Görev: ...", "İlan: ..."
+  const labeledTitle = text.match(/(?:pozisyon|görev|ünvan|iş\s*ilanı|aranan\s*pozisyon)\s*[:\-]?\s*(.+)/i);
+  if (labeledTitle?.[1]) {
+    const t = labeledTitle[1].trim().split(/\n/)[0]!.trim();
+    if (t.length > 3 && t.length < 90) title = t;
   }
+
+  // 2) Smart extraction: look for specific security job titles in the text
+  const JOB_TITLE_PATTERNS: { re: RegExp; label: string }[] = [
+    { re: /silahlı\s*(?:özel\s*)?güvenlik\s*(?:görevlisi|personeli|elemanı)/i, label: "Silahlı Güvenlik Görevlisi" },
+    { re: /güvenlik\s*müdürü/i,        label: "Güvenlik Müdürü" },
+    { re: /güvenlik\s*koordinatörü/i,  label: "Güvenlik Koordinatörü" },
+    { re: /güvenlik\s*şefi/i,          label: "Güvenlik Şefi" },
+    { re: /güvenlik\s*amiri/i,         label: "Güvenlik Amiri" },
+    { re: /güvenlik\s*uzmanı/i,        label: "Güvenlik Uzmanı" },
+    { re: /güvenlik\s*sorumlusu/i,     label: "Güvenlik Sorumlusu" },
+    { re: /özel\s*güvenlik\s*görevlisi/i, label: "Özel Güvenlik Görevlisi" },
+    { re: /özel\s*güvenlik\s*personeli/i, label: "Özel Güvenlik Personeli" },
+    { re: /güvenlik\s*görevlisi/i,     label: "Güvenlik Görevlisi" },
+    { re: /koruma\s*uzmanı/i,          label: "Özel Koruma Uzmanı" },
+    { re: /özel\s*koruma/i,            label: "Özel Koruma Görevlisi" },
+    { re: /koruma\s*görevlisi/i,       label: "Koruma Görevlisi" },
+    { re: /silahlı\s*güvenlik/i,       label: "Silahlı Güvenlik Görevlisi" },
+    { re: /bekçi/i,                    label: "Bekçi" },
+    { re: /resepsiyonist/i,            label: "Güvenlik Resepsiyonisti" },
+    { re: /kapıcı/i,                   label: "Kapıcı" },
+    { re: /güvenlik/i,                 label: "Güvenlik Görevlisi" },
+  ];
+  if (!title) {
+    for (const { re, label } of JOB_TITLE_PATTERNS) {
+      if (re.test(text)) {
+        // Build a richer title: job + location
+        const loc = district || city;
+        title = loc ? `${label} — ${loc}` : label;
+        break;
+      }
+    }
+  }
+
+  // 3) Fallback: first meaningful non-emoji line (cleaned up)
   if (!title) {
     for (const line of lines) {
-      const l = line.trim().replace(/^[🔔📢🚨✅❗❕#\*\-\•🔹🔸➡️]+/g, "").trim();
+      const l = line.trim()
+        .replace(/^[^A-ZÇĞİÖŞÜa-zçğışöüİ0-9]*/g, "")
+        .replace(/\s+/g, " ").trim();
       if (l.length > 5 && l.length < 90 && !/^\d/.test(l) && !l.includes("http") && !/^(?:0|\+90)/.test(l))
         { title = l; break; }
     }
@@ -788,7 +829,7 @@ function parseListingText(raw: string): Record<string, string> {
   });
   const description = descLines.join("\n").trim();
 
-  return { title, company: company || "Belirtilmedi", city, district, salary, workType, description, contactPhone, contactName, applyUrl };
+  return { title, company: company || "Belirtilmedi", city, district, salary, workType, description, contactPhone, contactName: contactName || "Belirtilmedi", applyUrl };
 }
 
 router.post("/admin/listings/parse", authMiddleware, requireAdmin, async (req, res): Promise<void> => {

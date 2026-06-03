@@ -2,6 +2,45 @@ import { Router } from "express";
 import { db, listingsTable, listingLikesTable, listingFavoritesTable, usersTable, adminSettingsTable, chatMessagesTable } from "@workspace/db";
 import { eq, desc, and, sql, ilike, inArray } from "drizzle-orm";
 import { authMiddleware, optionalAuthMiddleware, requireAdmin } from "../middlewares/auth";
+import multer from "multer";
+import sharp from "sharp";
+import path from "path";
+import fs from "fs";
+
+// ── Listing image upload setup ──────────────────────────────────────────────
+const LISTING_IMAGES_DIR = path.join(process.cwd(), "uploads", "listing-images");
+fs.mkdirSync(LISTING_IMAGES_DIR, { recursive: true });
+
+const listingImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp"];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
+
+// ── Auto image selection by keyword ────────────────────────────────────────
+const LISTING_AUTO_IMAGES: { keywords: string[]; url: string }[] = [
+  { keywords: ["otel","hotel","resort","turizm","tatil","konaklama"], url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=75&fit=crop" },
+  { keywords: ["hastane","klinik","sağlık","medikal","tıp","poliklinik"], url: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&q=75&fit=crop" },
+  { keywords: ["avm","mall","alışveriş","mağaza","market"], url: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&q=75&fit=crop" },
+  { keywords: ["şantiye","inşaat","toki","yapı","bina"], url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&q=75&fit=crop" },
+  { keywords: ["liman","gemi","deniz","sahil","iskele"], url: "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=800&q=75&fit=crop" },
+  { keywords: ["fabrika","sanayi","depo","lojistik","üretim","atölye"], url: "https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=800&q=75&fit=crop" },
+  { keywords: ["banka","finans","sigorta","plaza","ofis","merkez"], url: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=75&fit=crop" },
+  { keywords: ["okul","üniversite","kampüs","eğitim","anaokul"], url: "https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=800&q=75&fit=crop" },
+  { keywords: ["site","konut","apartman","residans","rezidans"], url: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&q=75&fit=crop" },
+];
+const DEFAULT_LISTING_IMAGE = "https://images.unsplash.com/photo-1582139329536-e7284fece509?w=800&q=75&fit=crop";
+
+function pickAutoImage(title: string, description: string | null): string {
+  const hay = (title + " " + (description ?? "")).toLowerCase();
+  for (const { keywords, url } of LISTING_AUTO_IMAGES) {
+    if (keywords.some(k => hay.includes(k))) return url;
+  }
+  return DEFAULT_LISTING_IMAGE;
+}
 
 const router = Router();
 
@@ -48,6 +87,8 @@ function formatListing(listing: typeof listingsTable.$inferSelect, userId?: numb
   PHONE_MASK_RE.lastIndex = 0;
   NAME_AFTER_LABEL_RE.lastIndex = 0;
 
+  const companyLogoUrl = listing.companyLogoUrl || pickAutoImage(listing.title, listing.description);
+
   return {
     id: listing.id,
     title: listing.title,
@@ -63,7 +104,7 @@ function formatListing(listing: typeof listingsTable.$inferSelect, userId?: numb
     isFeatured: listing.isFeatured,
     applyUrl,
     contactInfoMasked: !isAuth && hasSensitiveInfo(rawDesc, rawApplyUrl),
-    companyLogoUrl: listing.companyLogoUrl,
+    companyLogoUrl,
     authorId: listing.authorId,
     authorUsername: authorUsername ?? null,
     isLikedByMe: userId != null && likedIds != null ? likedIds.has(listing.id) : false,
@@ -122,6 +163,27 @@ router.get("/listings", optionalAuthMiddleware, async (req, res): Promise<void> 
     page,
     limit,
   });
+});
+
+// ── Listing image upload ────────────────────────────────────────────────────
+router.post("/listings/image-upload", authMiddleware, listingImageUpload.single("image"), async (req, res): Promise<void> => {
+  if (!req.file) { res.status(400).json({ error: "Resim dosyası gerekli (jpg, png, webp)" }); return; }
+  const filename = `listing_${req.user!.id}_${Date.now()}.jpg`;
+  const filepath = path.join(LISTING_IMAGES_DIR, filename);
+  await sharp(req.file.buffer)
+    .resize(800, 450, { fit: "cover", position: "center" })
+    .jpeg({ quality: 85 })
+    .toFile(filepath);
+  const url = `/api/listing-images/${filename}`;
+  res.json({ url });
+});
+
+// ── Serve listing images ───────────────────────────────────────────────────
+router.get("/listing-images/:filename", (req, res): void => {
+  const filename = String(req.params["filename"]).replace(/[^a-zA-Z0-9_\-\.]/g, "");
+  const filepath = path.join(LISTING_IMAGES_DIR, filename);
+  if (!fs.existsSync(filepath)) { res.status(404).end(); return; }
+  res.sendFile(filepath);
 });
 
 router.post("/listings", authMiddleware, async (req, res): Promise<void> => {
