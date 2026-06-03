@@ -6,7 +6,7 @@ import { io, Socket } from "socket.io-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Send, X, Bot, Zap, CornerUpLeft } from "lucide-react";
-import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "framer-motion";
 import type { ChatMessage } from "@workspace/api-client-react";
 
 function getToken() { return localStorage.getItem("auth_token") ?? ""; }
@@ -35,17 +35,43 @@ function RoleBadge({ role }: { role: string }) {
 /* ── Swipeable row ────────────────────────────────────────────── */
 function SwipeableMessage({ children, onReply }: { children: React.ReactNode; onReply: () => void }) {
   const x = useMotionValue(0);
-  const opacity = useTransform(x, [0, 60], [0, 1]);
+  const opacity = useTransform(x, [0, 50], [0, 1]);
+  const scale = useTransform(x, [0, 50, 80], [0.5, 1, 1.2]);
+  const iconBg = useTransform(x, [40, 65], ["rgba(79,70,229,0.6)", "rgba(79,70,229,1)"]);
   const touchStartX = useRef(0);
   const swiped = useRef(false);
+  const vibrated = useRef(false);
+
   return (
-    <div className="relative"
-      onTouchStart={e => { touchStartX.current = e.touches[0]!.clientX; swiped.current = false; }}
-      onTouchMove={e => { const dx = e.touches[0]!.clientX - touchStartX.current; if (dx > 0) x.set(Math.min(dx, 80)); }}
-      onTouchEnd={() => { if (x.get() >= 60 && !swiped.current) { swiped.current = true; onReply(); } x.set(0); }}
+    <div className="relative overflow-hidden"
+      onTouchStart={e => {
+        touchStartX.current = e.touches[0]!.clientX;
+        swiped.current = false;
+        vibrated.current = false;
+      }}
+      onTouchMove={e => {
+        const dx = e.touches[0]!.clientX - touchStartX.current;
+        if (dx > 0) {
+          x.set(Math.min(dx, 90));
+          if (dx >= 60 && !vibrated.current) {
+            vibrated.current = true;
+            if (navigator.vibrate) navigator.vibrate(45);
+          }
+        }
+      }}
+      onTouchEnd={() => {
+        if (x.get() >= 60 && !swiped.current) {
+          swiped.current = true;
+          onReply();
+        }
+        animate(x, 0, { type: "spring", stiffness: 380, damping: 28 });
+      }}
     >
-      <motion.div style={{ opacity }} className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-7 h-7 rounded-full bg-primary flex items-center justify-center pointer-events-none z-10">
-        <CornerUpLeft className="w-3.5 h-3.5 text-white" />
+      <motion.div
+        style={{ opacity, scale, backgroundColor: iconBg }}
+        className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center pointer-events-none z-10 shadow-lg"
+      >
+        <CornerUpLeft className="w-4 h-4 text-white" />
       </motion.div>
       <motion.div style={{ x }}>{children}</motion.div>
     </div>
@@ -257,12 +283,24 @@ export default function Chat() {
               {/* Bubble */}
               <div className={`relative rounded-2xl px-4 py-2.5 text-sm shadow-sm ${isMe ? "text-white rounded-br-sm" : "glass-card rounded-bl-sm"}`}
                 style={isMe ? { background: "linear-gradient(135deg,#4F46E5,#7C3AED)" } : {}}>
-                {chatMsg.replyToId && (
-                  <div className={`mb-2 pl-2 border-l-2 text-xs opacity-70 ${isMe ? "border-white/50" : "border-primary"}`}>
-                    <div className="font-medium">{chatMsg.replyToUsername}</div>
-                    <div className="line-clamp-1">{chatMsg.replyToContent}</div>
-                  </div>
-                )}
+                {chatMsg.replyToId && (() => {
+                  const repliedToMe = chatMsg.replyToUsername === user?.username;
+                  return (
+                    <div className={`mb-2 pl-2 border-l-2 text-xs rounded-r-lg ${
+                      repliedToMe
+                        ? "border-cyan-400 bg-cyan-400/10 py-1 pr-2"
+                        : isMe ? "border-white/40 opacity-70" : "border-primary opacity-70"
+                    }`}>
+                      <div className="flex items-center gap-1.5 font-semibold mb-0.5">
+                        <span>{chatMsg.replyToUsername}</span>
+                        {repliedToMe && (
+                          <span className="text-[9px] bg-cyan-400/25 text-cyan-300 px-1.5 py-0.5 rounded-full font-bold tracking-wide">SEN</span>
+                        )}
+                      </div>
+                      <div className="line-clamp-1 opacity-80">{chatMsg.replyToContent}</div>
+                    </div>
+                  );
+                })()}
                 <p className="break-words leading-relaxed">
                   {chatMsg.content.split(/(@\w+)/g).map((part, i) =>
                     part.startsWith("@")
