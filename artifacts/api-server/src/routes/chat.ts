@@ -207,10 +207,39 @@ router.delete("/chat/messages/:id", authMiddleware, requireAdmin, async (req, re
 
 router.delete("/chat/messages", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   await db.update(chatMessagesTable).set({ isDeleted: true }).where(eq(chatMessagesTable.isDeleted, false));
+
+  const clearedBy = req.user!.displayName || req.user!.username;
+  const roleLabel = req.user!.role === "admin" ? "Admin" : "Moderatör";
+
   const io = (req as unknown as { app: { get: (key: string) => unknown } }).app.get("io") as { emit: (event: string, data: unknown) => void } | null;
   if (io) {
+    // Önce tüm clientları temizle
     io.emit("chat:cleared", { clearedBy: req.user!.username, role: req.user!.role });
+
+    // Sistem mesajı — GuvenlikBot formatında, Socket.io üzerinden gönderilir
+    const systemMsg = {
+      id: Date.now() + Math.random(),
+      content: `${roleLabel} ${clearedBy} sohbeti temizledi. Yeni sohbet başlıyor.`,
+      userId: 0,
+      username: "Sistem",
+      displayName: "SİSTEM",
+      userAvatarUrl: null,
+      userNameColor: "#64748b",
+      userNameAnimated: false,
+      userRole: "bot",
+      isBot: true,
+      replyToId: null,
+      replyToUsername: null,
+      replyToContent: null,
+      isPinned: false,
+      mentions: [],
+      reactions: [],
+      createdAt: new Date().toISOString(),
+    };
+    // Kısa gecikmeyle gönder — clientlar önce cleared event'ini işlesin
+    setTimeout(() => { io.emit("chat:message", systemMsg); }, 300);
   }
+
   res.sendStatus(204);
 });
 

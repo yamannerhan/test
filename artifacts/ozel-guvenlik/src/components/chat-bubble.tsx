@@ -131,9 +131,6 @@ export function ChatBubble() {
     s.on("chat:delete", ({ id }: { id: number }) => {
       setMessages(prev => prev.filter(m => !isSystem(m) && (m as ChatMessage).id !== id));
     });
-    s.on("chat:clear", () => {
-      setMessages([]);
-    });
     s.on("chat:cleared", () => {
       setMessages([]);
     });

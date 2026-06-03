@@ -155,13 +155,8 @@ export default function Chat() {
         !isSystem(m) && (m as ExtMsg).id === messageId ? { ...(m as ExtMsg), reactions } : m
       ));
     });
-    s.on("chat:cleared", ({ clearedBy }: { clearedBy: string; role: string }) => {
-      setMessages([{
-        id: Date.now(),
-        type: "cleared",
-        text: `Sohbet ${clearedBy} tarafından temizlendi`,
-        createdAt: new Date().toISOString(),
-      }]);
+    s.on("chat:cleared", () => {
+      setMessages([]);
     });
     return () => { s.disconnect(); };
   }, [user?.id]);
