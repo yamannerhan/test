@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useGetUserProfile, useGetListings, useLogout, getGetUserProfileQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { useParams, Link, useLocation } from "wouter";
@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LogOut, MapPin, Briefcase, Camera, Loader2, Pencil, Check, X, KeyRound } from "lucide-react";
+import { LogOut, MapPin, Briefcase, Camera, Loader2, Pencil, Check, X, KeyRound, RefreshCw, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -49,8 +49,41 @@ export default function Profile() {
     },
   });
 
-  const { data: listingsData } = useGetListings({ page: 1, limit: 10 });
+  const { data: listingsData } = useGetListings({ page: 1, limit: 50 });
   const userListings = listingsData?.listings?.filter(l => l.authorUsername === username) || [];
+  const [myListings, setMyListings] = useState<any[]>([]);
+  const [myListingsLoading, setMyListingsLoading] = useState(false);
+  const [republishingId, setRepublishingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isMe) return;
+    setMyListingsLoading(true);
+    fetch("/api/listings/mine", {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+      .then(r => r.ok ? r.json() : Promise.reject(r))
+      .then((data: any[]) => setMyListings(Array.isArray(data) ? data : []))
+      .catch(() => setMyListings([]))
+      .finally(() => setMyListingsLoading(false));
+  }, [isMe]);
+
+  const handleRepublish = async (listingId: number) => {
+    setRepublishingId(listingId);
+    try {
+      const res = await fetch(`/api/listings/${listingId}/republish`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+      setMyListings(prev => prev.map((l: any) => l.id === listingId ? updated : l));
+      toast({ title: "İlan yeniden yayınlandı", description: "7 gün daha yayında kalacak." });
+    } catch {
+      toast({ title: "Hata", description: "İlan yeniden yayınlanamadı.", variant: "destructive" });
+    } finally {
+      setRepublishingId(null);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -342,34 +375,74 @@ export default function Profile() {
         <div>
           <h2 className="text-lg font-bold mb-4">{isMe ? "Senin İlanların" : "İlanları"}</h2>
           <div className="space-y-4">
-            {userListings.length === 0 ? (
+            {isMe && myListingsLoading ? (
+              <div className="flex justify-center p-8">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (isMe ? myListings : userListings).length === 0 ? (
               <div className="text-center p-8 glass-card rounded-2xl text-muted-foreground">
                 İlan bulunmuyor.
               </div>
             ) : (
-              userListings.map((listing, i) => (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  key={listing.id}
-                  className="glass-card rounded-2xl p-4 relative"
-                >
-                  <Link href={`/ilan/${listing.id}`} className="block">
-                    <h3 className="font-semibold text-base mb-1 line-clamp-1">{listing.title}</h3>
-                    <p className="text-sm text-muted-foreground mb-3">{listing.company}</p>
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex space-x-3 text-muted-foreground">
-                        <span className="flex items-center"><MapPin className="w-3.5 h-3.5 mr-1" />{listing.city}</span>
-                        <span className="flex items-center"><Briefcase className="w-3.5 h-3.5 mr-1" />{listing.workType}</span>
+              (isMe ? myListings : userListings).map((listing: any, i: number) => {
+                const isExpired = listing.status === "expired";
+                const isActive = listing.status === "active";
+                const daysLeft = listing.expiresAt
+                  ? Math.ceil((new Date(listing.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                  : null;
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    key={listing.id}
+                    className={`glass-card rounded-2xl p-4 relative ${isExpired ? "opacity-70" : ""}`}
+                  >
+                    <Link href={`/ilan/${listing.id}`} className="block">
+                      <h3 className="font-semibold text-base mb-1 line-clamp-1">{listing.title}</h3>
+                      <p className="text-sm text-muted-foreground mb-3">{listing.company}</p>
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex space-x-3 text-muted-foreground">
+                          <span className="flex items-center"><MapPin className="w-3.5 h-3.5 mr-1" />{listing.city}</span>
+                          <span className="flex items-center"><Briefcase className="w-3.5 h-3.5 mr-1" />{listing.workType}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isActive && daysLeft !== null && daysLeft <= 3 && daysLeft > 0 && (
+                            <span className="flex items-center text-orange-400">
+                              <Clock className="w-3 h-3 mr-1" />{daysLeft}g kaldı
+                            </span>
+                          )}
+                          <span className={`px-2 py-1 rounded font-medium ${
+                            isActive ? "bg-green-500/20 text-green-400" :
+                            isExpired ? "bg-red-500/20 text-red-400" :
+                            "bg-yellow-500/20 text-yellow-400"
+                          }`}>
+                            {isActive ? "Yayında" : isExpired ? "Süresi Doldu" : "Bekliyor"}
+                          </span>
+                        </div>
                       </div>
-                      <span className={`px-2 py-1 rounded font-medium ${listing.status === "active" ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}`}>
-                        {listing.status === "active" ? "Yayında" : "Bekliyor"}
-                      </span>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))
+                    </Link>
+                    {isMe && isExpired && (
+                      <div className="mt-3 pt-3 border-t border-white/5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full border-primary/40 text-primary hover:bg-primary/10 text-xs"
+                          disabled={republishingId === listing.id}
+                          onClick={() => handleRepublish(listing.id)}
+                        >
+                          {republishingId === listing.id ? (
+                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                          )}
+                          Tekrar Yayınla
+                        </Button>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })
             )}
           </div>
         </div>

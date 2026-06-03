@@ -35,6 +35,7 @@ export default function AddListing() {
   const { user } = useAuth();
   const [isTimed, setIsTimed] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
+  const [dupWarning, setDupWarning] = useState<string | null>(null);
 
   // Image upload state
   const [imageMode, setImageMode] = useState<"file" | "url">("file");
@@ -92,6 +93,7 @@ export default function AddListing() {
   if (!user) return null;
 
   const onSubmit = async (values: ListingFormValues) => {
+    setDupWarning(null);
     try {
       const payload: Record<string, unknown> = {
         ...values,
@@ -105,14 +107,15 @@ export default function AddListing() {
         payload.expiresAt = new Date(expiresAt).toISOString();
       }
       await createMutation.mutateAsync({ data: payload as any });
-      toast({ title: "İlan başarıyla eklendi", description: "Admin onayından sonra yayına alınacaktır." });
+      toast({ title: "İlan başarıyla eklendi", description: "7 gün boyunca yayında kalacaktır." });
       setLocation("/ilanlar");
     } catch (error: any) {
-      toast({
-        title: "Hata",
-        description: error?.message || "İlan eklenirken bir hata oluştu.",
-        variant: "destructive"
-      });
+      const serverMsg = (error?.data as any)?.error || error?.message || "İlan eklenirken bir hata oluştu.";
+      if (error?.status === 409) {
+        setDupWarning(serverMsg);
+      } else {
+        toast({ title: "Hata", description: serverMsg, variant: "destructive" });
+      }
     }
   };
 
@@ -379,6 +382,12 @@ export default function AddListing() {
 
                 <p className="text-[10px] text-muted-foreground">Boş bırakırsanız ilan başlığına göre otomatik resim atanır.</p>
               </div>
+
+              {dupWarning && (
+                <div className="rounded-xl bg-yellow-500/10 border border-yellow-500/30 p-3 text-sm text-yellow-300 leading-relaxed">
+                  {dupWarning}
+                </div>
+              )}
 
               <Button
                 type="submit"
