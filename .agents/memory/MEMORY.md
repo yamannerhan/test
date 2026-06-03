@@ -3,3 +3,4 @@
 - [DisplayName / Nickname System](displayname-system.md) — DB has display_name column; chat shows displayName (first name), @mentions use username; register collects firstName+lastName.
 - [Password Change Endpoints](password-change.md) — Users: POST /api/auth/change-password (currentPassword+newPassword); Admin reset: POST /api/admin/users/:id/reset-password.
 - [Fake Live Chat Loop](fake-chat.md) — Scheduled in index.ts every 45-150s; 8 fake users (userId -1 to -8), standalone msgs + timed conversation pairs; isFake:true flag.
+- [Moderatör Rol Sistemi](moderator-role-system.md) — izin mimarisi, grant tablosu, panel sayfası ve sınır kuralları.

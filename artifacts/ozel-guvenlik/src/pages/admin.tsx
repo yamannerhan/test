@@ -858,6 +858,15 @@ export default function AdminDashboard() {
     total: number;
   }>("/admin/listings");
 
+  const { data: grantsData, refetch: refetchGrants } = useAdminApi<{
+    id: number; userId: number; username: string | null; grantType: string; usesRemaining: number | null; expiresAt: string | null; note: string | null; createdAt: string;
+  }[]>("/admin/grants");
+
+  const [newGrant, setNewGrant] = useState({
+    userId: "", grantType: "unlimited" as "unlimited" | "limited" | "timed",
+    usesRemaining: "5", expiresAt: "", note: "",
+  });
+
   const [fakeBonus, setFakeBonus] = useState("");
   const [welcomeMsg, setWelcomeMsg] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
@@ -1251,6 +1260,111 @@ export default function AdminDashboard() {
         <SupportAdminSection apiCall={apiCall} toast={toast} />
 
         <UserManagementSection apiCall={apiCall} toast={toast} />
+
+        <Section title="Yetki Yönetimi (Akıllı İlan Hakkı)" icon={Shield}>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Kullanıcıya akıllı ilan paylaşım hakkı ver</p>
+              <Input
+                value={newGrant.userId}
+                onChange={e => setNewGrant(g => ({ ...g, userId: e.target.value }))}
+                placeholder="Kullanıcı ID (sayı)"
+                className="h-8 text-sm bg-white/5 border-white/10"
+              />
+              <div className="grid grid-cols-3 gap-1.5">
+                {(["unlimited", "limited", "timed"] as const).map(type => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setNewGrant(g => ({ ...g, grantType: type }))}
+                    className={`flex items-center justify-center gap-1 py-1.5 rounded-lg border text-xs font-medium transition-all ${newGrant.grantType === type ? "border-primary bg-primary/20 text-primary-foreground" : "border-white/10 text-muted-foreground"}`}
+                  >
+                    {type === "unlimited" ? <><Infinity className="w-3 h-3" /> Süresiz</> : type === "limited" ? <><RefreshCw className="w-3 h-3" /> Adetli</> : <><Clock className="w-3 h-3" /> Süreli</>}
+                  </button>
+                ))}
+              </div>
+              {newGrant.grantType === "limited" && (
+                <Input
+                  type="number"
+                  value={newGrant.usesRemaining}
+                  onChange={e => setNewGrant(g => ({ ...g, usesRemaining: e.target.value }))}
+                  placeholder="Kaç ilan hakkı?"
+                  className="h-8 text-sm bg-white/5 border-white/10"
+                />
+              )}
+              {newGrant.grantType === "timed" && (
+                <input
+                  type="datetime-local"
+                  value={newGrant.expiresAt}
+                  onChange={e => setNewGrant(g => ({ ...g, expiresAt: e.target.value }))}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-foreground"
+                />
+              )}
+              <Input
+                value={newGrant.note}
+                onChange={e => setNewGrant(g => ({ ...g, note: e.target.value }))}
+                placeholder="Not (isteğe bağlı)"
+                className="h-8 text-sm bg-white/5 border-white/10"
+              />
+              <Button
+                size="sm"
+                onClick={async () => {
+                  const uid = parseInt(newGrant.userId, 10);
+                  if (!uid) { toast({ title: "Geçerli bir kullanıcı ID girin", variant: "destructive" }); return; }
+                  try {
+                    await apiCall("/admin/grants", "POST", {
+                      userId: uid, grantType: newGrant.grantType,
+                      usesRemaining: newGrant.grantType === "limited" ? parseInt(newGrant.usesRemaining, 10) || 1 : null,
+                      expiresAt: newGrant.grantType === "timed" && newGrant.expiresAt ? newGrant.expiresAt : null,
+                      note: newGrant.note || null,
+                    });
+                    toast({ title: "Yetki verildi" });
+                    setNewGrant({ userId: "", grantType: "unlimited", usesRemaining: "5", expiresAt: "", note: "" });
+                    refetchGrants();
+                  } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+                }}
+                className="w-full h-8 text-xs bg-gradient-to-r from-primary to-secondary"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" /> Yetki Ver
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">Aktif Yetkiler</p>
+              {!grantsData?.length && <p className="text-xs text-muted-foreground text-center py-3">Henüz yetki verilmemiş</p>}
+              {grantsData?.map(g => (
+                <div key={g.id} className="bg-white/5 rounded-xl p-3 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold text-white">{g.username ?? `#${g.userId}`}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                        g.grantType === "unlimited" ? "bg-primary/20 text-primary" :
+                        g.grantType === "limited" ? "bg-cyan-500/20 text-cyan-400" :
+                        "bg-amber-500/20 text-amber-400"
+                      }`}>
+                        {g.grantType === "unlimited" ? "Süresiz" : g.grantType === "limited" ? `${g.usesRemaining ?? 0} hak` : "Süreli"}
+                      </span>
+                    </div>
+                    {g.expiresAt && <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" /> Bitiş: {new Date(g.expiresAt).toLocaleDateString("tr-TR")}</p>}
+                    {g.note && <p className="text-[10px] text-muted-foreground mt-0.5">{g.note}</p>}
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await apiCall(`/admin/grants/${g.id}`, "DELETE");
+                        toast({ title: "Yetki iptal edildi" });
+                        refetchGrants();
+                      } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+                    }}
+                    className="text-red-400 hover:text-red-300 shrink-0"
+                    title="Yetkiyi iptal et"
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Section>
 
         <Section title="İlan Listesi" icon={Briefcase}>
           <div className="space-y-2">

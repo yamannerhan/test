@@ -8,7 +8,7 @@ import { Bell } from "lucide-react";
 import { useGetOnlineCount, getGetOnlineCountQueryKey } from "@workspace/api-client-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isModerator } = useAuth();
   const { data: onlineData } = useGetOnlineCount({
     query: { queryKey: getGetOnlineCountQueryKey(), refetchInterval: 30000 }
   });
@@ -37,6 +37,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {isAdmin && (
               <Link href="/admin" className="text-xs font-bold text-destructive hover:text-destructive/80 bg-destructive/10 px-2.5 py-1 rounded-full border border-destructive/20 transition-colors">
                 Admin
+              </Link>
+            )}
+            {!isAdmin && isModerator && (
+              <Link href="/moderator" className="text-xs font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20 transition-colors">
+                Moderatör
               </Link>
             )}
             <Link href="/bildirimler" className="relative text-foreground hover:text-primary transition-colors">

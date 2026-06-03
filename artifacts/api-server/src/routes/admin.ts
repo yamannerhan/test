@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { db, usersTable, listingsTable, chatMessagesTable, announcementsTable, adminSettingsTable, bannedWordsTable, bannersTable, supportTicketsTable, chatRulesTable } from "@workspace/db";
+import { db, usersTable, listingsTable, chatMessagesTable, announcementsTable, adminSettingsTable, bannedWordsTable, bannersTable, supportTicketsTable, chatRulesTable, listingPublishGrantsTable } from "@workspace/db";
 import { eq, desc, ilike, and, sql, asc } from "drizzle-orm";
-import { authMiddleware, requireAdmin } from "../middlewares/auth";
+import { authMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
 import { onlineSockets } from "./chat";
 import bcrypt from "bcryptjs";
 
@@ -10,6 +10,18 @@ const router = Router();
 function safeId(raw: string | string[] | undefined): number | null {
   const id = parseInt(String(Array.isArray(raw) ? raw[0] : raw ?? ""), 10);
   return isNaN(id) ? null : id;
+}
+
+async function checkPublishPermission(userId: number, role: string): Promise<{ allowed: boolean; grantId?: number; shouldDecrement?: boolean }> {
+  if (role === "admin" || role === "moderator") return { allowed: true };
+  const now = new Date();
+  const [grant] = await db.select().from(listingPublishGrantsTable)
+    .where(and(eq(listingPublishGrantsTable.userId, userId), eq(listingPublishGrantsTable.isActive, true)))
+    .limit(1);
+  if (!grant) return { allowed: false };
+  if (grant.expiresAt && grant.expiresAt < now) return { allowed: false };
+  if (grant.grantType === "limited" && (grant.usesRemaining === null || grant.usesRemaining <= 0)) return { allowed: false };
+  return { allowed: true, grantId: grant.id, shouldDecrement: grant.grantType === "limited" };
 }
 
 function adminUserJson(u: typeof usersTable.$inferSelect) {
@@ -30,7 +42,7 @@ function adminUserJson(u: typeof usersTable.$inferSelect) {
   };
 }
 
-router.get("/admin/stats", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {
+router.get("/admin/stats", authMiddleware, requireAdminOrModerator, async (_req, res): Promise<void> => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const settings = await db.select().from(adminSettingsTable).limit(1);
@@ -57,7 +69,7 @@ router.get("/admin/stats", authMiddleware, requireAdmin, async (_req, res): Prom
   });
 });
 
-router.get("/admin/users", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+router.get("/admin/users", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   const page = Math.max(1, parseInt(String(req.query["page"] ?? "1"), 10));
   const search = req.query["search"] as string | undefined;
   const limit = 20;
@@ -74,16 +86,22 @@ router.get("/admin/users", authMiddleware, requireAdmin, async (req, res): Promi
   res.json({ users: users.map(adminUserJson), total: countResult[0]?.count ?? 0 });
 });
 
-router.post("/admin/users/:id/ban", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+router.post("/admin/users/:id/ban", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   const id = safeId(req.params["id"]);
   if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
   const { reason, expiresAt } = req.body as { reason?: string; expiresAt?: string | null };
   if (!reason) { res.status(400).json({ error: "Ban sebebi zorunludur" }); return; }
+  if (req.user!.role === "moderator") {
+    const [target] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, id));
+    if (!target || target.role !== "user") {
+      res.status(403).json({ error: "Moderatörler yalnızca normal kullanıcıları yasaklayabilir" }); return;
+    }
+  }
   await db.update(usersTable).set({ isBanned: true, banReason: reason, banExpiresAt: expiresAt ? new Date(expiresAt) : null }).where(eq(usersTable.id, id));
   res.json({ success: true, message: "Kullanıcı yasaklandı" });
 });
 
-router.post("/admin/users/:id/unban", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+router.post("/admin/users/:id/unban", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   const id = safeId(req.params["id"]);
   if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
   await db.update(usersTable).set({ isBanned: false, banReason: null, banExpiresAt: null }).where(eq(usersTable.id, id));
@@ -881,7 +899,10 @@ function parseListingText(raw: string): Record<string, string> {
   };
 }
 
-router.post("/admin/listings/parse", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+router.post("/admin/listings/parse", authMiddleware, async (req, res): Promise<void> => {
+  if (!req.user) { res.status(401).json({ error: "Giriş yapmanız gerekiyor" }); return; }
+  const perm = await checkPublishPermission(req.user.id, req.user.role);
+  if (!perm.allowed) { res.status(403).json({ error: "İlan paylaşım yetkiniz bulunmuyor" }); return; }
   const { text } = req.body as { text?: string };
   if (!text?.trim()) { res.status(400).json({ error: "Metin zorunludur" }); return; }
   const result = parseListingText(text);
@@ -967,7 +988,7 @@ router.delete("/admin/banned-words/:id", authMiddleware, requireAdmin, async (re
 });
 
 // ─── Admin Listings ────────────────────────────────────────────────
-router.get("/admin/listings", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+router.get("/admin/listings", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   const page = Math.max(1, parseInt(String(req.query["page"] ?? "1"), 10));
   const limit = 20;
   const offset = (page - 1) * limit;
@@ -988,7 +1009,10 @@ router.get("/admin/listings", authMiddleware, requireAdmin, async (req, res): Pr
   });
 });
 
-router.post("/admin/listings", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+router.post("/admin/listings", authMiddleware, async (req, res): Promise<void> => {
+  if (!req.user) { res.status(401).json({ error: "Giriş yapmanız gerekiyor" }); return; }
+  const perm = await checkPublishPermission(req.user.id, req.user.role);
+  if (!perm.allowed) { res.status(403).json({ error: "İlan paylaşım yetkiniz bulunmuyor" }); return; }
   const { title, company, city, workType, salary, description, requirements, applyUrl, isFeatured, expiresAt } = req.body as Record<string, unknown>;
   if (!title || !company || !city || !workType) { res.status(400).json({ error: "Başlık, şirket, şehir ve çalışma şekli zorunludur" }); return; }
   const [listing] = await db.insert(listingsTable).values({
@@ -997,12 +1021,17 @@ router.post("/admin/listings", authMiddleware, requireAdmin, async (req, res): P
     requirements: requirements ? String(requirements) : null, applyUrl: applyUrl ? String(applyUrl) : null,
     isFeatured: Boolean(isFeatured), status: "active",
     expiresAt: expiresAt ? new Date(String(expiresAt)) : null,
-    authorId: (req as any).user?.id ?? null,
+    authorId: req.user.id,
   }).returning();
+  if (perm.shouldDecrement && perm.grantId) {
+    await db.update(listingPublishGrantsTable)
+      .set({ usesRemaining: sql`${listingPublishGrantsTable.usesRemaining} - 1` })
+      .where(eq(listingPublishGrantsTable.id, perm.grantId));
+  }
   res.status(201).json({ id: listing!.id, title: listing!.title, status: listing!.status });
 });
 
-router.patch("/admin/listings/:id/status", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+router.patch("/admin/listings/:id/status", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   const id = safeId(req.params["id"]);
   if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
   const { status, isFeatured } = req.body as { status?: string; isFeatured?: boolean };
@@ -1013,7 +1042,7 @@ router.patch("/admin/listings/:id/status", authMiddleware, requireAdmin, async (
   res.json({ success: true });
 });
 
-router.delete("/admin/listings/:id", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+router.delete("/admin/listings/:id", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   const id = safeId(req.params["id"]);
   if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
   await db.delete(listingsTable).where(eq(listingsTable.id, id));
@@ -1057,6 +1086,63 @@ router.delete("/admin/banners/:id", authMiddleware, requireAdmin, async (req, re
 router.get("/banners", async (_req, res): Promise<void> => {
   const banners = await db.select().from(bannersTable).where(eq(bannersTable.isActive, true)).orderBy(asc(bannersTable.sortOrder), desc(bannersTable.createdAt));
   res.json(banners.map(b => ({ id: b.id, title: b.title, imageUrl: b.imageUrl, linkUrl: b.linkUrl })));
+});
+
+// ─── Akıllı İlan Yayınlama Yetkileri (Grant) ─────────────────────
+router.get("/admin/grants", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {
+  const grants = await db.select({
+    id: listingPublishGrantsTable.id,
+    userId: listingPublishGrantsTable.userId,
+    username: usersTable.username,
+    grantType: listingPublishGrantsTable.grantType,
+    usesRemaining: listingPublishGrantsTable.usesRemaining,
+    expiresAt: listingPublishGrantsTable.expiresAt,
+    isActive: listingPublishGrantsTable.isActive,
+    note: listingPublishGrantsTable.note,
+    createdAt: listingPublishGrantsTable.createdAt,
+  })
+    .from(listingPublishGrantsTable)
+    .leftJoin(usersTable, eq(listingPublishGrantsTable.userId, usersTable.id))
+    .where(eq(listingPublishGrantsTable.isActive, true))
+    .orderBy(desc(listingPublishGrantsTable.createdAt));
+  res.json(grants.map(g => ({
+    id: g.id, userId: g.userId, username: g.username,
+    grantType: g.grantType, usesRemaining: g.usesRemaining,
+    expiresAt: g.expiresAt?.toISOString() ?? null,
+    isActive: g.isActive, note: g.note,
+    createdAt: g.createdAt.toISOString(),
+  })));
+});
+
+router.post("/admin/grants", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const { userId, grantType, usesRemaining, expiresAt, note } = req.body as {
+    userId?: number; grantType?: string; usesRemaining?: number | null; expiresAt?: string | null; note?: string;
+  };
+  if (!userId) { res.status(400).json({ error: "Kullanıcı ID zorunludur" }); return; }
+  if (!grantType || !["unlimited", "limited", "timed"].includes(grantType)) {
+    res.status(400).json({ error: "Geçersiz hak türü (unlimited / limited / timed)" }); return;
+  }
+  const [grant] = await db.insert(listingPublishGrantsTable).values({
+    userId, grantedBy: req.user!.id, grantType,
+    usesRemaining: grantType === "limited" ? (usesRemaining ?? 1) : null,
+    expiresAt: expiresAt ? new Date(expiresAt) : null,
+    isActive: true, note: note || null,
+  }).returning();
+  res.status(201).json({ id: grant!.id, userId: grant!.userId, grantType: grant!.grantType });
+});
+
+router.delete("/admin/grants/:id", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  await db.update(listingPublishGrantsTable).set({ isActive: false }).where(eq(listingPublishGrantsTable.id, id));
+  res.json({ success: true });
+});
+
+router.get("/users/my-publish-grant", authMiddleware, async (req, res): Promise<void> => {
+  const { id: userId, role } = req.user!;
+  if (role === "admin" || role === "moderator") { res.json({ canPublish: true, reason: role }); return; }
+  const perm = await checkPublishPermission(userId, role);
+  res.json({ canPublish: perm.allowed, grantId: perm.grantId ?? null });
 });
 
 // ─── Admin: support tickets ──────────────────────────────────────

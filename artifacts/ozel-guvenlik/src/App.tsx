@@ -12,6 +12,7 @@ import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Profile from "@/pages/profile";
 import AdminDashboard from "@/pages/admin";
+import ModeratorDashboard from "@/pages/moderator";
 import AddListing from "@/pages/add-listing";
 import Notifications from "@/pages/notifications";
 import Favorites from "@/pages/favorites";
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/bildirimler" component={Notifications} />
       <Route path="/favoriler" component={Favorites} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/moderator" component={ModeratorDashboard} />
       <Route component={NotFound} />
     </Switch>
   );

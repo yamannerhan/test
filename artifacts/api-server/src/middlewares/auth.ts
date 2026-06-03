@@ -93,3 +93,11 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   }
   next();
 }
+
+export function requireAdminOrModerator(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user || !["admin", "moderator"].includes(req.user.role)) {
+    res.status(403).json({ error: "Admin veya moderatör yetkisi gerekiyor" });
+    return;
+  }
+  next();
+}

@@ -6,12 +6,14 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAdmin: boolean;
+  isModerator: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
   isAdmin: false,
+  isModerator: false,
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -28,6 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user: user ?? null,
         isLoading,
         isAdmin: user?.role === "admin",
+        isModerator: user?.role === "moderator",
       }}
     >
       {children}
