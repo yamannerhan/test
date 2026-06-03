@@ -433,11 +433,15 @@ export function ChatBubble() {
                           )}
                         </div>
                         <div
-                          className={`rounded-2xl px-3 py-2 text-xs ${isMe ? "rounded-br-sm text-white" : "rounded-bl-sm"}`}
+                          className={`rounded-2xl px-3 py-2 text-xs backdrop-blur-md ${isMe ? "rounded-br-sm text-white" : "rounded-bl-sm"}`}
                           style={
                             isMe
                               ? { background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }
-                              : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.06)" }
+                              : chatMsg.userRole === "admin"
+                                ? { background: "linear-gradient(135deg,rgba(110,8,8,0.6),rgba(35,4,4,0.75))", border: "1px solid rgba(239,68,68,0.45)", boxShadow: "0 0 18px rgba(239,68,68,0.22), inset 0 1px 0 rgba(239,68,68,0.1)" }
+                                : chatMsg.userRole === "moderator"
+                                  ? { background: "linear-gradient(135deg,rgba(10,38,115,0.6),rgba(4,14,55,0.75))", border: "1px solid rgba(59,130,246,0.45)", boxShadow: "0 0 18px rgba(59,130,246,0.22), inset 0 1px 0 rgba(59,130,246,0.1)" }
+                                  : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.06)" }
                           }
                         >
                           {chatMsg.replyToId && (chatMsg.replyToUsername || chatMsg.replyToContent) && (

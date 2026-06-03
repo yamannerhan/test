@@ -341,8 +341,17 @@ export default function Chat() {
               </div>
 
               {/* Bubble */}
-              <div className={`relative rounded-2xl px-4 py-2.5 text-sm shadow-sm ${isMe ? "text-white rounded-br-sm" : "glass-card rounded-bl-sm"}`}
-                style={isMe ? { background: "linear-gradient(135deg,#4F46E5,#7C3AED)" } : {}}>
+              <div
+                className={`relative rounded-2xl px-4 py-2.5 text-sm shadow-sm backdrop-blur-md ${isMe ? "text-white rounded-br-sm" : "rounded-bl-sm"}`}
+                style={
+                  isMe
+                    ? { background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }
+                    : chatMsg.userRole === "admin"
+                      ? { background: "linear-gradient(135deg,rgba(110,8,8,0.6),rgba(35,4,4,0.75))", border: "1px solid rgba(239,68,68,0.45)", boxShadow: "0 0 18px rgba(239,68,68,0.22), inset 0 1px 0 rgba(239,68,68,0.1)" }
+                      : chatMsg.userRole === "moderator"
+                        ? { background: "linear-gradient(135deg,rgba(10,38,115,0.6),rgba(4,14,55,0.75))", border: "1px solid rgba(59,130,246,0.45)", boxShadow: "0 0 18px rgba(59,130,246,0.22), inset 0 1px 0 rgba(59,130,246,0.1)" }
+                        : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.06)" }
+                }>
                 {chatMsg.replyToId && (() => {
                   const repliedToMe = chatMsg.replyToUsername === user?.username;
                   return (
