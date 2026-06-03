@@ -127,7 +127,7 @@ export default function Chat() {
   const [cooldownLeft, setCooldownLeft] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const { data: initialData, isLoading } = useGetChatMessages({ limit: 50 });
+  const { data: initialData, isLoading } = useGetChatMessages({ limit: 100 });
 
   useEffect(() => { if (initialData) setMessages([...initialData as ExtMsg[]]); }, [initialData]);
 

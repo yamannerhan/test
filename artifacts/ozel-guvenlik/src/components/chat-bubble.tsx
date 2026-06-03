@@ -111,11 +111,11 @@ export function ChatBubble() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/chat/messages?limit=30", {
+    fetch("/api/chat/messages?limit=100", {
       headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
     })
       .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setMessages(data.slice(-30)); })
+      .then(data => { if (Array.isArray(data)) setMessages(data); })
       .catch(() => {});
   }, []);
 

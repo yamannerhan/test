@@ -5,7 +5,7 @@ import { logger } from "./lib/logger";
 import { onlineSockets } from "./routes/chat";
 import { setBotIo } from "./lib/chat-bot";
 import { db, usersTable, listingsTable, adminSettingsTable, chatMessagesTable } from "@workspace/db";
-import { eq, count, sql } from "drizzle-orm";
+import { eq, count, sql, desc, lt } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
 if (!rawPort) throw new Error("PORT environment variable is required but was not provided.");
@@ -25,6 +25,21 @@ async function saveToDB(userId: number, content: string): Promise<void> {
     await db.insert(chatMessagesTable).values({ userId, content, isPinned: false });
   } catch (e) {
     logger.error(e, "saveToDB error");
+  }
+}
+
+async function trimChatHistory(): Promise<void> {
+  try {
+    const recent = await db
+      .select({ id: chatMessagesTable.id })
+      .from(chatMessagesTable)
+      .orderBy(desc(chatMessagesTable.createdAt))
+      .limit(100);
+    if (recent.length < 100) return;
+    const minKeptId = Math.min(...recent.map(r => r.id));
+    await db.delete(chatMessagesTable).where(lt(chatMessagesTable.id, minKeptId));
+  } catch (e) {
+    logger.error(e, "trimChatHistory error");
   }
 }
 
@@ -876,6 +891,8 @@ async function expireListings() {
 // Başlangıç gecikmeleri
 void expireListings();
 setInterval(() => { void expireListings(); }, 30 * 60 * 1000);
+void trimChatHistory();
+setInterval(() => { void trimChatHistory(); }, 5 * 60 * 1000);
 setTimeout(() => scheduleBotMessage(), 3 * 60 * 1000);
 setTimeout(() => scheduleFakeConversation(), 30000);
 setTimeout(() => scheduleInfoBot(), 10 * 1000);
