@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { BottomNav } from "./bottom-nav";
 import { ChatBubble } from "./chat-bubble";
 import { PwaInstall } from "./pwa-install";
@@ -6,12 +6,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "wouter";
 import { Bell } from "lucide-react";
 import { useGetOnlineCount, getGetOnlineCountQueryKey } from "@workspace/api-client-react";
+import { io as socketIo } from "socket.io-client";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { isAdmin, isModerator } = useAuth();
   const { data: onlineData } = useGetOnlineCount({
-    query: { queryKey: getGetOnlineCountQueryKey(), refetchInterval: 30000 }
+    query: { queryKey: getGetOnlineCountQueryKey(), refetchInterval: 60000 }
   });
+  const [liveCount, setLiveCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const socket = socketIo({ path: "/ws", transports: ["websocket"] });
+    socket.on("online_count", (data: { count: number }) => {
+      setLiveCount(data.count);
+    });
+    return () => { socket.disconnect(); };
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-20">
@@ -32,7 +42,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-2.5 py-1 text-xs font-semibold text-green-400">
               <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              <span>{onlineData?.count || 0} Online</span>
+              <span>{liveCount ?? onlineData?.count ?? 0} Online</span>
             </div>
             {isAdmin && (
               <Link href="/admin" className="text-xs font-bold text-destructive hover:text-destructive/80 bg-destructive/10 px-2.5 py-1 rounded-full border border-destructive/20 transition-colors">

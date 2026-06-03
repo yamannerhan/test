@@ -716,7 +716,7 @@ io.on("connection", (socket) => {
   const socketId = socket.id;
   onlineSockets.set(socketId, { joinedAt: new Date() });
   logger.info({ socketId, online: onlineSockets.size }, "Socket connected");
-  io.emit("online_count", { count: onlineSockets.size });
+  void broadcastOnlineCount();
 
   socket.on("authenticate", async (data: { userId?: number }) => {
     if (data?.userId) {
@@ -753,7 +753,7 @@ io.on("connection", (socket) => {
     }
     onlineSockets.delete(socketId);
     logger.info({ socketId, online: onlineSockets.size }, "Socket disconnected");
-    io.emit("online_count", { count: onlineSockets.size });
+    void broadcastOnlineCount();
   });
 });
 
