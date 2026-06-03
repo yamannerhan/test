@@ -156,35 +156,76 @@ const FAKE_USERS = [
   { id: -10, username: "gulsum_k",    displayName: "Gülsüm",   color: "#f472b6", avatar: "https://randomuser.me/api/portraits/women/57.jpg" },
   { id: -11, username: "taner_y",     displayName: "Taner",    color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/85.jpg" },
   { id: -12, username: "hacer_o",     displayName: "Hacer",    color: "#a3e635", avatar: "https://randomuser.me/api/portraits/women/90.jpg" },
+  { id: -13, username: "kemal_p",     displayName: "Kemal",    color: "#fb923c", avatar: "https://randomuser.me/api/portraits/men/42.jpg" },
+  { id: -14, username: "nese_b",      displayName: "Neşe",     color: "#e879f9", avatar: "https://randomuser.me/api/portraits/women/22.jpg" },
+  { id: -15, username: "cengiz_t",    displayName: "Cengiz",   color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/60.jpg" },
+  { id: -16, username: "rukiye_s",    displayName: "Rukiye",   color: "#34d399", avatar: "https://randomuser.me/api/portraits/women/78.jpg" },
 ];
 
 const STANDALONE_MSGS = [
+  // İş fırsatları ve ilanlar
   "Bugün yeni bir ilan gördüm, oldukça iyi görünüyor.",
-  "Bu sektörde tecrübe çok önemli, en az 2 yıl şart gibi görünüyor.",
-  "Maaşlar geçen yıla göre biraz arttı, güzel.",
-  "Vardiyalı çalışmak zor ama alışılıyor.",
-  "Silahlı güvenlik lisansı almak istiyorum, nasıl yapılıyor acaba?",
   "İstanbul dışı ilanlar da artık daha fazla, umut verici.",
   "Şirketler yaz döneminde daha fazla personel alıyor genellikle.",
-  "Sertifika kurslarının ücreti biraz yüksek bence.",
-  "AVM güvenliği mi yoksa site güvenliği mi daha avantajlı?",
-  "Gece vardiyası zam farkı hangi şirkette en yüksek acaba?",
-  "Emekli olduktan sonra da bu sektörde çalışabilirsiniz, talep var.",
-  "İlanlara başvururken CV'nizi güncel tutun.",
-  "Kıyafet yardımı yapan şirketler tercih edilmeli.",
-  "İşe başlamadan önce mutlaka sözleşmeyi okuyun.",
-  "Güvenlik kamerası sistemleri konusunda eğitim alan önde gidiyor.",
+  "AVM güvenliği mi yoksa site güvenliği mi daha avantajlı acaba?",
   "Belediye güvenliği ilanları da son dönemde artmış.",
   "Havaalanı güvenliği için özel sertifika gerekiyor, biliyor musunuz?",
-  "Tatil günleri yüzde elliden fazla zam hakkınız olduğunu unutmayın.",
-  "Sağlık kurumu güvenliği çok stresli ama maaşlar iyi.",
-  "Bu platforma yeni üye oldum, ilanlar gerçekten çok kapsamlı.",
-  "Sigortasız çalıştıranlardan uzak durun, hakkınızı koruyun.",
-  "İkinci el koruyucu ekipman mı yoksa yeni mi almak daha iyi?",
-  "Hangi şehirlerde talep daha fazla, bilen var mı?",
+  "Sağlık kurumu güvenliği çok stresli ama maaşlar gerçekten iyi.",
   "Mağaza güvenliği ile banka güvenliği arasında çok fark var.",
-  "Sivil kıyafetli gözetleme görevi için ayrı eğitim gerekiyor.",
   "Yaz aylarında tatil köyü güvenliği için ilanlar artıyor.",
+  "Fabrika ve lojistik güvenliği ilanları artmış, taşeron firmalar çok aktif.",
+  "Organize sanayi bölgelerinde iş imkânları genişlemiş gibi görünüyor.",
+  "Otel güvenliği yazın zirveye ulaşıyor, sezonluk işler de var.",
+  "Liman güvenliği için ayrı lisans gerekiyor, araştırıyorum.",
+  "Konut site güvenliği sakin ama saatler çok uzun oluyor.",
+  // Maaş ve yasal haklar
+  "Bu sektörde tecrübe çok önemli, en az 2 yıl şart gibi görünüyor.",
+  "Maaşlar geçen yıla göre biraz arttı, güzel.",
+  "Gece vardiyası zam farkı hangi şirkette en yüksek acaba?",
+  "Tatil günleri yüzde elliden fazla zam hakkınız olduğunu unutmayın.",
+  "Sigortasız çalıştıranlardan uzak durun, hakkınızı koruyun.",
+  "İşe başlamadan önce mutlaka sözleşmeyi okuyun.",
+  "Kıdem tazminatı için en az bir yıl çalışmak şart, baştan bilin.",
+  "Fazla mesai ücretlerini düzenli takip edin, bazı firmalar eksik ödüyor.",
+  "Yemek ve servis yardımı yapan firmalar ciddi bir avantaj sağlıyor.",
+  "SGK primlerinizi e-Devlet'ten kontrol etmeyi alışkanlık haline getirin.",
+  "İzin günlerinde çalıştırılıyorsanız ayrıca yevmiye hakkınız var.",
+  // Sertifika ve eğitim
+  "Silahlı güvenlik lisansı almak istiyorum, nasıl yapılıyor acaba?",
+  "Sertifika kurslarının ücreti biraz yüksek bence.",
+  "Güvenlik kamerası sistemleri konusunda eğitim alan önde gidiyor.",
+  "Emekli olduktan sonra da bu sektörde çalışabilirsiniz, talep var.",
+  "Sivil kıyafetli gözetleme görevi için ayrı eğitim gerekiyor.",
+  "İlk yardım sertifikası artık çoğu firmada isteniyor, almak faydalı.",
+  "İngilizce bilen güvenlik personeli otellerde büyük avantaj sağlıyor.",
+  "Yangın söndürme eğitimi almak hem kariyer hem güvenlik açısından önemli.",
+  "Özel güvenlik kimliği 5 yılda bir yenileniyor, takip etmek gerekiyor.",
+  "Askeri deneyim özellikle silahlı pozisyonlarda çok işe yarıyor.",
+  // Platform ve başvurular
+  "Bu platforma yeni üye oldum, ilanlar gerçekten çok kapsamlı.",
+  "İlanlara başvururken CV'nizi güncel tutun.",
+  "Hangi şehirlerde talep daha fazla, bilen var mı?",
+  "Profilinizi tamamlayın, işverenler dolu profil adaylarını tercih ediyor.",
+  "Birden fazla şehirde iş arayabilirsiniz, mobil olmak büyük avantaj.",
+  // Çalışma koşulları
+  "Vardiyalı çalışmak zor ama zamanla alışılıyor.",
+  "Kıyafet yardımı yapan şirketler mutlaka tercih edilmeli.",
+  "İkinci el koruyucu ekipman mı yoksa yeni mi almak daha iyi?",
+  "12 saatlik vardiyada ayakta durmak çok yorucu, doğru ayakkabı şart.",
+  "Müşteri ile iletişim kuvvetli olmak sizi diğerlerinden ayırıyor.",
+  "Gece vardiyasında dikkatli olmak için molayı iyi kullanmak şart.",
+  // Teknoloji ve yenilikler
+  "Yapay zeka kameralar artık güvenlik sektörüne giriyor, işler değişiyor.",
+  "Biyometrik giriş sistemleri için ek eğitim veren firmalar avantajlı.",
+  "Akıllı bina sistemlerini bilen personele talep giderek artıyor.",
+  "Drone güvenliği gibi yeni alanlar açılıyor, ek sertifika fırsatı var.",
+  // Sektör gözlemleri
+  "Bu meslek psikolojik olarak zorlayıcı, destek almayı ihmal etmeyin.",
+  "Tecrübeli güvenlik görevlileri artık danışmanlık hizmeti de veriyor.",
+  "Hangi firmalar en düzenli maaş ödüyor, deneyimi olan söylesin.",
+  "Çalıştığım yerde yöneticimiz çok anlayışlı, böyle ortam nadiren bulunuyor.",
+  "Sendikalı güvenlik şirketi bulmak giderek zorlaşıyor maalesef.",
+  "Kariyer planı yapmak bu sektörde de kritik, plansız ilerlemek zor.",
 ];
 
 // Dinamik konuşma çiftleri - DB verisiyle güncellenebilir
@@ -265,6 +306,76 @@ const CONV_PAIRS: ConvPair[] = [
     a: "En çok hangi şehirde ilan var?",
     bTemplate: s => s.cities.length > 0 ? `${s.cities[0]} en fazla ilana sahip şehir şu an.` : "İstanbul açık ara önde, ardından Ankara ve İzmir geliyor.",
     delay: 25000,
+  },
+  {
+    a: "Drone güvenliği için ek eğitim şart mı?",
+    bTemplate: () => "Yeni düzenlemelerle birlikte özel sertifika gerekiyor. Henüz çok az kişi var bu alanda, erken girenler avantajlı.",
+    delay: 22000,
+  },
+  {
+    a: "En güvenilir güvenlik şirketleri hangileri?",
+    bTemplate: () => "SGK'yı düzenli ödeyen, kıyafet ve servis veren firmalar genelde öne çıkıyor. İlan yorumlarına bak.",
+    delay: 28000,
+  },
+  {
+    a: "Gece çalışmak sağlığı etkiliyor mu?",
+    bTemplate: () => "Uzun vadede uyku düzenini bozuyor. D vitamini eksikliği çok yaygın, düzenli kontrol şart.",
+    delay: 25000,
+  },
+  {
+    a: "Otel güvenliğinde İngilizce şart mı?",
+    bTemplate: () => "4-5 yıldızlı otellerde büyük artı. Temel düzeyde bile olsa fark yaratıyor. Online kurs almaya değer.",
+    delay: 20000,
+  },
+  {
+    a: "Kıdem tazminatı nasıl hesaplanıyor?",
+    bTemplate: () => "Son brüt ücretin tavan sınırına kadar her yıl için 30 günlük tutar. SGK'dan belge alarak takip edin.",
+    delay: 30000,
+  },
+  {
+    a: "Site güvenliğinde iş sakin mi oluyor?",
+    bTemplate: () => "Büyük konut sitelerinde yoğun olabiliyor. Küçük sitelerde daha sakin ama sosyal imkânlar az.",
+    delay: 18000,
+  },
+  {
+    a: "Askeri tecrübe avantaj sağlıyor mu?",
+    bTemplate: () => "Kesinlikle. Özellikle silahlı güvenlik pozisyonlarında askerlik tecrübesi adayı öne çıkarıyor.",
+    delay: 26000,
+  },
+  {
+    a: "Hangi sertifikayı önce almak lazım?",
+    bTemplate: () => "Temel güvenlik eğitimi zorunlu tabi. Sonrasında ilk yardım ve yangın söndürme sertifikaları kariyer hızlandırıyor.",
+    delay: 27000,
+  },
+  {
+    a: "Fabrika güvenliği tehlikeli mi?",
+    bTemplate: () => "Kimyasal veya makine üretimi yapan yerlerde iş sağlığı önlemleri kritik. Gerekli eğitim alınmazsa ciddi risk var.",
+    delay: 23000,
+  },
+  {
+    a: "Bu sektörde kariyer nasıl ilerler?",
+    bTemplate: () => "Ekip liderliği, vardiya amirliği, güvenlik amirliği ve yöneticilik. Sertifikalar ve deneyimle adım adım çıkılıyor.",
+    delay: 29000,
+  },
+  {
+    a: "Ankara'da güvenlik sektörü nasıl?",
+    bTemplate: s => s.cities.includes("Ankara") ? "Ankara'da da iyi ilanlar var, özellikle kamu kurumları çevresi aktif." : "Ankara'da talep var ama İstanbul kadar yoğun değil.",
+    delay: 21000,
+  },
+  {
+    a: "Yazın iş ilanları artıyor mu?",
+    bTemplate: s => s.total > 0 ? `Şu an ${s.total} ilan var, yaz döneminde turizm ve güvenlik ilanları genellikle yükseliyor.` : "Yaz aylarında turizm ilanları çok artıyor, özellikle kıyı şehirleri.",
+    delay: 24000,
+  },
+  {
+    a: "Liman güvenliği için neler gerekiyor?",
+    bTemplate: () => "Liman güvenliği sertifikası ve ISPS kodu eğitimi şart. Ayrıca deniz güvenliği lisansı bazı yerlerde isteniyor.",
+    delay: 31000,
+  },
+  {
+    a: "İlk başvuruda ne dikkat etmeli?",
+    bTemplate: () => "CV'nizi güncel tutun, sabıka kaydı ve sağlık raporunu hazırlayın. Deneyiminizi somut rakamlarla yazın.",
+    delay: 22000,
   },
 ];
 
@@ -487,7 +598,20 @@ async function broadcastOnlineCount() {
   } catch { /* ignore */ }
 }
 
+// ── Süresi dolan ilanları otomatik pasif yap ─────────────────────
+async function expireListings() {
+  try {
+    await db.update(listingsTable)
+      .set({ status: "expired" })
+      .where(
+        sql`${listingsTable.status} = 'active' AND ${listingsTable.expiresAt} IS NOT NULL AND ${listingsTable.expiresAt} < NOW()`
+      );
+  } catch { /* ignore */ }
+}
+
 // Başlangıç gecikmeleri
+void expireListings();
+setInterval(() => { void expireListings(); }, 30 * 60 * 1000);
 setTimeout(() => scheduleBotMessage(), 3 * 60 * 1000);
 setTimeout(() => scheduleFakeConversation(), 30000);
 setTimeout(() => scheduleInfoBot(), 10 * 60 * 1000);

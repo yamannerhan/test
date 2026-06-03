@@ -194,6 +194,21 @@ router.post("/listings", authMiddleware, async (req, res): Promise<void> => {
     return;
   }
 
+  // Aynı başlıklı ilan son 7 gün içinde yayınlanmış mı?
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [dup] = await db.select({ id: listingsTable.id, company: listingsTable.company })
+    .from(listingsTable)
+    .where(and(
+      ilike(listingsTable.title, title.trim()),
+      eq(listingsTable.status, "active"),
+      sql`${listingsTable.createdAt} > ${sevenDaysAgo}`,
+    ))
+    .limit(1);
+  if (dup) {
+    res.status(409).json({ error: `"${title.trim()}" başlıklı bir ilan son 7 gün içinde zaten yayınlandı. Aynı başlıklı ilan 7 gün geçmeden tekrar eklenemez.` });
+    return;
+  }
+
   const [listing] = await db.insert(listingsTable).values({
     title,
     company,
@@ -205,7 +220,8 @@ router.post("/listings", authMiddleware, async (req, res): Promise<void> => {
     applyUrl: applyUrl ?? null,
     companyLogoUrl: companyLogoUrl ?? null,
     authorId: req.user!.id,
-    status: req.user!.role === "admin" ? "active" : "active",
+    status: "active",
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   }).returning();
 
   // Announce new listing in chat if enabled
@@ -264,6 +280,14 @@ router.get("/listings/stats/summary", async (_req, res): Promise<void> => {
     featured: featuredResult[0]?.count ?? 0,
     byCity: byCityResult,
   });
+});
+
+router.get("/listings/mine", authMiddleware, async (req, res): Promise<void> => {
+  const myListings = await db.select()
+    .from(listingsTable)
+    .where(eq(listingsTable.authorId, req.user!.id))
+    .orderBy(desc(listingsTable.createdAt));
+  res.json(myListings.map(l => formatListing(l, req.user!.id, new Set(), new Set(), req.user!.username)));
 });
 
 router.get("/listings/:id", optionalAuthMiddleware, async (req, res): Promise<void> => {
@@ -341,6 +365,23 @@ router.delete("/listings/:id", authMiddleware, async (req, res): Promise<void> =
 
   await db.delete(listingsTable).where(eq(listingsTable.id, id));
   res.sendStatus(204);
+});
+
+router.post("/listings/:id/republish", authMiddleware, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params["id"]) ? req.params["id"][0] : req.params["id"];
+  const id = parseInt(rawId ?? "", 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  const [listing] = await db.select().from(listingsTable).where(eq(listingsTable.id, id));
+  if (!listing) { res.status(404).json({ error: "İlan bulunamadı" }); return; }
+  if (listing.authorId !== req.user!.id && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Bu ilanı yeniden yayınlama yetkiniz yok" }); return;
+  }
+  const newExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const [updated] = await db.update(listingsTable)
+    .set({ status: "active", expiresAt: newExpiry, createdAt: new Date() })
+    .where(eq(listingsTable.id, id))
+    .returning();
+  res.json(formatListing(updated!, req.user!.id, new Set(), new Set(), req.user!.username));
 });
 
 router.post("/listings/:id/like", authMiddleware, async (req, res): Promise<void> => {
