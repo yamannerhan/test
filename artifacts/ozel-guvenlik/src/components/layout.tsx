@@ -35,8 +35,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 className="w-full h-full object-contain rounded-lg logo-glow-anim"
               />
             </div>
-            <span className="font-extrabold text-base tracking-tight logo-gradient animate-logo-glow leading-tight">
-              ÖzelGüvenlik<span className="text-accent text-[10px] font-semibold">.Online</span>
+            <span className="flex flex-col leading-none">
+              <span className="font-extrabold text-base tracking-tight logo-gradient animate-logo-glow">ÖzelGüvenlik</span>
+              <span className="text-accent text-[10px] font-semibold tracking-widest">.Online</span>
             </span>
           </Link>
           <div className="flex items-center space-x-3">
