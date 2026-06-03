@@ -320,18 +320,16 @@ export default function Chat() {
                 {chatMsg.replyToId && (() => {
                   const repliedToMe = chatMsg.replyToUsername === user?.username;
                   return (
-                    <div className={`mb-2 pl-2 border-l-2 text-xs rounded-r-lg ${
-                      repliedToMe
-                        ? "border-cyan-400 bg-cyan-400/10 py-1 pr-2"
-                        : isMe ? "border-white/40 opacity-70" : "border-primary opacity-70"
+                    <div className={`mb-2 pl-2 border-l-2 border-blue-400 text-xs rounded-r-lg py-0.5 pr-2 ${
+                      repliedToMe ? "bg-blue-400/10" : isMe ? "bg-white/5" : "bg-white/5"
                     }`}>
                       <div className="flex items-center gap-1.5 font-semibold mb-0.5">
-                        <span>{chatMsg.replyToUsername}</span>
+                        <span className="text-blue-400">{chatMsg.replyToUsername}</span>
                         {repliedToMe && (
-                          <span className="text-[9px] bg-cyan-400/25 text-cyan-300 px-1.5 py-0.5 rounded-full font-bold tracking-wide">SEN</span>
+                          <span className="text-[9px] bg-blue-400/20 text-blue-300 px-1.5 py-0.5 rounded-full font-bold tracking-wide">SEN</span>
                         )}
                       </div>
-                      <div className="line-clamp-1 opacity-80">{chatMsg.replyToContent}</div>
+                      <div className="line-clamp-1 opacity-70">{chatMsg.replyToContent}</div>
                     </div>
                   );
                 })()}
@@ -347,9 +345,18 @@ export default function Chat() {
                 </span>
               </div>
 
+              {/* Her zaman görünen Yanıtla butonu */}
+              {user && (
+                <button
+                  onClick={e => { e.stopPropagation(); setReplyTo(chatMsg); setActiveMsg(null); }}
+                  className={`flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-lg text-[11px] font-semibold text-blue-400 hover:bg-blue-400/10 active:scale-95 transition-all ${isMe ? "self-end" : "self-start"}`}>
+                  <CornerUpLeft className="w-3 h-3" /> Yanıtla
+                </button>
+              )}
+
               {/* Emoji reactions display */}
               {Object.entries(reactionGroups).length > 0 && (
-                <div className={`flex flex-wrap gap-1 mt-1.5 px-1 ${isMe ? "justify-end" : "justify-start"}`}>
+                <div className={`flex flex-wrap gap-1 mt-1 px-1 ${isMe ? "justify-end" : "justify-start"}`}>
                   {Object.entries(reactionGroups).map(([emoji, users]) => (
                     <button key={emoji}
                       onClick={e => { e.stopPropagation(); handleReact(chatMsg.id, emoji); }}
@@ -364,12 +371,12 @@ export default function Chat() {
                 </div>
               )}
 
-              {/* Action bar (tap to open) */}
+              {/* Action bar (tap to open) — sadece emoji reaksiyonlar */}
               <AnimatePresence>
                 {isActive && (
                   <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9, y: -4 }} transition={{ duration: 0.15 }}
-                    className={`flex items-center gap-1 mt-2 px-1 ${isMe ? "justify-end" : "justify-start"}`}
+                    className={`flex items-center gap-1 mt-1 px-1 ${isMe ? "justify-end" : "justify-start"}`}
                     onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-0.5 bg-[#1E293B] border border-white/10 rounded-2xl px-2 py-1.5 shadow-xl">
                       {QUICK_EMOJIS.map(emoji => (
@@ -381,12 +388,6 @@ export default function Chat() {
                           {emoji}
                         </button>
                       ))}
-                      <div className="w-px h-5 bg-white/10 mx-1" />
-                      <button
-                        onClick={() => { setReplyTo(chatMsg); setActiveMsg(null); }}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-primary px-2 py-1 rounded-xl hover:bg-primary/10 transition-colors">
-                        <CornerUpLeft className="w-3 h-3" /> Yanıtla
-                      </button>
                     </div>
                   </motion.div>
                 )}
