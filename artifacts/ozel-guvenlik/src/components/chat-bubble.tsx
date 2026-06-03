@@ -31,8 +31,8 @@ function RoleBadge({ role }: { role: string }) {
 /* ── User avatar ─────────────────────────────────────────── */
 function UserAvatar({ src, username, role }: { src?: string | null; username: string; role: string }) {
   const ringColor =
-    role === "admin" ? "rgba(239,68,68,0.8)" :
-    role === "moderator" ? "rgba(167,139,250,0.85)" :
+    role === "admin" ? "rgba(239,68,68,0.9)" :
+    role === "moderator" ? "rgba(59,130,246,0.85)" :
     "rgba(255,255,255,0.12)";
 
   return (
@@ -211,14 +211,35 @@ export function ChatBubble() {
           0%   { background-position: -250% 0; }
           100% { background-position: 250% 0; }
         }
+        @keyframes shimmer-red {
+          0%   { background-position: -250% 0; }
+          100% { background-position: 250% 0; }
+        }
+        @keyframes smoke-yellow {
+          0%   { background-position: 0% 50%;   filter: drop-shadow(0 0 3px rgba(245,158,11,0.25)); }
+          25%  { background-position: 80% 50%;  filter: drop-shadow(0 0 12px rgba(251,191,36,0.9)); }
+          55%  { background-position: 200% 50%; filter: drop-shadow(0 0 20px rgba(254,243,199,0.95)); }
+          80%  { background-position: 300% 50%; filter: drop-shadow(0 0 9px rgba(245,158,11,0.6));  }
+          100% { background-position: 0% 50%;   filter: drop-shadow(0 0 3px rgba(245,158,11,0.25)); }
+        }
         @keyframes smoke-mod {
-          0%   { background-position: 0% 50%;   filter: drop-shadow(0 0 3px rgba(167,139,250,0.25)); }
-          25%  { background-position: 80% 50%;  filter: drop-shadow(0 0 12px rgba(196,181,253,0.85)); }
-          55%  { background-position: 200% 50%; filter: drop-shadow(0 0 18px rgba(221,214,254,0.95)); }
-          80%  { background-position: 300% 50%; filter: drop-shadow(0 0 9px rgba(167,139,250,0.6));  }
-          100% { background-position: 0% 50%;   filter: drop-shadow(0 0 3px rgba(167,139,250,0.25)); }
+          0%   { background-position: 0% 50%;   filter: drop-shadow(0 0 3px rgba(159,18,57,0.3)); }
+          25%  { background-position: 80% 50%;  filter: drop-shadow(0 0 12px rgba(225,29,72,0.85)); }
+          55%  { background-position: 200% 50%; filter: drop-shadow(0 0 18px rgba(253,164,175,0.9)); }
+          80%  { background-position: 300% 50%; filter: drop-shadow(0 0 9px rgba(190,24,93,0.6));  }
+          100% { background-position: 0% 50%;   filter: drop-shadow(0 0 3px rgba(159,18,57,0.3)); }
         }
         .badge-admin {
+          background: linear-gradient(90deg,
+            #7f1d1d 0%, #ef4444 20%, #fecaca 45%, #fca5a5 55%, #ef4444 80%, #7f1d1d 100%);
+          background-size: 250% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: shimmer-red 2.8s linear infinite;
+          filter: drop-shadow(0 0 5px rgba(239,68,68,0.8));
+        }
+        .badge-mod {
           background: linear-gradient(90deg,
             #1e3a8a 0%, #3b82f6 25%, #bfdbfe 50%, #93c5fd 65%, #3b82f6 80%, #1e3a8a 100%);
           background-size: 250% auto;
@@ -226,31 +247,20 @@ export function ChatBubble() {
           -webkit-text-fill-color: transparent;
           background-clip: text;
           animation: shimmer-blue 2.8s linear infinite;
-          filter: drop-shadow(0 0 5px rgba(96,165,250,0.7));
-        }
-        .badge-mod {
-          background: linear-gradient(90deg,
-            #4c1d95 0%, #7c3aed 25%, #ddd6fe 50%, #a78bfa 65%, #7c3aed 80%, #4c1d95 100%);
-          background-size: 250% auto;
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          animation: smoke-mod 3.5s ease-in-out infinite;
-          filter: drop-shadow(0 0 5px rgba(167,139,250,0.7));
+          filter: drop-shadow(0 0 5px rgba(59,130,246,0.75));
         }
         .name-admin {
           background: linear-gradient(90deg,
-            #60a5fa 0%, #bfdbfe 30%, #e0f2fe 55%, #bfdbfe 75%, #60a5fa 100%);
-          background-size: 220% auto;
+            #78350f 0%, #d97706 12%, #fbbf24 28%, #fef9c3 48%, #fde68a 62%, #f59e0b 80%, #78350f 100%);
+          background-size: 350% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: shimmer-blue 7s linear infinite;
-          filter: drop-shadow(0 0 8px rgba(96,165,250,0.55));
+          animation: smoke-yellow 5s ease-in-out infinite;
         }
         .name-mod {
           background: linear-gradient(90deg,
-            #3b0764 0%, #6d28d9 15%, #a78bfa 35%, #ddd6fe 52%, #f5f3ff 60%, #c4b5fd 73%, #7c3aed 88%, #3b0764 100%);
+            #4c0519 0%, #9f1239 15%, #be185d 30%, #fb7185 50%, #fda4af 58%, #e11d48 73%, #9f1239 88%, #4c0519 100%);
           background-size: 350% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
