@@ -39,7 +39,7 @@ export default function Profile() {
 
   // Kişisel bilgiler state
   const [showPersonal, setShowPersonal] = useState(false);
-  const [personalForm, setPersonalForm] = useState({ displayName: "", phone: "", birthDate: "" });
+  const [personalForm, setPersonalForm] = useState({ displayName: "", phone: "", birthDate: "", height: "", weight: "", address: "", maritalStatus: "Bekar" });
   const [personalLoading, setPersonalLoading] = useState(false);
 
   // Password change state
@@ -146,10 +146,15 @@ export default function Profile() {
   };
 
   const openPersonal = () => {
+    const p = profile as any;
     setPersonalForm({
-      displayName: (profile as any)?.displayName || "",
-      phone: (profile as any)?.phone || "",
-      birthDate: (profile as any)?.birthDate || "",
+      displayName:   p?.displayName   || "",
+      phone:         p?.phone         || "",
+      birthDate:     p?.birthDate     || "",
+      height:        p?.height        || "",
+      weight:        p?.weight        || "",
+      address:       p?.address       || "",
+      maritalStatus: p?.maritalStatus || "Bekar",
     });
     setShowPersonal(v => !v);
   };
@@ -158,9 +163,13 @@ export default function Profile() {
     setPersonalLoading(true);
     try {
       const res = await apiCall("/users/me", "PATCH", {
-        displayName: personalForm.displayName.trim() || null,
-        phone: personalForm.phone.trim() || null,
-        birthDate: personalForm.birthDate.trim() || null,
+        displayName:   personalForm.displayName.trim()   || null,
+        phone:         personalForm.phone.trim()         || null,
+        birthDate:     personalForm.birthDate.trim()     || null,
+        height:        personalForm.height.trim()        || null,
+        weight:        personalForm.weight.trim()        || null,
+        address:       personalForm.address.trim()       || null,
+        maritalStatus: personalForm.maritalStatus.trim() || null,
       });
       if (!res.ok) throw new Error("Güncelleme başarısız");
       await queryClient.invalidateQueries();
@@ -372,39 +381,37 @@ export default function Profile() {
                   <p className="text-[11px] text-muted-foreground">Bu bilgiler CV oluşturucuya otomatik aktarılır.</p>
                   <div>
                     <label className="block text-xs text-muted-foreground mb-1">Ad Soyad</label>
-                    <Input
-                      value={personalForm.displayName}
-                      onChange={e => setPersonalForm(f => ({ ...f, displayName: e.target.value }))}
-                      placeholder="Ad Soyad"
-                      className="glass-card border-white/10"
-                      maxLength={64}
-                    />
+                    <Input value={personalForm.displayName} onChange={e => setPersonalForm(f => ({ ...f, displayName: e.target.value }))} placeholder="Ad Soyad" className="glass-card border-white/10" maxLength={64} />
                   </div>
                   <div>
                     <label className="block text-xs text-muted-foreground mb-1">Telefon</label>
-                    <Input
-                      value={personalForm.phone}
-                      onChange={e => setPersonalForm(f => ({ ...f, phone: e.target.value }))}
-                      placeholder="0555 555 55 55"
-                      className="glass-card border-white/10"
-                      maxLength={20}
-                    />
+                    <Input value={personalForm.phone} onChange={e => setPersonalForm(f => ({ ...f, phone: e.target.value }))} placeholder="0555 555 55 55" className="glass-card border-white/10" maxLength={20} />
                   </div>
                   <div>
                     <label className="block text-xs text-muted-foreground mb-1">Doğum Tarihi</label>
-                    <Input
-                      value={personalForm.birthDate}
-                      onChange={e => setPersonalForm(f => ({ ...f, birthDate: e.target.value }))}
-                      placeholder="10.09.1990"
-                      className="glass-card border-white/10"
-                      maxLength={20}
-                    />
+                    <Input value={personalForm.birthDate} onChange={e => setPersonalForm(f => ({ ...f, birthDate: e.target.value }))} placeholder="10.09.1990" className="glass-card border-white/10" maxLength={20} />
                   </div>
-                  <Button
-                    onClick={savePersonal}
-                    disabled={personalLoading}
-                    className="w-full bg-gradient-to-r from-cyan-600 to-primary text-white"
-                  >
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Boy (cm)</label>
+                      <Input value={personalForm.height} onChange={e => setPersonalForm(f => ({ ...f, height: e.target.value }))} placeholder="175" className="glass-card border-white/10" maxLength={6} />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Kilo (kg)</label>
+                      <Input value={personalForm.weight} onChange={e => setPersonalForm(f => ({ ...f, weight: e.target.value }))} placeholder="80" className="glass-card border-white/10" maxLength={6} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Medeni Durum</label>
+                    <select value={personalForm.maritalStatus} onChange={e => setPersonalForm(f => ({ ...f, maritalStatus: e.target.value }))} className="w-full bg-card border border-white/10 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50">
+                      {["Bekar", "Evli", "Boşanmış"].map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Adres</label>
+                    <Input value={personalForm.address} onChange={e => setPersonalForm(f => ({ ...f, address: e.target.value }))} placeholder="Mahalle, İlçe / Şehir" className="glass-card border-white/10" maxLength={120} />
+                  </div>
+                  <Button onClick={savePersonal} disabled={personalLoading} className="w-full bg-gradient-to-r from-cyan-600 to-primary text-white">
                     {personalLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     Kaydet
                   </Button>

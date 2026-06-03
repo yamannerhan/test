@@ -20,6 +20,10 @@ function userJson(u: typeof usersTable.$inferSelect) {
     bio: u.bio,
     phone: u.phone ?? null,
     birthDate: u.birthDate ?? null,
+    height: u.height ?? null,
+    weight: u.weight ?? null,
+    address: u.address ?? null,
+    maritalStatus: u.maritalStatus ?? null,
     nameColor: u.nameColor,
     nameAnimated: u.nameAnimated,
     isBanned: u.isBanned,
@@ -118,9 +122,11 @@ router.get("/users/profile/:username", async (req, res): Promise<void> => {
 
 // ── Update own profile ────────────────────────────────────────────
 router.patch("/users/me", authMiddleware, async (req, res): Promise<void> => {
-  const { bio, avatarUrl, displayName, phone, birthDate } = req.body as {
+  const { bio, avatarUrl, displayName, phone, birthDate, height, weight, address, maritalStatus } = req.body as {
     bio?: string | null; avatarUrl?: string | null; displayName?: string | null;
     phone?: string | null; birthDate?: string | null;
+    height?: string | null; weight?: string | null;
+    address?: string | null; maritalStatus?: string | null;
   };
   const updates: Partial<typeof usersTable.$inferInsert> = {};
   if (bio !== undefined) updates.bio = bio ?? null;
@@ -128,6 +134,10 @@ router.patch("/users/me", authMiddleware, async (req, res): Promise<void> => {
   if (displayName !== undefined) updates.displayName = displayName?.trim() || null;
   if (phone !== undefined) updates.phone = phone?.trim() || null;
   if (birthDate !== undefined) updates.birthDate = birthDate?.trim() || null;
+  if (height !== undefined) updates.height = height?.trim() || null;
+  if (weight !== undefined) updates.weight = weight?.trim() || null;
+  if (address !== undefined) updates.address = address?.trim() || null;
+  if (maritalStatus !== undefined) updates.maritalStatus = maritalStatus?.trim() || null;
 
   const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, req.user!.id)).returning();
   res.json(userJson(updated));

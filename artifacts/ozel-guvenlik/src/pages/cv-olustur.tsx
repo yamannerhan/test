@@ -830,19 +830,27 @@ export default function CvOlustur() {
   // ── Profilden doldur ──────────────────────────────────────────────
   const handleFillFromProfile = useCallback(() => {
     if (!user) return;
-    const u = user as unknown as { displayName?: string | null; email?: string; bio?: string | null; avatarUrl?: string | null; phone?: string | null; birthDate?: string | null };
+    const u = user as unknown as {
+      displayName?: string | null; email?: string; bio?: string | null; avatarUrl?: string | null;
+      phone?: string | null; birthDate?: string | null;
+      height?: string | null; weight?: string | null; address?: string | null; maritalStatus?: string | null;
+    };
     const fullName = u.displayName?.trim() || "";
     const parts = fullName.split(" ");
     const ad    = parts[0] ?? "";
     const soyad = parts.slice(1).join(" ");
     setData(prev => ({
       ...prev,
-      ad:         ad          || prev.ad,
-      soyad:      soyad       || prev.soyad,
-      email:      u.email     || prev.email,
-      telefon:    u.phone     || prev.telefon,
-      dogumTarihi: u.birthDate || prev.dogumTarihi,
-      hakkimda:   u.bio       || prev.hakkimda,
+      ad:           ad                || prev.ad,
+      soyad:        soyad             || prev.soyad,
+      email:        u.email           || prev.email,
+      telefon:      u.phone           || prev.telefon,
+      dogumTarihi:  u.birthDate       || prev.dogumTarihi,
+      boy:          u.height          || prev.boy,
+      kilo:         u.weight          || prev.kilo,
+      adres:        u.address         || prev.adres,
+      medeniDurum:  u.maritalStatus   || prev.medeniDurum,
+      hakkimda:     u.bio             || prev.hakkimda,
     }));
     if (u.avatarUrl && !photo) setPhoto(u.avatarUrl);
     setSyncMsg("Profil bilgileri getirildi!");
@@ -853,21 +861,24 @@ export default function CvOlustur() {
   const syncProfileFromStep1 = useCallback(async () => {
     if (!user) return;
     const displayName = `${data.ad} ${data.soyad}`.trim();
-    if (!displayName && !data.hakkimda && !data.telefon && !data.dogumTarihi) return;
     try {
       const token = localStorage.getItem("auth_token");
       await fetch("/api/users/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
-          ...(displayName ? { displayName } : {}),
-          ...(data.hakkimda ? { bio: data.hakkimda } : {}),
-          ...(data.telefon ? { phone: data.telefon } : {}),
+          ...(displayName    ? { displayName }               : {}),
+          ...(data.hakkimda  ? { bio: data.hakkimda }        : {}),
+          ...(data.telefon   ? { phone: data.telefon }       : {}),
           ...(data.dogumTarihi ? { birthDate: data.dogumTarihi } : {}),
+          ...(data.boy       ? { height: data.boy }          : {}),
+          ...(data.kilo      ? { weight: data.kilo }         : {}),
+          ...(data.adres     ? { address: data.adres }       : {}),
+          ...(data.medeniDurum ? { maritalStatus: data.medeniDurum } : {}),
         }),
       });
     } catch { /* sessiz */ }
-  }, [user, data.ad, data.soyad, data.hakkimda, data.telefon, data.dogumTarihi]);
+  }, [user, data.ad, data.soyad, data.hakkimda, data.telefon, data.dogumTarihi, data.boy, data.kilo, data.adres, data.medeniDurum]);
 
   const goNext = useCallback(async () => {
     if (step === 1) await syncProfileFromStep1();
@@ -880,17 +891,24 @@ export default function CvOlustur() {
       setData(prev => {
         const filled = fullAutoFill(prev.pozisyon, prev);
         if (user) {
-          const u = user as unknown as { displayName?: string | null; email?: string; bio?: string | null; phone?: string | null; birthDate?: string | null };
-          const fullName = u.displayName?.trim() || "";
-          const parts = fullName.split(" ");
+          const u = user as unknown as {
+            displayName?: string | null; email?: string; bio?: string | null;
+            phone?: string | null; birthDate?: string | null;
+            height?: string | null; weight?: string | null; address?: string | null; maritalStatus?: string | null;
+          };
+          const parts = (u.displayName?.trim() || "").split(" ");
           return {
             ...filled,
             ad:          filled.ad          || parts[0] || "",
             soyad:       filled.soyad       || parts.slice(1).join(" "),
-            email:       filled.email       || u.email || "",
-            telefon:     filled.telefon     || u.phone || "",
-            dogumTarihi: filled.dogumTarihi || u.birthDate || "",
-            hakkimda:    filled.hakkimda    || u.bio || "",
+            email:       filled.email       || u.email        || "",
+            telefon:     filled.telefon     || u.phone        || "",
+            dogumTarihi: filled.dogumTarihi || u.birthDate    || "",
+            boy:         filled.boy         || u.height       || "",
+            kilo:        filled.kilo        || u.weight       || "",
+            adres:       filled.adres       || u.address      || "",
+            medeniDurum: filled.medeniDurum || u.maritalStatus || prev.medeniDurum,
+            hakkimda:    filled.hakkimda    || u.bio          || "",
           };
         }
         return filled;
