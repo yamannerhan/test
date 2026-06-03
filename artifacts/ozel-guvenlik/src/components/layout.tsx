@@ -109,7 +109,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
               </span>
-              <span className="text-[11px] font-medium text-green-400/90 tabular-nums">{liveCount ?? onlineData?.count ?? 0} <span className="text-green-400/60 font-normal">aktif</span></span>
+              <span className="text-[11px] font-medium text-green-400/90 tabular-nums">{liveCount ?? onlineData?.count ?? 0} <span className="text-green-400/60 font-normal">Aktif</span></span>
             </div>
 
             {isAdmin && (
