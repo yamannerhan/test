@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, Maximize2, Bot, Shield, Star, MessageSquareDot } from "lucide-react";
+import { X, Send, Maximize2, Bot, Shield, Star, MessageSquareDot, CornerUpLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "wouter";
 import { io, Socket } from "socket.io-client";
@@ -93,6 +93,8 @@ export function ChatBubble() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<AnyMsg[]>([]);
   const [content, setContent] = useState("");
+  const [replyTo, setReplyTo] = useState<(ChatMessage & { isBot?: boolean }) | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [unread, setUnread] = useState(0);
   const [sending, setSending] = useState(false);
@@ -173,16 +175,24 @@ export function ChatBubble() {
       const r = await fetch("/api/chat/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ content: content.trim() }),
+        body: JSON.stringify({ content: content.trim(), replyToId: replyTo?.id ?? null }),
       });
       if (r.status === 429) {
         const data = await r.json().catch(() => ({})) as { waitSeconds?: number };
         startCooldown(data.waitSeconds ?? 3);
         return;
       }
-      if (r.ok) setContent("");
+      if (r.ok) { setContent(""); setReplyTo(null); }
     } catch {} finally { setSending(false); }
   };
+
+  const startReply = (msg: ChatMessage & { isBot?: boolean }) => {
+    setReplyTo(msg);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const replyName = (msg: ChatMessage & { isBot?: boolean }) =>
+    (msg as any).displayName || msg.username;
 
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); }
@@ -421,9 +431,31 @@ export function ChatBubble() {
                               : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.06)" }
                           }
                         >
-                          <p className="break-words leading-relaxed">{chatMsg.content}</p>
+                          {chatMsg.replyToId && (chatMsg.replyToUsername || chatMsg.replyToContent) && (
+                            <div className="mb-1.5 pl-2 border-l-2 border-blue-400 text-[10px] rounded-r-md py-0.5 pr-2 bg-white/5">
+                              <div className="font-semibold text-blue-400 mb-0.5">
+                                {chatMsg.replyToUsername === user?.username ? "Sen" : chatMsg.replyToUsername}
+                              </div>
+                              <div className="line-clamp-1 opacity-70">{chatMsg.replyToContent}</div>
+                            </div>
+                          )}
+                          <p className="break-words leading-relaxed">
+                            {chatMsg.content.split(/(@\w+)/g).map((part, i) =>
+                              part.startsWith("@")
+                                ? <span key={i} className={isMe ? "font-semibold text-white" : "font-semibold text-accent"}>{part}</span>
+                                : <span key={i}>{part}</span>
+                            )}
+                          </p>
                           <p className={`text-[9px] mt-0.5 ${isMe ? "text-white/40" : "text-white/25"}`}>{formatTime(chatMsg.createdAt)}</p>
                         </div>
+                        {user && (
+                          <button
+                            onClick={() => startReply(chatMsg)}
+                            className={`flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-blue-400 hover:bg-blue-400/10 active:scale-95 transition-all ${isMe ? "self-end" : "self-start"}`}
+                          >
+                            <CornerUpLeft className="w-2.5 h-2.5" /> Yanıtla
+                          </button>
+                        )}
                       </div>
                     </motion.div>
                   );
@@ -443,6 +475,23 @@ export function ChatBubble() {
                 </Link>
               ) : (
                 <div className="space-y-1.5">
+                  <AnimatePresence>
+                    {replyTo && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+                        className="flex items-start justify-between gap-2 px-2.5 py-1.5 rounded-lg"
+                        style={{ background: "rgba(255,255,255,0.05)", borderLeft: "2px solid #60a5fa" }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10px] font-semibold text-blue-400">{replyName(replyTo)}'e yanıt</div>
+                          <div className="text-[10px] text-white/50 line-clamp-1">{replyTo.content}</div>
+                        </div>
+                        <button onClick={() => setReplyTo(null)} className="shrink-0 p-0.5 text-white/40 hover:text-white/80">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   {cooldownLeft > 0 && (
                     <div className="flex items-center gap-1.5 px-1">
                       <div className="h-0.5 flex-1 bg-white/10 rounded-full overflow-hidden">
@@ -458,10 +507,11 @@ export function ChatBubble() {
                   )}
                   <div className="flex gap-2 items-center">
                     <input
+                      ref={inputRef}
                       value={content}
                       onChange={e => setContent(e.target.value)}
                       onKeyDown={handleKey}
-                      placeholder={cooldownLeft > 0 ? `${cooldownLeft}s bekle...` : "Bir şeyler yaz..."}
+                      placeholder={cooldownLeft > 0 ? `${cooldownLeft}s bekle...` : replyTo ? `${replyName(replyTo)}'e yanıtla...` : "Bir şeyler yaz..."}
                       disabled={cooldownLeft > 0}
                       maxLength={500}
                       className="flex-1 rounded-xl px-3 py-2.5 text-xs text-foreground placeholder:text-white/30 focus:outline-none disabled:opacity-50"

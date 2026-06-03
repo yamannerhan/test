@@ -144,18 +144,18 @@ function scheduleBotMessage() {
 
 // ── Sahte kullanıcılar ────────────────────────────────────────────
 const FAKE_USERS = [
-  { id: -1,  username: "mehmet_k",    displayName: "Mehmet",   color: "#94a3b8" },
-  { id: -2,  username: "ayse_g",      displayName: "Ayşe",     color: "#a78bfa" },
-  { id: -3,  username: "ali_demir",   displayName: "Ali",      color: "#94a3b8" },
-  { id: -4,  username: "fatma_y",     displayName: "Fatma",    color: "#f9a8d4" },
-  { id: -5,  username: "hasan_b",     displayName: "Hasan",    color: "#94a3b8" },
-  { id: -6,  username: "zeynep_a",    displayName: "Zeynep",   color: "#67e8f9" },
-  { id: -7,  username: "ibrahim_s",   displayName: "İbrahim",  color: "#94a3b8" },
-  { id: -8,  username: "selin_c",     displayName: "Selin",    color: "#86efac" },
-  { id: -9,  username: "murat_d",     displayName: "Murat",    color: "#fbbf24" },
-  { id: -10, username: "gulsum_k",    displayName: "Gülsüm",   color: "#f472b6" },
-  { id: -11, username: "taner_y",     displayName: "Taner",    color: "#94a3b8" },
-  { id: -12, username: "hacer_o",     displayName: "Hacer",    color: "#a3e635" },
+  { id: -1,  username: "mehmet_k",    displayName: "Mehmet",   color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/32.jpg" },
+  { id: -2,  username: "ayse_g",      displayName: "Ayşe",     color: "#a78bfa", avatar: "https://randomuser.me/api/portraits/women/44.jpg" },
+  { id: -3,  username: "ali_demir",   displayName: "Ali",      color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/45.jpg" },
+  { id: -4,  username: "fatma_y",     displayName: "Fatma",    color: "#f9a8d4", avatar: "https://randomuser.me/api/portraits/women/68.jpg" },
+  { id: -5,  username: "hasan_b",     displayName: "Hasan",    color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/52.jpg" },
+  { id: -6,  username: "zeynep_a",    displayName: "Zeynep",   color: "#67e8f9", avatar: "https://randomuser.me/api/portraits/women/12.jpg" },
+  { id: -7,  username: "ibrahim_s",   displayName: "İbrahim",  color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/76.jpg" },
+  { id: -8,  username: "selin_c",     displayName: "Selin",    color: "#86efac", avatar: "https://randomuser.me/api/portraits/women/33.jpg" },
+  { id: -9,  username: "murat_d",     displayName: "Murat",    color: "#fbbf24", avatar: "https://randomuser.me/api/portraits/men/19.jpg" },
+  { id: -10, username: "gulsum_k",    displayName: "Gülsüm",   color: "#f472b6", avatar: "https://randomuser.me/api/portraits/women/57.jpg" },
+  { id: -11, username: "taner_y",     displayName: "Taner",    color: "#94a3b8", avatar: "https://randomuser.me/api/portraits/men/85.jpg" },
+  { id: -12, username: "hacer_o",     displayName: "Hacer",    color: "#a3e635", avatar: "https://randomuser.me/api/portraits/women/90.jpg" },
 ];
 
 const STANDALONE_MSGS = [
@@ -294,7 +294,7 @@ function makeFakeMsg(user: typeof FAKE_USERS[0], content: string, replyToUsernam
     userId: user.id,
     username: user.username,
     displayName: user.displayName,
-    userAvatarUrl: null,
+    userAvatarUrl: user.avatar,
     userNameColor: user.color,
     userNameAnimated: false,
     userRole: "user",
