@@ -29,22 +29,22 @@ if (!basePath) {
 
 const DEV_CACHE_VERSION = Date.now().toString();
 
-// Write public/sw.js with current timestamp immediately at server start
-const SW_TEMPLATE_PATH = path.resolve(import.meta.dirname, "public/sw.js");
-const swTemplateContent = fs.readFileSync(SW_TEMPLATE_PATH, "utf-8");
-if (swTemplateContent.includes("__CACHE_VERSION__")) {
-  fs.writeFileSync(SW_TEMPLATE_PATH, swTemplateContent.replace("__CACHE_VERSION__", DEV_CACHE_VERSION));
-}
+// Her sunucu başlangıcında sw-template.js'den taze timestamp ile sw.js yaz
+const SW_TEMPLATE_PATH = path.resolve(import.meta.dirname, "public/sw-template.js");
+const SW_OUTPUT_PATH = path.resolve(import.meta.dirname, "public/sw.js");
+const swTemplate = fs.readFileSync(SW_TEMPLATE_PATH, "utf-8");
+fs.writeFileSync(SW_OUTPUT_PATH, swTemplate.replace("__CACHE_VERSION__", DEV_CACHE_VERSION));
 
 const swVersionPlugin = {
   name: "sw-version-inject",
   closeBundle() {
-    const outPath = path.resolve(import.meta.dirname, "dist/public/sw.js");
-    if (fs.existsSync(outPath)) {
-      const raw = fs.readFileSync(outPath, "utf-8");
-      if (raw.includes("__CACHE_VERSION__")) {
-        fs.writeFileSync(outPath, raw.replace("__CACHE_VERSION__", Date.now().toString()));
-      }
+    // Build sırasında dist/sw.js'e de timestamp yaz
+    const outPath = path.resolve(import.meta.dirname, "dist/sw.js");
+    const outPathAlt = path.resolve(import.meta.dirname, "dist/public/sw.js");
+    const target = fs.existsSync(outPath) ? outPath : fs.existsSync(outPathAlt) ? outPathAlt : null;
+    if (target) {
+      const raw = fs.readFileSync(target, "utf-8");
+      fs.writeFileSync(target, raw.replace("__CACHE_VERSION__", Date.now().toString()));
     }
   },
 };
