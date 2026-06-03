@@ -39,7 +39,7 @@ export default function Profile() {
 
   // Kişisel bilgiler state
   const [showPersonal, setShowPersonal] = useState(false);
-  const [personalForm, setPersonalForm] = useState({ displayName: "", phone: "", birthDate: "", height: "", weight: "", address: "", maritalStatus: "Bekar" });
+  const [personalForm, setPersonalForm] = useState({ fullName: "", phone: "", birthDate: "", height: "", weight: "", address: "", maritalStatus: "Bekar" });
   const [personalLoading, setPersonalLoading] = useState(false);
 
   // Password change state
@@ -148,7 +148,7 @@ export default function Profile() {
   const openPersonal = () => {
     const p = profile as any;
     setPersonalForm({
-      displayName:   p?.displayName   || "",
+      fullName:      p?.fullName      || "",
       phone:         p?.phone         || "",
       birthDate:     p?.birthDate     || "",
       height:        p?.height        || "",
@@ -163,7 +163,7 @@ export default function Profile() {
     setPersonalLoading(true);
     try {
       const res = await apiCall("/users/me", "PATCH", {
-        displayName:   personalForm.displayName.trim()   || null,
+        fullName:      personalForm.fullName.trim()      || null,
         phone:         personalForm.phone.trim()         || null,
         birthDate:     personalForm.birthDate.trim()     || null,
         height:        personalForm.height.trim()        || null,
@@ -378,10 +378,10 @@ export default function Profile() {
                   initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                   className="px-4 pb-4 border-t border-white/5 pt-4 space-y-3 overflow-hidden"
                 >
-                  <p className="text-[11px] text-muted-foreground">Bu bilgiler CV oluşturucuya otomatik aktarılır.</p>
+                  <p className="text-[11px] text-muted-foreground">Bu bilgiler CV oluşturucuya otomatik aktarılır. Sohbet adınız bu alandan bağımsızdır.</p>
                   <div>
-                    <label className="block text-xs text-muted-foreground mb-1">Ad Soyad</label>
-                    <Input value={personalForm.displayName} onChange={e => setPersonalForm(f => ({ ...f, displayName: e.target.value }))} placeholder="Ad Soyad" className="glass-card border-white/10" maxLength={64} />
+                    <label className="block text-xs text-muted-foreground mb-1">Ad Soyad (CV için)</label>
+                    <Input value={personalForm.fullName} onChange={e => setPersonalForm(f => ({ ...f, fullName: e.target.value }))} placeholder="Adınız Soyadınız" className="glass-card border-white/10" maxLength={64} />
                   </div>
                   <div>
                     <label className="block text-xs text-muted-foreground mb-1">Telefon</label>

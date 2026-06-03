@@ -15,6 +15,7 @@ function userJson(u: typeof usersTable.$inferSelect) {
     username: u.username,
     email: u.email,
     displayName: u.displayName ?? null,
+    fullName: u.fullName ?? null,
     role: u.role,
     avatarUrl: u.avatarUrl,
     bio: u.bio,
@@ -122,8 +123,8 @@ router.get("/users/profile/:username", async (req, res): Promise<void> => {
 
 // ── Update own profile ────────────────────────────────────────────
 router.patch("/users/me", authMiddleware, async (req, res): Promise<void> => {
-  const { bio, avatarUrl, displayName, phone, birthDate, height, weight, address, maritalStatus } = req.body as {
-    bio?: string | null; avatarUrl?: string | null; displayName?: string | null;
+  const { bio, avatarUrl, displayName, fullName, phone, birthDate, height, weight, address, maritalStatus } = req.body as {
+    bio?: string | null; avatarUrl?: string | null; displayName?: string | null; fullName?: string | null;
     phone?: string | null; birthDate?: string | null;
     height?: string | null; weight?: string | null;
     address?: string | null; maritalStatus?: string | null;
@@ -132,6 +133,7 @@ router.patch("/users/me", authMiddleware, async (req, res): Promise<void> => {
   if (bio !== undefined) updates.bio = bio ?? null;
   if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl ?? null;
   if (displayName !== undefined) updates.displayName = displayName?.trim() || null;
+  if (fullName !== undefined) updates.fullName = fullName?.trim() || null;
   if (phone !== undefined) updates.phone = phone?.trim() || null;
   if (birthDate !== undefined) updates.birthDate = birthDate?.trim() || null;
   if (height !== undefined) updates.height = height?.trim() || null;

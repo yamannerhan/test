@@ -12,6 +12,7 @@ function userJson(user: typeof usersTable.$inferSelect) {
     username: user.username,
     email: user.email,
     displayName: user.displayName ?? null,
+    fullName: user.fullName ?? null,
     role: user.role,
     avatarUrl: user.avatarUrl,
     bio: user.bio,

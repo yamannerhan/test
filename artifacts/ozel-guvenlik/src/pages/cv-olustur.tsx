@@ -864,12 +864,12 @@ export default function CvOlustur() {
       });
       if (!res.ok) throw new Error();
       const u = await res.json() as {
-        displayName?: string | null; email?: string; bio?: string | null; avatarUrl?: string | null;
+        displayName?: string | null; fullName?: string | null; email?: string; bio?: string | null; avatarUrl?: string | null;
         phone?: string | null; birthDate?: string | null;
         height?: string | null; weight?: string | null; address?: string | null; maritalStatus?: string | null;
       };
-      const fullName = u.displayName?.trim() || "";
-      const parts = fullName.split(" ");
+      const nameSrc = (u.fullName?.trim() || u.displayName?.trim() || "");
+      const parts = nameSrc.split(" ");
       const rawPhone = u.phone || "";
       const rawDate  = u.birthDate || "";
       setData(prev => ({
@@ -896,14 +896,14 @@ export default function CvOlustur() {
   // ── Profili geri kaydet (step 1 → 2 geçişinde) ───────────────────
   const syncProfileFromStep1 = useCallback(async () => {
     if (!user) return;
-    const displayName = `${data.ad} ${data.soyad}`.trim();
+    const fullName = `${data.ad} ${data.soyad}`.trim();
     try {
       const token = localStorage.getItem("auth_token");
       await fetch("/api/users/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
-          ...(displayName    ? { displayName }               : {}),
+          ...(fullName       ? { fullName }                  : {}),
           ...(data.hakkimda  ? { bio: data.hakkimda }        : {}),
           ...(data.telefon   ? { phone: data.telefon }       : {}),
           ...(data.dogumTarihi ? { birthDate: data.dogumTarihi } : {}),

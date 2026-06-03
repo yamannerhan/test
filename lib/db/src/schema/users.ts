@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   nameColor: text("name_color"),
   nameAnimated: boolean("name_animated").notNull().default(false),
   displayName: text("display_name"),
+  fullName: text("full_name"),
   phone: text("phone"),
   birthDate: text("birth_date"),
   height: text("height"),
