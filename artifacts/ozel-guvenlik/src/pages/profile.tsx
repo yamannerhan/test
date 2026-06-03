@@ -85,16 +85,12 @@ export default function Profile() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await logoutMutation.mutateAsync();
-      localStorage.removeItem("auth_token");
-      queryClient.clear();
-      setLocation("/");
-      toast({ title: "Çıkış yapıldı" });
-    } catch {
-      toast({ title: "Hata", variant: "destructive" });
-    }
+  const handleLogout = () => {
+    try { void logoutMutation.mutateAsync(); } catch { /* stateless JWT — ignore */ }
+    localStorage.removeItem("auth_token");
+    queryClient.clear();
+    toast({ title: "Çıkış yapıldı" });
+    window.location.href = "/";
   };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
