@@ -29,22 +29,22 @@ if (!basePath) {
 
 const DEV_CACHE_VERSION = Date.now().toString();
 
+// Write public/sw.js with current timestamp immediately at server start
+const SW_TEMPLATE_PATH = path.resolve(import.meta.dirname, "public/sw.js");
+const swTemplateContent = fs.readFileSync(SW_TEMPLATE_PATH, "utf-8");
+if (swTemplateContent.includes("__CACHE_VERSION__")) {
+  fs.writeFileSync(SW_TEMPLATE_PATH, swTemplateContent.replace("__CACHE_VERSION__", DEV_CACHE_VERSION));
+}
+
 const swVersionPlugin = {
   name: "sw-version-inject",
-  configureServer(server: { middlewares: { use: (path: string, fn: (req: unknown, res: { setHeader: (k: string, v: string) => void; end: (s: string) => void }, next: () => void) => void) => void } }) {
-    server.middlewares.use("/sw.js", (_req, res) => {
-      const swPath = path.resolve(import.meta.dirname, "public/sw.js");
-      const content = fs.readFileSync(swPath, "utf-8").replace("__CACHE_VERSION__", DEV_CACHE_VERSION);
-      res.setHeader("Content-Type", "application/javascript");
-      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-      res.end(content);
-    });
-  },
   closeBundle() {
     const outPath = path.resolve(import.meta.dirname, "dist/public/sw.js");
     if (fs.existsSync(outPath)) {
-      const content = fs.readFileSync(outPath, "utf-8").replace("__CACHE_VERSION__", Date.now().toString());
-      fs.writeFileSync(outPath, content);
+      const raw = fs.readFileSync(outPath, "utf-8");
+      if (raw.includes("__CACHE_VERSION__")) {
+        fs.writeFileSync(outPath, raw.replace("__CACHE_VERSION__", Date.now().toString()));
+      }
     }
   },
 };

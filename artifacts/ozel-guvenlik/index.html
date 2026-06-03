@@ -31,18 +31,17 @@
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
+        var _swRefreshing = false;
+        navigator.serviceWorker.addEventListener("controllerchange", function() {
+          if (!_swRefreshing) { _swRefreshing = true; window.location.reload(); }
+        });
+        window.addEventListener("load", function() {
           navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
-            .then(reg => {
+            .then(function(reg) {
               reg.update();
-              setInterval(() => reg.update(), 30000);
-              navigator.serviceWorker.addEventListener("message", event => {
-                if (event.data?.type === "SW_UPDATED") {
-                  window.location.reload();
-                }
-              });
+              setInterval(function() { reg.update(); }, 20000);
             })
-            .catch(() => {});
+            .catch(function() {});
         });
       }
     </script>
