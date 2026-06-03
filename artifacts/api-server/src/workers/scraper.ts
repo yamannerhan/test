@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { db, sourcesTable, importedPostsTable, pendingJobsTable, listingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { fetchMessagesViaClient, isClientConnected } from "../services/telegram-client";
 
 // ── Keyword lists ──────────────────────────────────────────────────
 const JOB_KEYWORDS = [
@@ -294,9 +295,21 @@ async function checkTelegramSource(source: typeof sourcesTable.$inferSelect): Pr
     return;
   }
 
-  logger.info(`scraper: checking Telegram channel @${username}`);
+  logger.info(`scraper: checking Telegram channel @${username} (client=${isClientConnected()})`);
 
-  const messages = await scrapeTelegramChannel(username);
+  // Use GramJS user client when connected, fall back to web scraping
+  let messages: ScrapedMessage[];
+  if (isClientConnected()) {
+    try {
+      messages = await fetchMessagesViaClient(username);
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      logger.warn(`scraper: GramJS fetch failed for @${username}, trying web scrape: ${errMsg}`);
+      messages = await scrapeTelegramChannel(username);
+    }
+  } else {
+    messages = await scrapeTelegramChannel(username);
+  }
 
   if (messages.length === 0) {
     await db.update(sourcesTable)

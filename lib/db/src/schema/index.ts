@@ -11,3 +11,4 @@ export * from "./bans";
 export * from "./sources";
 export * from "./imported-posts";
 export * from "./pending-jobs";
+export * from "./telegram-sessions";

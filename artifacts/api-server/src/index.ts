@@ -5,6 +5,7 @@ import { logger } from "./lib/logger";
 import { onlineSockets } from "./routes/chat";
 import { setBotIo } from "./lib/chat-bot";
 import { startScraperWorker } from "./workers/scraper";
+import { initTelegramClient } from "./services/telegram-client";
 import { db, usersTable, listingsTable, adminSettingsTable, chatMessagesTable } from "@workspace/db";
 import { eq, count, sql, desc, lt } from "drizzle-orm";
 
@@ -937,6 +938,7 @@ setTimeout(() => {
 scheduleHourlyReminder();
 setInterval(() => { void broadcastOnlineCount(); }, 45000);
 startScraperWorker();
+void initTelegramClient();
 
 httpServer.listen(port, (err?: Error) => {
   if (err) { logger.error({ err }, "Error listening on port"); process.exit(1); }
