@@ -23,11 +23,18 @@ router.get("/notifications", authMiddleware, async (req, res): Promise<void> => 
 
 router.post("/notifications/read-all", authMiddleware, async (req, res): Promise<void> => {
   await db.update(notificationsTable).set({ isRead: true }).where(eq(notificationsTable.userId, req.user!.id));
-  res.json({ success: true, message: "Tüm bildirimler okundu olarak işaretlendi" });
+  res.json({ success: true });
+});
+
+router.delete("/notifications", authMiddleware, async (req, res): Promise<void> => {
+  await db.delete(notificationsTable).where(eq(notificationsTable.userId, req.user!.id));
+  res.json({ success: true });
 });
 
 router.get("/notifications/unread-count", authMiddleware, async (req, res): Promise<void> => {
-  const [result] = await db.select({ count: sql<number>`count(*)::int` }).from(notificationsTable)
+  const [result] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(notificationsTable)
     .where(eq(notificationsTable.userId, req.user!.id));
   res.json({ count: result?.count ?? 0 });
 });

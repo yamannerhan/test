@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Search, FileText, Headphones, User, LogIn, UserPlus, X, Clock } from "lucide-react";
+import { Home, Search, FileText, Headphones, LogIn, UserPlus, X, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -15,11 +15,6 @@ export function BottomNav() {
     { icon: Clock, label: "Part Time", path: "/part-time" },
     { icon: FileText, label: "CV Oluştur", path: "/cv-olustur" },
     { icon: Headphones, label: "Destek", path: "/destek" },
-    {
-      icon: User,
-      label: "Profil",
-      path: user ? `/profil/${user.username}` : "/giris",
-    },
   ];
 
   return (
@@ -86,7 +81,7 @@ export function BottomNav() {
       </AnimatePresence>
 
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-xl border-t border-white/10 pb-safe">
-        <div className="flex items-center justify-around h-16 max-w-md mx-auto px-4">
+        <div className="flex items-center justify-around h-[70px] max-w-md mx-auto px-2">
           {navItems.map((item) => {
             const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path));
             const isCv = item.path === "/cv-olustur";
@@ -96,13 +91,13 @@ export function BottomNav() {
                 <button
                   key={item.path}
                   onClick={() => setShowAuthPrompt(true)}
-                  className="flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-300 text-muted-foreground hover:text-foreground"
+                  className="flex flex-col items-center justify-center w-full h-full gap-1 transition-all duration-300 text-muted-foreground"
                 >
-                  <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 transition-all duration-300">
-                    <item.icon className="w-5 h-5" />
+                  <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 transition-all duration-300">
+                    <item.icon className="w-[22px] h-[22px]" />
                     <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full border border-background" />
                   </div>
-                  <span className="text-[10px] font-medium text-primary">{item.label}</span>
+                  <span className="text-[11px] font-medium text-primary">{item.label}</span>
                 </button>
               );
             }
@@ -111,24 +106,24 @@ export function BottomNav() {
               <Link
                 key={item.path}
                 href={item.path}
-                className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-300 ${
+                className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-all duration-300 ${
                   isActive ? "text-accent" : "text-muted-foreground hover:text-foreground"
                 }`}
                 data-testid={`nav-${item.label.toLowerCase()}`}
               >
-                <div className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 ${
+                <div className={`relative flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-300 ${
                   isActive
                     ? "bg-accent/20 shadow-[0_0_15px_rgba(6,182,212,0.3)]"
                     : isCv
                     ? "bg-primary/10 border border-primary/20"
                     : ""
                 }`}>
-                  <item.icon className={`w-5 h-5 ${isActive ? "animate-pulse" : ""}`} />
+                  <item.icon className={`w-[22px] h-[22px] ${isActive ? "animate-pulse" : ""}`} />
                   {isCv && !isActive && (
                     <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full border border-background" />
                   )}
                 </div>
-                <span className={`text-[10px] font-medium ${isCv && !isActive ? "text-primary" : ""}`}>{item.label}</span>
+                <span className={`text-[11px] font-medium ${isCv && !isActive ? "text-primary" : ""}`}>{item.label}</span>
               </Link>
             );
           })}

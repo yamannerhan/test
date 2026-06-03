@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, listingsTable, listingLikesTable, listingFavoritesTable, usersTable, adminSettingsTable, chatMessagesTable } from "@workspace/db";
+import { db, listingsTable, listingLikesTable, listingFavoritesTable, usersTable, adminSettingsTable, chatMessagesTable, notificationsTable } from "@workspace/db";
 import { eq, desc, and, sql, ilike, inArray } from "drizzle-orm";
 import { authMiddleware, optionalAuthMiddleware, requireAdmin } from "../middlewares/auth";
 import multer from "multer";
@@ -259,6 +259,29 @@ router.post("/listings", authMiddleware, async (req, res): Promise<void> => {
       }
     }
   } catch { /* don't fail the listing creation */ }
+
+  // Tüm kullanıcılara bildirim gönder (fire-and-forget)
+  setImmediate(async () => {
+    try {
+      const allUsers = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.isBanned, false));
+      if (allUsers.length > 0) {
+        const msg = `Yeni ilan: ${title} — ${company} (${city})`;
+        const link = `/ilan/${listing!.id}`;
+        await db.insert(notificationsTable).values(
+          allUsers.map(u => ({
+            userId: u.id,
+            type: "listing",
+            message: msg,
+            linkUrl: link,
+            isRead: false,
+          }))
+        );
+      }
+    } catch { /* don't fail */ }
+  });
 
   res.status(201).json(formatListing(listing, req.user!.id, new Set(), new Set(), req.user!.username));
 });
