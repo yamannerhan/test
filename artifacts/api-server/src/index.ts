@@ -83,19 +83,26 @@ function getHourlyMsg(hour: number): string {
   return HOURLY_TEMPLATES[idx]!(pad);
 }
 
+// Türkiye saati (UTC+3)
+function turkeyHour(): number {
+  return parseInt(
+    new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", hour: "numeric", hour12: false }).format(new Date()),
+    10
+  );
+}
+
 function scheduleHourlyReminder() {
   const now = new Date();
-  const nextHour = new Date(now);
-  nextHour.setHours(now.getHours() + 1, 0, 0, 0);
-  const msUntil = nextHour.getTime() - now.getTime();
+  // Bir sonraki tam saati UTC+3'e göre hesapla
+  const trOffset = 3 * 60 * 60 * 1000;
+  const trNow = new Date(now.getTime() + trOffset);
+  const msUntilNextHour = (60 - trNow.getUTCMinutes()) * 60 * 1000 - trNow.getUTCSeconds() * 1000 - trNow.getUTCMilliseconds();
   setTimeout(() => {
-    const h = new Date().getHours();
-    io.emit("chat:message", makeBotMsg(getHourlyMsg(h)));
+    io.emit("chat:message", makeBotMsg(getHourlyMsg(turkeyHour())));
     setInterval(() => {
-      const hh = new Date().getHours();
-      io.emit("chat:message", makeBotMsg(getHourlyMsg(hh)));
+      io.emit("chat:message", makeBotMsg(getHourlyMsg(turkeyHour())));
     }, 60 * 60 * 1000);
-  }, msUntil);
+  }, msUntilNextHour);
 }
 
 // ── GuvenlikBot döngüsel mesajlar ─────────────────────────────────
