@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from "react";
 import { Layout } from "@/components/layout";
-import { ChevronRight, ChevronLeft, Download, Eye, Plus, Trash2, Upload, Check, Wand2, Sparkles } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { ChevronRight, ChevronLeft, Download, Eye, Plus, Trash2, Upload, Check, Wand2, Sparkles, UserCircle } from "lucide-react";
 
 // ── Tipler ────────────────────────────────────────────────────────────────────
 interface Experience { id: number; title: string; company: string; period: string; desc: string; }
@@ -800,6 +801,7 @@ const FInput = React.memo(function FI({ label, value, onChange, placeholder }: {
 
 // ── Ana Bileşen ───────────────────────────────────────────────────────────────
 export default function CvOlustur() {
+  const { user } = useAuth();
   const [step, setStep]           = useState(1);
   const [selTpl, setSelTpl]       = useState(0);
   const [selColor, setSelColor]   = useState(0);
@@ -808,6 +810,8 @@ export default function CvOlustur() {
   const [isAutoFill, setAutoFill] = useState(false);
   const [isDownload, setDownload] = useState(false);
   const [showPreview, setPreview] = useState(false);
+  const [isSyncing, setSyncing]   = useState(false);
+  const [syncMsg, setSyncMsg]     = useState("");
   const cvRef = useRef<HTMLDivElement>(null);
 
   const color = PALETTE[selColor]!.c;
@@ -823,13 +827,77 @@ export default function CvOlustur() {
     reader.readAsDataURL(file);
   };
 
+  // ── Profilden doldur ──────────────────────────────────────────────
+  const handleFillFromProfile = useCallback(() => {
+    if (!user) return;
+    const fullName = (user as unknown as { displayName?: string | null }).displayName?.trim() || "";
+    const parts = fullName.split(" ");
+    const ad    = parts[0] ?? "";
+    const soyad = parts.slice(1).join(" ");
+    const email = (user as unknown as { email?: string }).email ?? "";
+    const bio   = (user as unknown as { bio?: string | null }).bio ?? "";
+    const avatarUrl = (user as unknown as { avatarUrl?: string | null }).avatarUrl ?? "";
+    setData(prev => ({
+      ...prev,
+      ad:     ad     || prev.ad,
+      soyad:  soyad  || prev.soyad,
+      email:  email  || prev.email,
+      hakkimda: bio  || prev.hakkimda,
+    }));
+    if (avatarUrl && !photo) setPhoto(avatarUrl);
+    setSyncMsg("Profil bilgileri getirildi!");
+    setTimeout(() => setSyncMsg(""), 2500);
+  }, [user, photo]);
+
+  // ── Profili geri kaydet (step 1 → 2 geçişinde) ───────────────────
+  const syncProfileFromStep1 = useCallback(async () => {
+    if (!user) return;
+    const displayName = `${data.ad} ${data.soyad}`.trim();
+    if (!displayName && !data.hakkimda) return;
+    try {
+      const token = localStorage.getItem("token");
+      await fetch("/api/users/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          ...(displayName ? { displayName } : {}),
+          ...(data.hakkimda ? { bio: data.hakkimda } : {}),
+        }),
+      });
+    } catch { /* sessiz */ }
+  }, [user, data.ad, data.soyad, data.hakkimda]);
+
+  const goNext = useCallback(async () => {
+    if (step === 1) await syncProfileFromStep1();
+    setStep(s => s + 1);
+  }, [step, syncProfileFromStep1]);
+
   const handleAutoFill = useCallback(() => {
     setAutoFill(true);
     setTimeout(() => {
-      setData(prev => fullAutoFill(prev.pozisyon, prev));
+      setData(prev => {
+        const filled = fullAutoFill(prev.pozisyon, prev);
+        // Profil bilgilerini kişisel alanlara ekle (boşsa)
+        if (user) {
+          const fullName = (user as unknown as { displayName?: string | null }).displayName?.trim() || "";
+          const parts = fullName.split(" ");
+          const ad    = parts[0] ?? "";
+          const soyad = parts.slice(1).join(" ");
+          const email = (user as unknown as { email?: string }).email ?? "";
+          const bio   = (user as unknown as { bio?: string | null }).bio ?? "";
+          return {
+            ...filled,
+            ad:    filled.ad    || ad,
+            soyad: filled.soyad || soyad,
+            email: filled.email || email,
+            hakkimda: filled.hakkimda || bio,
+          };
+        }
+        return filled;
+      });
       setAutoFill(false);
     }, 900);
-  }, []);
+  }, [user]);
 
   const handleDownload = async () => {
     if (!cvRef.current) return;
@@ -890,6 +958,17 @@ export default function CvOlustur() {
         {/* ── ADIM 1 ── */}
         {step === 1 && (
           <div className="space-y-4">
+            {/* Profilden Getir */}
+            {user && (
+              <div className="flex flex-col gap-1.5">
+                <button onClick={handleFillFromProfile}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 hover:bg-cyan-500/10 transition-all text-cyan-400">
+                  <UserCircle className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Profilden Bilgileri Getir</span>
+                </button>
+                {syncMsg && <p className="text-[11px] text-green-400 text-center font-medium">{syncMsg}</p>}
+              </div>
+            )}
             <div className="flex flex-col items-center gap-1">
               <label className="cursor-pointer">
                 <div className="w-24 h-28 rounded-xl border-2 border-dashed border-primary/40 flex flex-col items-center justify-center bg-card overflow-hidden hover:border-primary transition-colors">
@@ -1065,7 +1144,7 @@ export default function CvOlustur() {
 
         <div className="flex gap-3 mt-6">
           {step > 1 && <button onClick={() => setStep(s => s - 1)} className="flex items-center gap-2 px-5 py-3 glass-card rounded-xl text-sm font-medium border border-white/10 hover:border-primary/30 transition-all"><ChevronLeft className="w-4 h-4" /> Geri</button>}
-          {step < 4 && <button onClick={() => setStep(s => s + 1)} className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary rounded-xl text-sm font-bold text-white hover:bg-primary/80 transition-all">İleri <ChevronRight className="w-4 h-4" /></button>}
+          {step < 4 && <button onClick={goNext} disabled={isSyncing} className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary rounded-xl text-sm font-bold text-white hover:bg-primary/80 transition-all disabled:opacity-60">İleri <ChevronRight className="w-4 h-4" /></button>}
         </div>
       </div>
 
