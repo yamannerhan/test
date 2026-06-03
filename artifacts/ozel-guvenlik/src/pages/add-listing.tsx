@@ -16,13 +16,14 @@ import { Calendar, Clock, Infinity } from "lucide-react";
 
 const listingSchema = z.object({
   title: z.string().min(5, "Başlık en az 5 karakter olmalıdır."),
-  company: z.string().min(2, "Şirket adı zorunludur."),
+  company: z.string().optional(),
   city: z.string().min(2, "Şehir zorunludur."),
   workType: z.string().min(1, "Çalışma şekli seçiniz."),
   salary: z.string().optional(),
   description: z.string().min(20, "Açıklama en az 20 karakter olmalıdır."),
   requirements: z.string().optional(),
   applyUrl: z.string().url("Geçerli bir başvuru linki (URL) girin.").optional().or(z.literal('')),
+  companyLogoUrl: z.string().optional(),
 });
 
 type ListingFormValues = z.infer<typeof listingSchema>;
@@ -52,9 +53,11 @@ export default function AddListing() {
     try {
       const payload: Record<string, unknown> = {
         ...values,
+        company: values.company?.trim() || "Belirtilmedi",
         salary: values.salary || null,
         requirements: values.requirements || null,
         applyUrl: values.applyUrl || null,
+        companyLogoUrl: values.companyLogoUrl || null,
       };
       if (isTimed && expiresAt) {
         payload.expiresAt = new Date(expiresAt).toISOString();
@@ -237,16 +240,20 @@ export default function AddListing() {
                 )}
               />
 
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">İlan Görseli (URL, Opsiyonel)</label>
-                <Input
-                  value={form.watch("applyUrl") ? "" : ""}
-                  placeholder="https://resim.com/foto.jpg"
-                  className="glass-card border-white/10"
-                  {...form.register("companyLogoUrl" as any)}
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">Boş bırakırsanız ilan başlığına göre otomatik resim atanır.</p>
-              </div>
+              <FormField
+                control={form.control}
+                name="companyLogoUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>İlan Görseli (URL, Opsiyonel)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://resim.com/foto.jpg" className="glass-card border-white/10" {...field} />
+                    </FormControl>
+                    <p className="text-[10px] text-muted-foreground mt-1">Boş bırakırsanız ilan başlığına göre otomatik resim atanır.</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <Button
                 type="submit"
