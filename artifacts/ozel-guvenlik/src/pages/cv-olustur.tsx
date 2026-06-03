@@ -830,21 +830,21 @@ export default function CvOlustur() {
   // ── Profilden doldur ──────────────────────────────────────────────
   const handleFillFromProfile = useCallback(() => {
     if (!user) return;
-    const fullName = (user as unknown as { displayName?: string | null }).displayName?.trim() || "";
+    const u = user as unknown as { displayName?: string | null; email?: string; bio?: string | null; avatarUrl?: string | null; phone?: string | null; birthDate?: string | null };
+    const fullName = u.displayName?.trim() || "";
     const parts = fullName.split(" ");
     const ad    = parts[0] ?? "";
     const soyad = parts.slice(1).join(" ");
-    const email = (user as unknown as { email?: string }).email ?? "";
-    const bio   = (user as unknown as { bio?: string | null }).bio ?? "";
-    const avatarUrl = (user as unknown as { avatarUrl?: string | null }).avatarUrl ?? "";
     setData(prev => ({
       ...prev,
-      ad:     ad     || prev.ad,
-      soyad:  soyad  || prev.soyad,
-      email:  email  || prev.email,
-      hakkimda: bio  || prev.hakkimda,
+      ad:         ad          || prev.ad,
+      soyad:      soyad       || prev.soyad,
+      email:      u.email     || prev.email,
+      telefon:    u.phone     || prev.telefon,
+      dogumTarihi: u.birthDate || prev.dogumTarihi,
+      hakkimda:   u.bio       || prev.hakkimda,
     }));
-    if (avatarUrl && !photo) setPhoto(avatarUrl);
+    if (u.avatarUrl && !photo) setPhoto(u.avatarUrl);
     setSyncMsg("Profil bilgileri getirildi!");
     setTimeout(() => setSyncMsg(""), 2500);
   }, [user, photo]);
@@ -853,19 +853,21 @@ export default function CvOlustur() {
   const syncProfileFromStep1 = useCallback(async () => {
     if (!user) return;
     const displayName = `${data.ad} ${data.soyad}`.trim();
-    if (!displayName && !data.hakkimda) return;
+    if (!displayName && !data.hakkimda && !data.telefon && !data.dogumTarihi) return;
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("auth_token");
       await fetch("/api/users/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           ...(displayName ? { displayName } : {}),
           ...(data.hakkimda ? { bio: data.hakkimda } : {}),
+          ...(data.telefon ? { phone: data.telefon } : {}),
+          ...(data.dogumTarihi ? { birthDate: data.dogumTarihi } : {}),
         }),
       });
     } catch { /* sessiz */ }
-  }, [user, data.ad, data.soyad, data.hakkimda]);
+  }, [user, data.ad, data.soyad, data.hakkimda, data.telefon, data.dogumTarihi]);
 
   const goNext = useCallback(async () => {
     if (step === 1) await syncProfileFromStep1();
@@ -877,20 +879,18 @@ export default function CvOlustur() {
     setTimeout(() => {
       setData(prev => {
         const filled = fullAutoFill(prev.pozisyon, prev);
-        // Profil bilgilerini kişisel alanlara ekle (boşsa)
         if (user) {
-          const fullName = (user as unknown as { displayName?: string | null }).displayName?.trim() || "";
+          const u = user as unknown as { displayName?: string | null; email?: string; bio?: string | null; phone?: string | null; birthDate?: string | null };
+          const fullName = u.displayName?.trim() || "";
           const parts = fullName.split(" ");
-          const ad    = parts[0] ?? "";
-          const soyad = parts.slice(1).join(" ");
-          const email = (user as unknown as { email?: string }).email ?? "";
-          const bio   = (user as unknown as { bio?: string | null }).bio ?? "";
           return {
             ...filled,
-            ad:    filled.ad    || ad,
-            soyad: filled.soyad || soyad,
-            email: filled.email || email,
-            hakkimda: filled.hakkimda || bio,
+            ad:          filled.ad          || parts[0] || "",
+            soyad:       filled.soyad       || parts.slice(1).join(" "),
+            email:       filled.email       || u.email || "",
+            telefon:     filled.telefon     || u.phone || "",
+            dogumTarihi: filled.dogumTarihi || u.birthDate || "",
+            hakkimda:    filled.hakkimda    || u.bio || "",
           };
         }
         return filled;

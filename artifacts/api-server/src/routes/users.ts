@@ -18,6 +18,8 @@ function userJson(u: typeof usersTable.$inferSelect) {
     role: u.role,
     avatarUrl: u.avatarUrl,
     bio: u.bio,
+    phone: u.phone ?? null,
+    birthDate: u.birthDate ?? null,
     nameColor: u.nameColor,
     nameAnimated: u.nameAnimated,
     isBanned: u.isBanned,
@@ -116,11 +118,16 @@ router.get("/users/profile/:username", async (req, res): Promise<void> => {
 
 // ── Update own profile ────────────────────────────────────────────
 router.patch("/users/me", authMiddleware, async (req, res): Promise<void> => {
-  const { bio, avatarUrl, displayName } = req.body as { bio?: string | null; avatarUrl?: string | null; displayName?: string | null };
+  const { bio, avatarUrl, displayName, phone, birthDate } = req.body as {
+    bio?: string | null; avatarUrl?: string | null; displayName?: string | null;
+    phone?: string | null; birthDate?: string | null;
+  };
   const updates: Partial<typeof usersTable.$inferInsert> = {};
   if (bio !== undefined) updates.bio = bio ?? null;
   if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl ?? null;
   if (displayName !== undefined) updates.displayName = displayName?.trim() || null;
+  if (phone !== undefined) updates.phone = phone?.trim() || null;
+  if (birthDate !== undefined) updates.birthDate = birthDate?.trim() || null;
 
   const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, req.user!.id)).returning();
   res.json(userJson(updated));

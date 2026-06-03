@@ -13,6 +13,8 @@ export const usersTable = pgTable("users", {
   nameColor: text("name_color"),
   nameAnimated: boolean("name_animated").notNull().default(false),
   displayName: text("display_name"),
+  phone: text("phone"),
+  birthDate: text("birth_date"),
   isBanned: boolean("is_banned").notNull().default(false),
   banReason: text("ban_reason"),
   banExpiresAt: timestamp("ban_expires_at", { withTimezone: true }),

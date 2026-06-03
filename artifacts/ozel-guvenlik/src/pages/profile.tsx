@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LogOut, MapPin, Briefcase, Camera, Loader2, Pencil, Check, X, KeyRound, RefreshCw, Clock } from "lucide-react";
+import { LogOut, MapPin, Briefcase, Camera, Loader2, Pencil, Check, X, KeyRound, RefreshCw, Clock, UserCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -36,6 +36,11 @@ export default function Profile() {
   // Display name edit state
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
+
+  // Kişisel bilgiler state
+  const [showPersonal, setShowPersonal] = useState(false);
+  const [personalForm, setPersonalForm] = useState({ displayName: "", phone: "", birthDate: "" });
+  const [personalLoading, setPersonalLoading] = useState(false);
 
   // Password change state
   const [showPwChange, setShowPwChange] = useState(false);
@@ -137,6 +142,34 @@ export default function Profile() {
       toast({ title: "Adınız güncellendi" });
     } catch {
       toast({ title: "Hata", variant: "destructive" });
+    }
+  };
+
+  const openPersonal = () => {
+    setPersonalForm({
+      displayName: (profile as any)?.displayName || "",
+      phone: (profile as any)?.phone || "",
+      birthDate: (profile as any)?.birthDate || "",
+    });
+    setShowPersonal(v => !v);
+  };
+
+  const savePersonal = async () => {
+    setPersonalLoading(true);
+    try {
+      const res = await apiCall("/users/me", "PATCH", {
+        displayName: personalForm.displayName.trim() || null,
+        phone: personalForm.phone.trim() || null,
+        birthDate: personalForm.birthDate.trim() || null,
+      });
+      if (!res.ok) throw new Error("Güncelleme başarısız");
+      await queryClient.invalidateQueries();
+      toast({ title: "Kişisel bilgiler kaydedildi" });
+      setShowPersonal(false);
+    } catch {
+      toast({ title: "Hata", variant: "destructive" });
+    } finally {
+      setPersonalLoading(false);
     }
   };
 
@@ -316,6 +349,70 @@ export default function Profile() {
             )}
           </div>
         </div>
+
+        {/* Kişisel Bilgiler (only for logged-in user) */}
+        {isMe && (
+          <div className="glass-card rounded-2xl overflow-hidden">
+            <button
+              onClick={openPersonal}
+              className="w-full flex items-center justify-between p-4 text-left hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2 font-semibold text-sm">
+                <UserCircle className="w-4 h-4 text-cyan-400" />
+                Kişisel Bilgiler
+              </div>
+              <span className="text-muted-foreground text-xs">{showPersonal ? "Kapat" : "Düzenle"}</span>
+            </button>
+            <AnimatePresence>
+              {showPersonal && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  className="px-4 pb-4 border-t border-white/5 pt-4 space-y-3 overflow-hidden"
+                >
+                  <p className="text-[11px] text-muted-foreground">Bu bilgiler CV oluşturucuya otomatik aktarılır.</p>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Ad Soyad</label>
+                    <Input
+                      value={personalForm.displayName}
+                      onChange={e => setPersonalForm(f => ({ ...f, displayName: e.target.value }))}
+                      placeholder="Ad Soyad"
+                      className="glass-card border-white/10"
+                      maxLength={64}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Telefon</label>
+                    <Input
+                      value={personalForm.phone}
+                      onChange={e => setPersonalForm(f => ({ ...f, phone: e.target.value }))}
+                      placeholder="0555 555 55 55"
+                      className="glass-card border-white/10"
+                      maxLength={20}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Doğum Tarihi</label>
+                    <Input
+                      value={personalForm.birthDate}
+                      onChange={e => setPersonalForm(f => ({ ...f, birthDate: e.target.value }))}
+                      placeholder="10.09.1990"
+                      className="glass-card border-white/10"
+                      maxLength={20}
+                    />
+                  </div>
+                  <Button
+                    onClick={savePersonal}
+                    disabled={personalLoading}
+                    className="w-full bg-gradient-to-r from-cyan-600 to-primary text-white"
+                  >
+                    {personalLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Kaydet
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         {/* Password change section (only for logged-in user) */}
         {isMe && (
