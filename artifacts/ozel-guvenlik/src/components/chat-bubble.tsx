@@ -249,13 +249,13 @@ export function ChatBubble() {
         }
         .name-admin {
           background: linear-gradient(90deg,
-            #000 0%, #1c0f00 8%, #7c3500 18%, #d97706 32%, #fbbf24 46%, #fef08a 52%, #d97706 66%, #7c3500 80%, #1c0f00 92%, #000 100%);
-          background-size: 300% auto;
+            #111 0%, #111 30%, #f59e0b 50%, #111 70%, #111 100%);
+          background-size: 250% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: smoke-yellow 7s ease-in-out infinite;
-          filter: drop-shadow(0 0 5px rgba(251,191,36,0.4));
+          animation: smoke-yellow 3.5s ease-in-out infinite;
+          filter: drop-shadow(0 0 6px rgba(245,158,11,0.55));
         }
         .name-mod {
           background: linear-gradient(90deg,
