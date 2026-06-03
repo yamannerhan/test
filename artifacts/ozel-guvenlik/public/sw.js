@@ -1,4 +1,4 @@
-const CACHE_NAME = "ozelguvenlik-v2";
+const CACHE_NAME = "ozelguvenlik-v4";
 const STATIC = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", e => {

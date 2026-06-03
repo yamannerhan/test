@@ -65,12 +65,12 @@ function SwipeableMessage({ children, onReply }: { children: React.ReactNode; on
     const onMove = (e: TouchEvent) => {
       const dx = e.touches[0]!.clientX - startX.current;
       const dy = e.touches[0]!.clientY - startY.current;
-      // İlk harekette yönü belirle (5px eşiği)
-      if (isHoriz.current === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-        isHoriz.current = Math.abs(dx) > Math.abs(dy);
+      // 2px eşiğinde yön belirle — iOS için erken tespit şart
+      if (isHoriz.current === null && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) {
+        isHoriz.current = Math.abs(dx) >= Math.abs(dy);
       }
       if (!isHoriz.current || dx <= 0) return;
-      e.preventDefault(); // Scroll'u engelle — passive:false sayesinde çalışır
+      e.preventDefault();
       x.set(Math.min(dx, 90));
       if (dx >= 60 && !vibrated.current) {
         vibrated.current = true;
@@ -98,7 +98,9 @@ function SwipeableMessage({ children, onReply }: { children: React.ReactNode; on
   }, []);
 
   return (
-    <div ref={containerRef} className="relative">
+    // touch-action:pan-y → tarayıcı dikey scroll'u kendi yönetir,
+    // yatay dokunuşları JS'e bırakır — iOS PWA için kritik
+    <div ref={containerRef} className="relative" style={{ touchAction: "pan-y" }}>
       <motion.div
         style={{ opacity, scale, backgroundColor: iconBg }}
         className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center pointer-events-none z-10 shadow-lg"
