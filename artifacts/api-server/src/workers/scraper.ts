@@ -2,7 +2,8 @@ import crypto from "crypto";
 import { db, sourcesTable, importedPostsTable, pendingJobsTable, listingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { fetchMessagesViaClient, isClientConnected } from "../services/telegram-client";
+import { getUpdates, isBotTokenSet } from "../services/telegram-client";
+import type { BotUpdate } from "../services/telegram-client";
 
 // ── Keyword lists ──────────────────────────────────────────────────
 const JOB_KEYWORDS = [
@@ -285,7 +286,60 @@ async function processMessage(
   }
 }
 
-// ── Check a single Telegram source ────────────────────────────────
+// ── Bot API polling state ──────────────────────────────────────────
+let botUpdateOffset = 0;
+
+async function processBotUpdates(): Promise<void> {
+  if (!isBotTokenSet()) return;
+
+  const updates = await getUpdates(botUpdateOffset);
+  if (updates.length === 0) return;
+
+  // Load active telegram sources once
+  const sources = await db.select().from(sourcesTable)
+    .where(eq(sourcesTable.active, true));
+  const telegramSources = sources.filter(s => s.platform === "telegram");
+
+  for (const update of updates) {
+    const post = update.channel_post ?? update.message;
+    if (!post?.text || post.text.length < 30) {
+      botUpdateOffset = update.update_id + 1;
+      continue;
+    }
+
+    const chatUsername = post.chat.username?.toLowerCase();
+    const chatId = String(post.chat.id);
+
+    // Match to a registered source by username or saved chatId
+    const source = telegramSources.find(s => {
+      const srcUsername = extractTelegramUsername(s.url);
+      return (chatUsername && srcUsername === chatUsername) ||
+             (s.telegramChatId && s.telegramChatId === chatId);
+    });
+
+    if (source) {
+      // Save chatId for future matching if not stored
+      if (!source.telegramChatId) {
+        await db.update(sourcesTable)
+          .set({ telegramChatId: chatId })
+          .where(eq(sourcesTable.id, source.id));
+        source.telegramChatId = chatId;
+      }
+      const msgUrl = chatUsername
+        ? `https://t.me/${chatUsername}/${post.message_id}`
+        : `https://t.me/c/${chatId.replace("-100", "")}/${post.message_id}`;
+      try {
+        await processMessage(source, `bot_${chatId}_${post.message_id}`, post.text, msgUrl);
+      } catch (e) {
+        logger.error(e, `scraper: bot update processing error`);
+      }
+    }
+
+    botUpdateOffset = update.update_id + 1;
+  }
+}
+
+// ── Check a single Telegram source via web scraping ────────────────
 async function checkTelegramSource(source: typeof sourcesTable.$inferSelect): Promise<void> {
   const username = extractTelegramUsername(source.url);
   if (!username) {
@@ -295,21 +349,9 @@ async function checkTelegramSource(source: typeof sourcesTable.$inferSelect): Pr
     return;
   }
 
-  logger.info(`scraper: checking Telegram channel @${username} (client=${isClientConnected()})`);
+  logger.info(`scraper: web-scraping @${username}`);
 
-  // Use GramJS user client when connected, fall back to web scraping
-  let messages: ScrapedMessage[];
-  if (isClientConnected()) {
-    try {
-      messages = await fetchMessagesViaClient(username);
-    } catch (e) {
-      const errMsg = e instanceof Error ? e.message : String(e);
-      logger.warn(`scraper: GramJS fetch failed for @${username}, trying web scrape: ${errMsg}`);
-      messages = await scrapeTelegramChannel(username);
-    }
-  } else {
-    messages = await scrapeTelegramChannel(username);
-  }
+  const messages = await scrapeTelegramChannel(username);
 
   if (messages.length === 0) {
     await db.update(sourcesTable)
@@ -340,6 +382,10 @@ async function checkTelegramSource(source: typeof sourcesTable.$inferSelect): Pr
 
 // ── Main scraper loop ──────────────────────────────────────────────
 async function runScraperCycle(): Promise<void> {
+  // 1) Pull all updates the bot received across all its chats
+  await processBotUpdates();
+
+  // 2) For sources that have web preview enabled, also scrape periodically
   const sources = await db.select().from(sourcesTable)
     .where(eq(sourcesTable.active, true));
 
@@ -348,7 +394,6 @@ async function runScraperCycle(): Promise<void> {
   for (const source of sources) {
     const intervalMs = (source.checkInterval ?? 15) * 60 * 1000;
     const lastChecked = source.lastCheckedAt?.getTime() ?? 0;
-
     if (now.getTime() - lastChecked < intervalMs) continue;
 
     if (source.platform === "telegram") {
@@ -356,14 +401,14 @@ async function runScraperCycle(): Promise<void> {
         await checkTelegramSource(source);
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : String(e);
-        logger.error(e, `scraper: source ${source.id} error`);
+        logger.warn(`scraper: web scrape failed for source ${source.id}: ${errMsg}`);
         await db.update(sourcesTable)
           .set({ lastError: errMsg.slice(0, 500), lastCheckedAt: now })
           .where(eq(sourcesTable.id, source.id));
       }
     } else if (source.platform === "facebook") {
       await db.update(sourcesTable)
-        .set({ lastError: "Facebook entegrasyonu henüz aktif değil. Meta Graph API erişim tokenı gereklidir." })
+        .set({ lastError: "Facebook entegrasyonu henüz aktif değil." })
         .where(eq(sourcesTable.id, source.id));
     }
   }
@@ -371,27 +416,30 @@ async function runScraperCycle(): Promise<void> {
 
 // ── Public API ─────────────────────────────────────────────────────
 export function startScraperWorker(): void {
-  logger.info("scraper: worker started (Telegram web scraping — no bot token required)");
+  const mode = isBotTokenSet() ? "Bot API polling + web scraping fallback" : "web scraping only";
+  logger.info(`scraper: worker started (${mode})`);
 
-  // Run every minute, but each source respects its own checkInterval
+  // Bot polling runs every 30 seconds for fast message delivery
+  if (isBotTokenSet()) {
+    setInterval(async () => {
+      try { await processBotUpdates(); }
+      catch (e) { logger.error(e, "scraper: bot poll error"); }
+    }, 30_000);
+  }
+
+  // Full cycle (web scraping + bot poll) runs every minute
   setInterval(async () => {
-    try {
-      await runScraperCycle();
-    } catch (e) {
-      logger.error(e, "scraper: cycle error");
-    }
+    try { await runScraperCycle(); }
+    catch (e) { logger.error(e, "scraper: cycle error"); }
   }, 60_000);
 
   // Run immediately after 10 seconds
   setTimeout(async () => {
-    try {
-      await runScraperCycle();
-    } catch (e) {
-      logger.error(e, "scraper: initial run error");
-    }
+    try { await runScraperCycle(); }
+    catch (e) { logger.error(e, "scraper: initial run error"); }
   }, 10_000);
 }
 
 export function isTelegramTokenSet(): boolean {
-  return true; // Web scraping doesn't need a token
+  return isBotTokenSet();
 }
