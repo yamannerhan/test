@@ -188,69 +188,152 @@ const FAKE_USERS = [
 ];
 
 const STANDALONE_MSGS = [
-  // İş fırsatları ve ilanlar
+  // İş yeri deneyimleri — kişisel hikayeler
   "Bugün yeni bir ilan gördüm, oldukça iyi görünüyor.",
   "İstanbul dışı ilanlar da artık daha fazla, umut verici.",
-  "Şirketler yaz döneminde daha fazla personel alıyor genellikle.",
   "AVM güvenliği mi yoksa site güvenliği mi daha avantajlı acaba?",
-  "Belediye güvenliği ilanları da son dönemde artmış.",
   "Havaalanı güvenliği için özel sertifika gerekiyor, biliyor musunuz?",
   "Sağlık kurumu güvenliği çok stresli ama maaşlar gerçekten iyi.",
-  "Mağaza güvenliği ile banka güvenliği arasında çok fark var.",
   "Yaz aylarında tatil köyü güvenliği için ilanlar artıyor.",
   "Fabrika ve lojistik güvenliği ilanları artmış, taşeron firmalar çok aktif.",
-  "Organize sanayi bölgelerinde iş imkânları genişlemiş gibi görünüyor.",
   "Otel güvenliği yazın zirveye ulaşıyor, sezonluk işler de var.",
   "Liman güvenliği için ayrı lisans gerekiyor, araştırıyorum.",
   "Konut site güvenliği sakin ama saatler çok uzun oluyor.",
+  "3 yıldır aynı yerde çalışıyorum, değişiklik yapmayı düşünüyorum artık.",
+  "Bugün mülakata gittim, amir çok sıcakkanlıydı. Umarım olur.",
+  "Sabah vardiyası insanı daha zinde tutuyor bence, gece pek sevmiyorum.",
+  "Bu ay üç farklı firmaya başvurdum, bir tanesinden geri dönüş aldım.",
+  "İlk kez güvenlik işi yapıyorum, başlangıçta çok zor geldi ama alıştım.",
+  "Emeklilerin çalışabileceği pozisyonlar da var, fırsat değerlendirin.",
+  "Fabrikada çalışmak farklı bir deneyim. İlk başta zor ama alışılıyor.",
+  "Şirket değiştirince maaşım yüzde 20 arttı, sormadan değişmeyecektim.",
+  "Aynı pozisyon için iki farklı firmanın teklifini karşılaştırıyorum şu an.",
+  "Sektörde 8 yıldır varım, çok şey değişti. Teknoloji işleri farklılaştırdı.",
+  "Bugün müdürümüz yeni kamera sistemleri hakkında eğitim verdi, faydalıydı.",
+  "Arkadaşım bu platformdan iş buldu geçen ay, ben de deneyeyim dedim.",
+  "Mülakatta ne tür sorular soruyorlar genellikle, tecrübe paylaşan var mı?",
+  "İlk yıl çok zor geçti ama artık işin ritmine girdim.",
+  "Öğrenci olarak da part-time güvenlik işi yapılabilir mi?",
+  "Hafta sonu çalışmanın zor olduğunu söylüyorlar ama ben alıştım.",
+  "İstanbul'da yeni açılan projelerde güvenlik açığı fazla gibi görünüyor.",
+  "Uzun süredir iş arıyordum, sonunda bu platformda buldum. Tavsiye ederim.",
+  "Yöneticim eski güvenlik görevlisiymiş, o yüzden sorunlarımızı anlıyor.",
+  "Hastane güvenliği gerçekten zor. Sabah vardiyasında bir olay yaşandı bugün.",
   // Maaş ve yasal haklar
   "Bu sektörde tecrübe çok önemli, en az 2 yıl şart gibi görünüyor.",
   "Maaşlar geçen yıla göre biraz arttı, güzel.",
   "Gece vardiyası zam farkı hangi şirkette en yüksek acaba?",
-  "Tatil günleri yüzde elliden fazla zam hakkınız olduğunu unutmayın.",
   "Sigortasız çalıştıranlardan uzak durun, hakkınızı koruyun.",
   "İşe başlamadan önce mutlaka sözleşmeyi okuyun.",
   "Kıdem tazminatı için en az bir yıl çalışmak şart, baştan bilin.",
   "Fazla mesai ücretlerini düzenli takip edin, bazı firmalar eksik ödüyor.",
   "Yemek ve servis yardımı yapan firmalar ciddi bir avantaj sağlıyor.",
   "SGK primlerinizi e-Devlet'ten kontrol etmeyi alışkanlık haline getirin.",
-  "İzin günlerinde çalıştırılıyorsanız ayrıca yevmiye hakkınız var.",
+  "Bu ay maaş geç yattı, bir dahaki işte buna dikkat edeceğim.",
+  "Servis imkânı olan firma az, ama varsa gerçekten büyük kolaylık.",
+  "Aylık brüt ile net arasındaki farka dikkat edin, yanıltıcı ilanlar var.",
+  "Yıllık iznimi kullandırmıyorlardı, hukuki danışmanlık aldım.",
+  "İşten ayrılırken haklarımı tam alamadım. Biraz daha bilinçli olmalıydım.",
+  "Bayram ikramiyesi veren firmalar azaldı, yazık.",
+  "Toplu iş sözleşmesi olan bir firmada çalışmak istiyorum, zam garantisi şart.",
+  "Prim sistemi olan iş yerinde verim daha yüksek oluyor bence.",
+  "Seyyar güvenlik olarak çalışmak yorucu ama maaş farkı iyi.",
   // Sertifika ve eğitim
   "Silahlı güvenlik lisansı almak istiyorum, nasıl yapılıyor acaba?",
   "Sertifika kurslarının ücreti biraz yüksek bence.",
   "Güvenlik kamerası sistemleri konusunda eğitim alan önde gidiyor.",
-  "Emekli olduktan sonra da bu sektörde çalışabilirsiniz, talep var.",
   "Sivil kıyafetli gözetleme görevi için ayrı eğitim gerekiyor.",
   "İlk yardım sertifikası artık çoğu firmada isteniyor, almak faydalı.",
   "İngilizce bilen güvenlik personeli otellerde büyük avantaj sağlıyor.",
   "Yangın söndürme eğitimi almak hem kariyer hem güvenlik açısından önemli.",
   "Özel güvenlik kimliği 5 yılda bir yenileniyor, takip etmek gerekiyor.",
   "Askeri deneyim özellikle silahlı pozisyonlarda çok işe yarıyor.",
-  // Platform ve başvurular
-  "Bu platforma yeni üye oldum, ilanlar gerçekten çok kapsamlı.",
-  "İlanlara başvururken CV'nizi güncel tutun.",
-  "Hangi şehirlerde talep daha fazla, bilen var mı?",
-  "Profilinizi tamamlayın, işverenler dolu profil adaylarını tercih ediyor.",
-  "Birden fazla şehirde iş arayabilirsiniz, mobil olmak büyük avantaj.",
-  // Çalışma koşulları
+  "Kurs masrafını işveren karşılarsa çok daha iyi, sormaktan çekinmeyin.",
+  "Online ilk yardım kursu sertifika için geçerli mi, araştırıyorum.",
+  "CCTV operatörlüğü için sertifika aldım, birkaç firmadan teklif geldi.",
+  "Güvenlik amirliği eğitimi almak istiyorum ama burslu kurs bulmak zor.",
+  "Yangın tatbikatı bugün yapıldı, çok faydalı bir deneyimdi.",
+  "Deneyimli ama sertifikasız kişiler bazen geride kalıyor, maalesef.",
+  // Çalışma koşulları ve iş yeri gözlemleri
   "Vardiyalı çalışmak zor ama zamanla alışılıyor.",
-  "Kıyafet yardımı yapan şirketler mutlaka tercih edilmeli.",
-  "İkinci el koruyucu ekipman mı yoksa yeni mi almak daha iyi?",
   "12 saatlik vardiyada ayakta durmak çok yorucu, doğru ayakkabı şart.",
   "Müşteri ile iletişim kuvvetli olmak sizi diğerlerinden ayırıyor.",
   "Gece vardiyasında dikkatli olmak için molayı iyi kullanmak şart.",
+  "Güneş çıkmadan kalkmak zorunda kalmak gerçekten alışmayı gerektiriyor.",
+  "Kış aylarında dış görev çok zor, ekipman önemli.",
+  "Yönetici değişince iş yeri atmosferi bir anda değişti, olumlu yönde.",
+  "Kapalı kameralı ortamda çalışmak başlangıçta tuhaf geldi.",
+  "İş arkadaşlarım çok iyi, bu sektörde dayanışma şart.",
+  "Site güvenliğinde sakinlik iyi ama uzun vardiya yorucu.",
+  "AVM'de çalışırken çok farklı insanla karşılaştım, iletişim gelişiyor.",
+  "Gece vardiyasından gündüze geçince vücut ritmi bozuluyor, dikkat edin.",
+  "Ekipman kalitesi firma kalitesinin göstergesi bence.",
+  "Yeni işyerimde mola odası var, küçük şeyler büyük fark yaratıyor.",
+  "Bir olay anında nasıl tepki vereceğinizi mutlaka prova edin.",
+  "Yazlık sezonda sahil güvenliği farklı bir deneyim, tavsiye ederim.",
+  "Fabrikada gürültüden kaynaklanan yorgunluk ciddi, kulak koruyucu şart.",
+  "Banka güvenliğinde protokol çok sıkı, ama disiplin açısından iyi.",
+  "Özel hastanede çalışmak farklı, personel ilişkileri çok daha resmi.",
+  "Vardiya takvimine önceden bakmayı alışkanlık haline getirin.",
   // Teknoloji ve yenilikler
   "Yapay zeka kameralar artık güvenlik sektörüne giriyor, işler değişiyor.",
   "Biyometrik giriş sistemleri için ek eğitim veren firmalar avantajlı.",
   "Akıllı bina sistemlerini bilen personele talep giderek artıyor.",
   "Drone güvenliği gibi yeni alanlar açılıyor, ek sertifika fırsatı var.",
-  // Sektör gözlemleri
+  "Yüz tanıma sistemi çalıştığım yerde devreye girdi, herkesi şaşırttı.",
+  "Cep telefonu yerine telsiz kullanan firmalar hâlâ çok, eski alışkanlıklar.",
+  "Güvenlik yazılımları artık rapor da otomatik üretiyor, iş kolaylaşıyor.",
+  "Akıllı kilit sistemleri mekanik kilitlerin yerini alıyor hızla.",
+  "Çalıştığım yerde QR kod bazlı ziyaretçi takibi başladı, verimli.",
+  "Alarm sistemleri artık telefona bildirim gönderiyor, anlık müdahale mümkün.",
+  // Sektör gözlemleri ve genel
   "Bu meslek psikolojik olarak zorlayıcı, destek almayı ihmal etmeyin.",
   "Tecrübeli güvenlik görevlileri artık danışmanlık hizmeti de veriyor.",
   "Hangi firmalar en düzenli maaş ödüyor, deneyimi olan söylesin.",
   "Çalıştığım yerde yöneticimiz çok anlayışlı, böyle ortam nadiren bulunuyor.",
   "Sendikalı güvenlik şirketi bulmak giderek zorlaşıyor maalesef.",
   "Kariyer planı yapmak bu sektörde de kritik, plansız ilerlemek zor.",
+  "İş arama sürecinde çok ret aldım ama pes etmedim, sonunda oldu.",
+  "Bu sektörde dürüstlük ve güvenilirlik her şeyden önce geliyor.",
+  "Sabır gerektiren bir meslek, özellikle ilk yıllarda zorlanabilirsiniz.",
+  "İki yılda bir şirket değiştirmek mi daha avantajlı, tartışılır.",
+  "Referanslarınızı güncel tutun, sektör çok dar, herkes birbirini tanıyor.",
+  "Mesleki gelişim için sektör fuarlarını takip ediyorum, faydalı oluyor.",
+  "Çalıştığım firmanın itibarı benim itibarım da, seçimde dikkatli olun.",
+  "İlk işime başladığımda çok şey bilmiyordum, meslektaşlar çok öğretti.",
+  "Bu platformdaki tartışmalar gerçekten bilgilendirici, teşekkürler.",
+  "Herkese kolay gelsin, bu meslek hak ettiği değeri görmüyor.",
+  "Sektördeki dayanışma artıyor, bu çok güzel bir gelişme.",
+  "Genç arkadaşlara tavsiyem: ilk 3 yıl sabırlı olun, her şey oturur.",
+  "Aynı firmada 5 yılı geçince yöneticilik teklifi aldım, beklenmedikti.",
+  "Güvenlik sektörü küçük görünür ama içinde kocaman bir dünya var.",
+  "Müdürüm eski komisermiş, o yüzden prosedürlere çok dikkat ediyor.",
+  // Kişisel durumlar ve aile
+  "Gece vardiyasında çalışınca aile ile vakit geçirmek güçleşiyor.",
+  "Eşim de bu sektörde, farklı firmalarda çalışıyoruz, koordinasyon zor.",
+  "Çocuklar okula giderken ben yatıyorum, ritim alışmayı gerektiriyor.",
+  "Uzak şehirdeki ilana başvurdum, aile bırakmak zor ama iyi fırsat.",
+  "İkiz kardeşim de benimle aynı firmada çalışıyor, güzel tesadüf.",
+  "Anne ve babam bu mesleği güvenli bulmuyordu, şimdi fikir değiştirdiler.",
+  "Şehir dışından taşındım bu iş için, ilk ay çok zorlandım.",
+  "İki çocuk babasıyım, düzenli ödeme yapan firmayı tercih etmek şart.",
+  "Tatillerde ailemi göremiyorum bazen, ama mesleği seviyorum.",
+  // Güncel yorum ve sorular
+  "Bu yıl iş ilanları geçen yıla kıyasla daha mı çok, takip eden var mı?",
+  "Hangi şehirde güvenlik personeline talep daha yüksek, fikir var mı?",
+  "Taşeron firma mı yoksa doğrudan kurumsal mı çalışmak daha iyi?",
+  "Kamu kurumuna geçmek mümkün mü güvenlik sektöründen, deneyim paylaşın.",
+  "Uzun vadede bu sektörde kariyer yapılabilir mi, tartışalım.",
+  "Farklı şehirde iş ilanına başvuruyorum, taşınma desteği veren yer var mı?",
+  "Kendi güvenlik şirketimi kurmayı düşünüyorum, deneyimi olan var mı?",
+  "Bu platforma yeni üye oldum, oldukça faydalı bir topluluk.",
+  "Maaş pazarlığında nasıl bir strateji izlemeliyim, tavsiye var mı?",
+  "Referans mektubu nasıl yazılır, yardımcı olabilir misiniz?",
+  "İş görüşmesine giderken ne giyilmeli, resmi mi yoksa yarı resmi mi?",
+  "CV'me ne yazmalıyım, askeri geçmişimi de ekleyeyim mi?",
+  "Birden fazla sertifikam var, hangisini öne çıkarmalıyım?",
+  "Kötü referans veren eski müdürüm hakkında ne yapabilirim?",
+  "İş sözleşmesinde anlamadığım maddeler var, hukuki destek nereden alınır?",
 ];
 
 // Dinamik konuşma çiftleri - DB verisiyle güncellenebilir
@@ -638,9 +721,9 @@ io.on("connection", (socket) => {
   });
 });
 
-// ── BİLGİLENDİRME BOT ────────────────────────────────────────────
+// ── BİLGİ BOTU ───────────────────────────────────────────────────
 const INFO_BOT = {
-  id: -999, username: "BilgilendirmeBot", displayName: "BİLGİLENDİRME BOT",
+  id: -999, username: "BilgiBot", displayName: "Bilgi Botu",
   userRole: "bot", userAvatarUrl: null,
   userNameColor: "#22C55E", userNameAnimated: false, isBot: true,
 };
@@ -657,22 +740,72 @@ function makeInfoMsg(content: string) {
 }
 
 const INFO_MESSAGES = [
+  // Kanun bilgileri — 5188
   "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.1: Bu Kanunun amacı, kamu güvenliğini tamamlayıcı nitelikteki özel güvenlik hizmetlerinin yerine getirilmesine ilişkin esas ve usulleri düzenlemektir.",
   "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.3: Özel güvenlik izni, valiliklerce verilir. İzin alınmadan özel güvenlik hizmeti verilemez ve özel güvenlik şirketi kurulamaz.",
-  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.11: Özel güvenlik görevlileri, bu Kanunda belirtilen yetkilerini gürev alanları ve süreleriyle sınırlı olarak kullanabilir.",
+  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.7: Özel güvenlik görevlileri; kimlik sorma, durdurma, üst ve araç arama, el koyma gibi yetkileri yalnızca görev alanlarında ve kanun çerçevesinde kullanabilir.",
+  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.11: Özel güvenlik görevlileri, bu Kanunda belirtilen yetkilerini görev alanları ve süreleriyle sınırlı olarak kullanabilir.",
   "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.14: Özel güvenlik görevlileri, Türkiye Cumhuriyeti vatandaşı olmak zorundadır. Yabancı uyruklu kişiler özel güvenlik görevlisi olarak çalışamaz.",
   "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.18: Özel güvenlik görevlileri kaba kuvvet kullanamaz; orantılılık ilkesine uymak zorundadır. Her türlü hak ihlali cezai sorumluluk doğurur.",
   "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.10: Silahlı özel güvenlik görevi yapılabilmesi için valiliğin onayı ve ilgili silah taşıma izninin alınmış olması gerekir.",
-  "İSG BİLGİSİ — 6331 Sayılı İş Sağlığı ve Güvenliği Kanunu: İşveren, çalışanların işle ilgili sağlık ve güvenliklerini sağlamakla yükümlüdür. Risk değerlendirmesi yapmak zorundadır.",
-  "İSG BİLGİSİ — Güvenlik görevlileri gece vardiyasında çalışıyorsa yasal olarak %25 gece zammı hakkına sahiptir. Bu oran bazı işyeri sözleşmelerinde %35-40'a çıkabilir.",
-  "İSG BİLGİSİ — Fazla mesai sınırı: Günlük 11 saati, haftalık 45 saati aşan çalışmalar yasal fazla mesai sayılır ve %50 zamlı ödenmek zorundadır.",
-  "İSG BİLGİSİ — İş kazasında ilk 48 saat: İşveren, iş kazasını Sosyal Güvenlik Kurumu'na en geç 3 iş günü içinde bildirmek zorundadır. Bildirmezse idari para cezasına çarptırılır.",
-  "İSG BİLGİSİ — Ulusal bayram ve genel tatil günlerinde çalışan güvenlik görevlisine bu süre için ayrıca günlük ücret ödenmesi zorunludur (haftalık ücreti dışında).",
-  "SEKTÖR BİLGİSİ — Özel Güvenlik Kimlik Kartı 5 yılda bir yenilenmesi zorunludur. Süresi dolan kart ile görev yapmak hem işçi hem işveren açısından yasal ihlal oluşturur.",
-  "SEKTÖR BİLGİSİ — Silahlı güvenlik ruhsatı için: Ateşli silah eğitimi ve yetkinlik belgesi, valilik onayı, psiko-teknik değerlendirme raporu gerekmektedir.",
-  "SEKTÖR BİLGİSİ — Özel güvenlik şirketleri, istihdam ettikleri personel için yıllık eğitim planı hazırlamak ve Bakanlığa sunmak zorundadır.",
-  "SEKTÖR BİLGİSİ — Kıdemli güvenlik personeli; kıdem tazminatı, ihbar tazminatı ve yıllık izin haklarına tam anlamıyla sahiptir. Bu haklardan vazgeçilemez.",
-  "HATIRLATMA — Çalıştığınız şirketin SGK bildirimlerini e-Devlet üzerinden düzenli olarak kontrol edin. Eksik ya da hatalı bildirimleri fark edince itiraz etme hakkınız vardır.",
+  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.13: Özel güvenlik şirketleri, çalıştırdıkları personele ilişkin bilgileri her yıl ocak ayı sonuna kadar valiliğe bildirmek zorundadır.",
+  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.19: Özel güvenlik görevlileri görevleri dışında, başka amaçlarla istihdam edilemez. İşveren bu hükme aykırı davranırsa idari para cezasıyla karşılaşır.",
+  "KANUN BİLGİSİ — 5188 Sayılı Kanun Md.23: Kanun hükümlerine aykırı davranan özel güvenlik şirketleri ve görevlileri idari para cezası ile karşılaşır; aykırılığın tekrarı lisans iptaline yol açabilir.",
+  // İş Kanunu
+  "İŞ KANUNU — Md.41 (Fazla Mesai): Haftalık 45 saati aşan her saat çalışma, yüzde elli zamlı ücretle ödenir. İşçi, yıllık 270 saat fazla mesai sınırını aşmayı reddedebilir.",
+  "İŞ KANUNU — Md.46 (Hafta Tatili): Her işçi, kesintisiz en az 24 saat haftalık dinlenme hakkına sahiptir. Bu günde çalışmak zorunda bırakılan işçiye ilave ücret ödenmelidir.",
+  "İŞ KANUNU — Md.53 (Yıllık İzin): 1-5 yıl arasında çalışan işçi yılda 14 gün, 5-15 yıl arası 20 gün, 15 yılı aşkın çalışanlara 26 gün yıllık ücretli izin hakkı tanınır.",
+  "İŞ KANUNU — Md.17 (İhbar Süresi): 6 aya kadar çalışmada 2 hafta, 6 ay - 1.5 yıl arası 4 hafta, 1.5-3 yıl arası 6 hafta, 3 yıldan fazla çalışmada 8 hafta ihbar süresi uygulanır.",
+  "İŞ KANUNU — Md.25 (Haklı Fesih): İşçi, ücretini ödemeyen, sözleşme şartlarına uymayan veya mobbing uygulayan işvereni bekleme süresi beklemeksizin feshedip kıdem tazminatı talep edebilir.",
+  // SGK ve sosyal haklar
+  "SGK BİLGİSİ — Eksik Prim Bildirimi: İşveren, gerçek ücretin altında prim yatırırsa emeklilikte aldığınız aylık düşük hesaplanır. e-Devlet'ten 'Hizmet Dökümü' sayfasını düzenli kontrol edin.",
+  "SGK BİLGİSİ — İş Kazası Bildirimi: İşveren, iş kazasını kazadan sonra en geç 3 iş günü içinde SGK'ya bildirmek zorundadır. Bildirmezse idari para cezası alır ve tazminat yükü artar.",
+  "SGK BİLGİSİ — Emeklilik Yaşı Hesabı: 5510 Sayılı Kanun kapsamında prim gün sayısı ve yaş koşulları birlikte değerlendirilir. Güncel simülasyon için 'sigortalı hizmet dökümü'nden gün sayınızı takip edin.",
+  "SGK BİLGİSİ — Kıdem Tazminatı Hesabı: Son brüt ücretiniz üzerinden her tam çalışma yılı için 30 günlük ödeme yapılır. Kıdem tazminatı tavanını aşan kısım yasal tavan üzerinden hesaplanır.",
+  "SGK BİLGİSİ — İşsizlik Ödeneği: İşveren tarafından işten çıkarılırsanız, son 3 yılda en az 600 gün prim ödenmiş olması koşuluyla işsizlik ödeneğine başvurabilirsiniz.",
+  // İSG (İş Sağlığı ve Güvenliği)
+  "İSG BİLGİSİ — 6331 Sayılı Kanun: İşveren, çalışma ortamındaki risk faktörlerini belirlemek ve gidermek için risk değerlendirmesi yapmakla yükümlüdür. Bu belge denetçilere ibraz edilebilir olmalıdır.",
+  "İSG BİLGİSİ — Gece Çalışması: Yasal olarak gece 20:00 - 06:00 saatleri arasında çalışanlara yüzde 25 gece zammı ödenmesi zorunludur. Bazı iş sözleşmeleri bu oranı yüzde 35-40'a çıkarır.",
+  "İSG BİLGİSİ — Fazla Mesai: Günlük 11 saati veya haftalık 45 saati aşan çalışmalar yasal fazla mesai sayılır ve yüzde elli zamlı ücret gerektirir. Bu sınırların üstü işçinin onayına bağlıdır.",
+  "İSG BİLGİSİ — Vardiya Çalışması: Vardiyalı çalışanlara rotasyon düzeni uygulanmalı, aynı kişi uzun süre gece vardiyasında bırakılmamalıdır. Sağlık taramaları yılda en az bir kez yapılmalıdır.",
+  "İSG BİLGİSİ — Kişisel Koruyucu Donanım: İşveren, çalışanın sağlığını korumak için KKD (baret, yelek, eldiven vb.) sağlamakla yükümlüdür. Bunların maliyeti işçiden kesilemez.",
+  "İSG BİLGİSİ — Tatil Ücretleri: Ulusal bayram ve genel tatillerde çalıştırılan işçiye, o günün ücreti haftalık ücrete ek olarak ayrıca ödenmek zorundadır.",
+  // Sertifika ve eğitim
+  "SERTİFİKA BİLGİSİ — Özel Güvenlik Kimlik Kartı: Kimlik kartı 5 yılda bir İçişleri Bakanlığı'ndan yenilenmek zorundadır. Süresi dolmuş kartla görev yapmak 5188 sayılı Kanun kapsamında suç teşkil eder.",
+  "SERTİFİKA BİLGİSİ — Silahlı Güvenlik Ruhsatı: Silahlı görev için; psiko-teknik değerlendirme raporu, ateşli silah yetkinlik belgesi ve valilik onayı gerekmektedir. Bu belgeler 3 yılda bir yenilenir.",
+  "SERTİFİKA BİLGİSİ — İlk Yardım Sertifikası: Birinci basamak ilk yardım eğitimi artık pek çok firmada zorunlu tutuluyor. Sertifika 3 yıl geçerli; sonunda yenileme kursu zorunlu.",
+  "SERTİFİKA BİLGİSİ — Yangın Güvenliği: Yangın söndürme ve tahliye ekibi eğitimi, 6331 sayılı ISG Kanunu kapsamında zorunlu. Bu eğitimi alan personel firmada ekip kurucusu olabilir.",
+  "SERTİFİKA BİLGİSİ — Temel Güvenlik Eğitimi: MEB onaylı 120 saatlik temel eğitim; hukuk, fiziksel güvenlik, iletişim ve silah eğitimini kapsar. Bu eğitim olmadan özel güvenlik kimliği alınamaz.",
+  "SERTİFİKA BİLGİSİ — CCTV ve Alarm Sistemleri: Kamera ve alarm sistemleri operatörlüğü için ayrı sertifika programları mevcut. Bu alanda sertifikalı personelin maaşı sektör ortalamasının yüzde 15-20 üzerindedir.",
+  "SERTİFİKA BİLGİSİ — Güvenlik Amirliği Sertifikası: Güvenlik amiri olmak için en az 5 yıl deneyim ve İçişleri Bakanlığı onaylı amirlik kursu gereklidir. Kariyer planınızda buna yer açın.",
+  // Kariyer ve haklar
+  "KARİYER BİLGİSİ — Kariyer Basamakları: Güvenlik görevlisi → Ekip lideri → Vardiya amiri → Güvenlik amiri → Güvenlik müdürü. Her basamakta ek sertifika ve deneyim şartı aranır.",
+  "KARİYER BİLGİSİ — Referans Önemi: Güvenlik sektöründe referans belirleyici. Eski amirinizden veya çalıştığınız kurumdan olumlu referans almanız iş başvurularında büyük avantaj sağlar.",
+  "KARİYER BİLGİSİ — CV Hazırlama: CV'nize çalıştığınız sektörü (AVM, fabrika, banka vb.), taşıdığınız sertifikaları ve vardiya deneyimini açıkça yazın. Belirsiz ifadeler yerine somut rakamlar kullanın.",
+  "KARİYER BİLGİSİ — Mülakat Tüyoları: Mülakatta iletişim becerisi, sakin kalma kapasitesi ve hukuki farkındalık ön plana çıkar. Önceki iş yerlerinizi kötülemeyin; bunun yerine kazanımlarınızı anlatın.",
+  "HAKLARINIZ — Mobbing: İşyerinde psikolojik baskı ve taciz (mobbing) 4857 sayılı İş Kanunu kapsamında işçiye haklı fesih hakkı tanır. ALO 170 hattını arayarak Bakanlığa şikayette bulunabilirsiniz.",
+  "HAKLARINIZ — Ücret Garantisi: İşveren, ücretinizi aylık olarak ödemek zorundadır. 20 günü aşan gecikme, işçiye iş sözleşmesini haklı nedenle feshetme hakkı tanır.",
+  "HAKLARINIZ — İzin Hakkı: Yıllık ücretli izin paraya çevrilemez; işçi, izin yerine ücret talep edemez. Kullandırılmayan izinler iş sözleşmesi sonunda tazminat olarak ödenir.",
+  "HAKLARINIZ — İbraname: İşten ayrılırken 'tüm haklarımı aldım' ibareli ibranameyi imzalamayı reddetme hakkınız var. İmzalamak için baskıya maruz kalırsanız noter huzurunda itiraz edebilirsiniz.",
+  "HAKLARINIZ — Kötü Niyet Tazminatı: İşverenin geçerli neden olmaksızın iş sözleşmesini feshetmesi halinde işçi, ihbar tazminatının 3 katı tutarında kötü niyet tazminatı talep edebilir.",
+  // Teknoloji ve gelişmeler
+  "TEKNOLOJİ — Yapay Zeka Kameralar: Davranış analizi yapabilen akıllı kamera sistemleri güvenlik sektörüne hızla giriyor. Bu sistemleri kuran ve yöneten teknisyenlere olan talep artıyor.",
+  "TEKNOLOJİ — Biyometrik Sistemler: Parmak izi, yüz tanıma ve retina sistemleri AVM, havaalanı ve kritik tesislerde yaygınlaşıyor. Bu teknolojileri bilen personel daha yüksek maaşla işe alınıyor.",
+  "TEKNOLOJİ — Drone Güvenliği: 2023 yılında yürürlüğe giren düzenlemelerle insansız hava araçları güvenliği yeni bir uzmanlık alanı haline geldi. Drone pilotu sertifikası güvenlik kariyerine değer katıyor.",
+  "TEKNOLOJİ — Siber Güvenlik Farkındalığı: Fiziksel güvenlik ile siber güvenliğin kesiştiği alanlar genişliyor. Temel siber güvenlik bilgisi artık pek çok kurumun güvenlik personelinden beklediği bir nitelik.",
+  "TEKNOLOJİ — Merkezi İzleme Merkezleri: TEDES ve benzeri merkezi güvenlik izleme sistemleri büyük firmalarda yaygınlaşıyor. Operatör olarak çalışmak için özel eğitim ve sertifika gerekiyor.",
+  // Sağlık ve wellness
+  "SAĞLIK BİLGİSİ — Gece Vardiyası Etkileri: Uzun vadeli gece çalışması; uyku bozukluğu, D vitamini eksikliği ve metabolik sorunlara yol açabilir. Düzenli kan tahlili ve güneş ışığı maruziyeti şart.",
+  "SAĞLIK BİLGİSİ — Ayakta Çalışma: Uzun süre ayakta durmak eklem ve sırt problemlerine neden olabilir. Ergonomik ayakkabı, düzenli germe egzersizleri ve molaları verimli kullanmak kritik önem taşır.",
+  "SAĞLIK BİLGİSİ — Stres Yönetimi: Güvenlik görevi yüksek stres içerebilir. Nefes egzersizleri, düzenli uyku ve sosyal destek ağı oluşturmak mesleki tükenmişliği önlemede etkili yöntemlerdir.",
+  "SAĞLIK BİLGİSİ — Periyodik Sağlık Muayenesi: İşveren, tehlikeli ve çok tehlikeli işlerde çalışan güvenlik personelinin yılda en az bir kez sağlık muayenesini yaptırmak zorundadır.",
+  // Ekonomi ve güncel
+  "EKONOMİ BİLGİSİ — Asgari Ücret: Asgari ücret yılda iki kez güncellenir. Güvenlik sektöründeki maaşlar asgari ücretin genellikle yüzde 20-80 üzerinde seyreder; pozisyon ve deneyime göre değişir.",
+  "EKONOMİ BİLGİSİ — Enflasyona Karşı Hak Arama: Toplu iş sözleşmesi kapsamındaki işçiler enflasyona karşı zam güvencesine sahiptir. TİS yoksa bireysel sözleşme yenileme talebini yazılı yapın.",
+  "HATIRLATMA — SGK Kontrol: Her ay e-Devlet üzerinden 'SGK Hizmet Dökümü'nü kontrol edin. Yatırılmayan primler karşısında işverene yazılı bildirim, ardından SGK'ya şikayet yoluna başvurun.",
+  "HATIRLATMA — İş Sözleşmesi: İş sözleşmenizi iki nüsha olarak imzalayın ve bir kopyasını saklayın. Sözleşmenizde yazılmayan sözel vaatler hukuken geçersizdir.",
+  "HATIRLATMA — İşkur Kaydı: İşsizlik durumunda önce İŞKUR'a kaydolun; böylece hem işsizlik ödeneğine başvurabilir hem de ücretsiz mesleki eğitim fırsatlarından yararlanabilirsiniz.",
+  "HATIRLATMA — Yıllık İzin Takibi: Kullanmadığınız yıllık izin günlerini kayıt altına alın. İş sözleşmesi sona erdiğinde kullanılmayan izinler ücret olarak ödenmek zorundadır.",
 ];
 
 const usedInfoIdx = new Set<number>();
@@ -685,7 +818,7 @@ function getNextInfoMsg(): string {
 }
 
 function scheduleInfoBot() {
-  const delay = 5 * 60 * 1000 + Math.random() * 5 * 60 * 1000;
+  const delay = 3 * 60 * 1000 + Math.random() * 4 * 60 * 1000;
   setTimeout(() => {
     io.emit("chat:message", makeInfoMsg(getNextInfoMsg()));
     scheduleInfoBot();
@@ -722,7 +855,7 @@ void expireListings();
 setInterval(() => { void expireListings(); }, 30 * 60 * 1000);
 setTimeout(() => scheduleBotMessage(), 3 * 60 * 1000);
 setTimeout(() => scheduleFakeConversation(), 30000);
-setTimeout(() => scheduleInfoBot(), 2 * 60 * 1000);
+setTimeout(() => scheduleInfoBot(), 20 * 1000);
 scheduleHourlyReminder();
 setInterval(() => { void broadcastOnlineCount(); }, 45000);
 
