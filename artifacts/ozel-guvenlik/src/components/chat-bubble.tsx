@@ -32,7 +32,7 @@ function RoleBadge({ role }: { role: string }) {
 function UserAvatar({ src, username, role }: { src?: string | null; username: string; role: string }) {
   const ringColor =
     role === "admin" ? "rgba(239,68,68,0.8)" :
-    role === "moderator" ? "rgba(59,130,246,0.8)" :
+    role === "moderator" ? "rgba(167,139,250,0.85)" :
     "rgba(255,255,255,0.12)";
 
   return (
@@ -132,6 +132,9 @@ export function ChatBubble() {
     s.on("chat:clear", () => {
       setMessages([]);
     });
+    s.on("chat:cleared", () => {
+      setMessages([]);
+    });
     s.on("chat:join", ({ username }: { username: string }) => {
       addMsg({ id: Date.now(), type: "join", text: `${username} sohbete katıldı`, createdAt: new Date().toISOString() });
     });
@@ -198,9 +201,12 @@ export function ChatBubble() {
           0%   { background-position: -250% 0; }
           100% { background-position: 250% 0; }
         }
-        @keyframes shimmer-green {
-          0%   { background-position: -250% 0; }
-          100% { background-position: 250% 0; }
+        @keyframes smoke-mod {
+          0%   { background-position: 0% 50%;   filter: drop-shadow(0 0 3px rgba(167,139,250,0.25)); }
+          25%  { background-position: 80% 50%;  filter: drop-shadow(0 0 12px rgba(196,181,253,0.85)); }
+          55%  { background-position: 200% 50%; filter: drop-shadow(0 0 18px rgba(221,214,254,0.95)); }
+          80%  { background-position: 300% 50%; filter: drop-shadow(0 0 9px rgba(167,139,250,0.6));  }
+          100% { background-position: 0% 50%;   filter: drop-shadow(0 0 3px rgba(167,139,250,0.25)); }
         }
         .badge-admin {
           background: linear-gradient(90deg,
@@ -214,13 +220,13 @@ export function ChatBubble() {
         }
         .badge-mod {
           background: linear-gradient(90deg,
-            #14532d 0%, #22c55e 25%, #bbf7d0 50%, #86efac 65%, #22c55e 80%, #14532d 100%);
+            #4c1d95 0%, #7c3aed 25%, #ddd6fe 50%, #a78bfa 65%, #7c3aed 80%, #4c1d95 100%);
           background-size: 250% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: shimmer-green 2.8s linear infinite;
-          filter: drop-shadow(0 0 5px rgba(34,197,94,0.7));
+          animation: smoke-mod 3.5s ease-in-out infinite;
+          filter: drop-shadow(0 0 5px rgba(167,139,250,0.7));
         }
         .name-admin {
           background: linear-gradient(90deg,
@@ -234,13 +240,12 @@ export function ChatBubble() {
         }
         .name-mod {
           background: linear-gradient(90deg,
-            #4ade80 0%, #bbf7d0 30%, #d1fae5 55%, #bbf7d0 75%, #4ade80 100%);
-          background-size: 220% auto;
+            #3b0764 0%, #6d28d9 15%, #a78bfa 35%, #ddd6fe 52%, #f5f3ff 60%, #c4b5fd 73%, #7c3aed 88%, #3b0764 100%);
+          background-size: 350% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: shimmer-green 7s linear infinite;
-          filter: drop-shadow(0 0 8px rgba(74,222,128,0.55));
+          animation: smoke-mod 5s ease-in-out infinite;
         }
         .name-user {
           color: #e2e8f0;

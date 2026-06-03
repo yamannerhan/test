@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Search, PlusSquare, Headphones, User } from "lucide-react";
+import { Home, Search, MessageCircle, Headphones, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function BottomNav() {
@@ -10,7 +10,7 @@ export function BottomNav() {
   const navItems = [
     { icon: Home, label: "Ana Sayfa", path: "/" },
     { icon: Search, label: "İlanlar", path: "/ilanlar" },
-    { icon: PlusSquare, label: "Ekle", path: "/ilan-ekle" },
+    { icon: MessageCircle, label: "Sohbet", path: "/sohbet" },
     { icon: Headphones, label: "Destek", path: "/destek" },
     {
       icon: User,
