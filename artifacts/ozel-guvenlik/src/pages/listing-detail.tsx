@@ -2,7 +2,7 @@ import React from "react";
 import { useGetListing, useToggleListingLike, useToggleListingFavorite, getGetListingQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { useParams, Link } from "wouter";
-import { MapPin, Briefcase, Heart, Bookmark, Building, Calendar, ArrowLeft, Share2, AlertCircle, Lock, LogIn } from "lucide-react";
+import { MapPin, Briefcase, Heart, Bookmark, Building, Calendar, ArrowLeft, Share2, AlertCircle, Lock, LogIn, UserPlus, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -97,6 +97,50 @@ export default function ListingDetail() {
           <h2 className="text-xl font-bold mb-2">İlan Bulunamadı</h2>
           <p className="text-muted-foreground mb-6">Bu ilan silinmiş veya yayından kaldırılmış olabilir.</p>
           <Link href="/ilanlar"><Button>İlanlara Dön</Button></Link>
+        </div>
+      </Layout>
+    );
+  }
+
+  // ── Giriş yapmayan kullanıcılara erişim engeli ───────────────────
+  if (!user) {
+    return (
+      <Layout>
+        <div className="min-h-[calc(100vh-7rem)] flex flex-col items-center justify-center p-6 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-sm"
+          >
+            <div className="w-20 h-20 bg-primary/15 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-primary/30 shadow-[0_0_30px_rgba(79,70,229,0.25)]">
+              <ShieldAlert className="w-10 h-10 text-primary" />
+            </div>
+
+            <h2 className="text-xl font-bold mb-3">Üyelere Özel İçerik</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-8">
+              İlan detayını görmek, iletişim bilgilerine ulaşmak ve başvuru yapmak için giriş yapmanız veya üye olmanız gerekmektedir.
+            </p>
+
+            <div className="space-y-3">
+              <Link href="/giris" className="block">
+                <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-primary to-secondary text-white font-semibold shadow-lg gap-2">
+                  <LogIn className="w-4 h-4" />
+                  Giriş Yap
+                </Button>
+              </Link>
+              <Link href="/kayit" className="block">
+                <Button variant="outline" className="w-full h-12 rounded-2xl border-white/15 bg-white/5 font-semibold gap-2 hover:bg-white/10 transition-colors">
+                  <UserPlus className="w-4 h-4" />
+                  Ücretsiz Kayıt Ol
+                </Button>
+              </Link>
+              <Link href="/ilanlar" className="block">
+                <button className="w-full py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Geri Dön
+                </button>
+              </Link>
+            </div>
+          </motion.div>
         </div>
       </Layout>
     );
