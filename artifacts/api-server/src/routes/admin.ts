@@ -846,7 +846,39 @@ function parseListingText(raw: string): Record<string, string> {
   });
   const description = descLines.join("\n").trim();
 
-  return { title, company: company || "Belirtilmedi", city, district, salary, workType, description, contactPhone, contactName: contactName || "Belirtilmedi", applyUrl };
+  // ── Gender ─────────────────────────────────────────────────────────────────
+  let gender = "";
+  const hasBayan = /\bbayan\b/i.test(text);
+  const hasBay   = /\b(?:bay|erkek)\b/i.test(text);
+  if (hasBayan && hasBay) gender = "Bay / Bayan";
+  else if (hasBayan) gender = "Bayan";
+  else if (hasBay)   gender = "Bay";
+
+  // ── Formalize description ─────────────────────────────────────────────────
+  function formalizeDescription(raw: string): string {
+    return raw.split("\n")
+      .map(line => {
+        const l = line.trim().replace(/^[^A-ZÇĞİÖŞÜa-zçğışöüİ0-9]*/g, "").trim();
+        if (!l) return "";
+        return l.charAt(0).toUpperCase() + l.slice(1);
+      })
+      .filter(l => l.length > 0)
+      .join("\n");
+  }
+
+  return {
+    title,
+    company: company || "Özel Güvenlik",
+    city,
+    district,
+    salary,
+    workType,
+    gender,
+    description: formalizeDescription(description),
+    contactPhone,
+    contactName: contactName || "Özel Güvenlik",
+    applyUrl,
+  };
 }
 
 router.post("/admin/listings/parse", authMiddleware, requireAdmin, async (req, res): Promise<void> => {

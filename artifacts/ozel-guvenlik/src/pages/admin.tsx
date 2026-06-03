@@ -75,6 +75,7 @@ interface ParsedListing {
   title: string; company: string; city: string; district: string;
   salary: string; workType: string; description: string;
   contactPhone: string; contactName: string; applyUrl: string;
+  gender: string;
 }
 
 // Field bileşeni SmartListingSection DIŞINDA tanımlanmalı —
@@ -147,6 +148,7 @@ function SmartListingSection({ apiCall, toast, refetchListings, refetchStats }: 
         salary: parsed.salary || null,
         description: [
           parsed.description,
+          parsed.gender ? `Cinsiyet: ${parsed.gender}` : null,
           parsed.contactName ? `İletişim: ${parsed.contactName}` : null,
           parsed.contactPhone ? `Tel: ${parsed.contactPhone}` : null,
           parsed.district ? `İlçe: ${parsed.district}` : null,
@@ -223,7 +225,21 @@ function SmartListingSection({ apiCall, toast, refetchListings, refetchStats }: 
                   </select>
                 </div>
               </div>
-              <ParseField icon={Star} label="Maaş" value={parsed.salary} onChange={v => setParsed(p => p ? { ...p, salary: v } : p)} />
+              <div className="grid grid-cols-2 gap-2">
+                <ParseField icon={Star} label="Maaş" value={parsed.salary} onChange={v => setParsed(p => p ? { ...p, salary: v } : p)} />
+                <div>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
+                    <User className="w-3 h-3" /> Cinsiyet
+                  </label>
+                  <select value={parsed.gender} onChange={e => setParsed(p => p ? { ...p, gender: e.target.value } : p)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/50">
+                    <option value="">Belirtilmemiş</option>
+                    <option value="Bay">Bay</option>
+                    <option value="Bayan">Bayan</option>
+                    <option value="Bay / Bayan">Bay / Bayan</option>
+                  </select>
+                </div>
+              </div>
               <div>
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 flex items-center gap-1">
                   <MessageSquare className="w-3 h-3" /> Açıklama
