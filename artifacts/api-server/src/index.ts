@@ -105,20 +105,22 @@ function scheduleHourlyReminder() {
   }, msUntilNextHour);
 }
 
-// ── GuvenlikBot döngüsel mesajlar ─────────────────────────────────
+// ── GuvenlikBot döngüsel mesajlar (yalnızca platform tanıtımı) ────
 const BOT_MSG_POOL = [
-  "Güvenlik sektöründe kariyer yapmak isteyenler için yüzlerce ilan mevcut!",
+  "Güvenlik sektöründe kariyer yapmak isteyenler için yüzlerce ilan mevcut! İlanlar sayfasına göz atın.",
   "Topluluk kurallarına uymayı unutmayın — saygılı bir ortam herkese faydalı olur.",
   "Herhangi bir sorun yaşıyorsanız Destek menüsünden bize ulaşabilirsiniz.",
   "Özel güvenlik sertifikası almak isteyenler için eğitim ilanlarımıza göz atın!",
   "İstanbul, Ankara, İzmir ve daha birçok şehirde güncel ilanlar ekleniyor.",
   "Profil sayfanızı tamamlayarak işverenlerin sizi daha kolay bulmasını sağlayın.",
   "Yeni üyelerimize hoş geldiniz! Soru ve sorunlarınız için Destek menüsünü kullanın.",
-  "Güvenlik sektöründe gece vardiyası zammı yasal olarak yüzde 25'tir — haklarınızı bilin.",
-  "AVM, fabrika, site ve okul güvenliği için ayrı ayrı ilanlar platformumuzda.",
+  "AVM, fabrika, site, hastane ve okul güvenliği için ayrı ayrı ilanlar platformumuzda.",
   "Deneyimli güvenlik personeline büyük talep var — başvurularınızı güncel tutun.",
-  "SGK prim ödeyen şirketleri tercih edin, haklarınızdan vazgeçmeyin.",
-  "Silahlı güvenlik lisansı için gerekli belgeler ilanlar bölümünde açıklanmıştır.",
+  "Arama filtrelerini kullanarak şehir, pozisyon ve maaş aralığına göre ilanları daraltabilirsiniz.",
+  "Favori özelliğiyle beğendiğiniz ilanları kaydedebilir, daha sonra başvurabilirsiniz.",
+  "Birden fazla şehirde iş arıyorsanız şehir filtresini kullanmayı deneyin.",
+  "Platformumuza her gün yeni ilanlar ekleniyor, düzenli takip etmeyi unutmayın!",
+  "İlan başvurularınızı tamamlamak için profilinizi eksiksiz doldurduğunuzdan emin olun.",
 ];
 const usedBotMsgIdx = new Set<number>();
 function getNextBotMsg(): string {
@@ -855,7 +857,7 @@ void expireListings();
 setInterval(() => { void expireListings(); }, 30 * 60 * 1000);
 setTimeout(() => scheduleBotMessage(), 3 * 60 * 1000);
 setTimeout(() => scheduleFakeConversation(), 30000);
-setTimeout(() => scheduleInfoBot(), 20 * 1000);
+setTimeout(() => scheduleInfoBot(), 10 * 1000);
 scheduleHourlyReminder();
 setInterval(() => { void broadcastOnlineCount(); }, 45000);
 
