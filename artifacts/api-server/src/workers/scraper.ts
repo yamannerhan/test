@@ -137,10 +137,32 @@ async function scrapeTelegramChannel(username: string): Promise<ScrapedMessage[]
     });
 
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status} — kanal bulunamadı veya erişilemiyor`);
+      if (res.status === 404) throw new Error("Kanal bulunamadı. Kullanıcı adını kontrol edin.");
+      throw new Error(`HTTP ${res.status} — kanala erişilemiyor`);
     }
 
+    // Detect redirect: t.me/s/username → t.me/username (web preview disabled)
+    const finalUrl = res.url ?? "";
+    const webPreviewDisabled = !finalUrl.includes("/s/");
+
     const html = await res.text();
+
+    if (webPreviewDisabled || !html.includes("data-post")) {
+      // Check if channel exists at all
+      const hasChannel = html.includes("tgme_page_title") || html.includes("tgme_page");
+      if (!hasChannel) {
+        throw new Error("Kanal bulunamadı. Kullanıcı adını kontrol edin.");
+      }
+      // Extract member count for better error
+      const membersMatch = html.match(/>([\d,. ]+)\s*(?:üye|member|subscriber|abone)/i);
+      const memberInfo = membersMatch ? ` (${membersMatch[1].trim()} üye)` : "";
+      throw new Error(
+        `Bu kanalda web önizleme kapalı${memberInfo}. ` +
+        `Kanal yöneticisi Telegram'da şu adımları izlemeli: ` +
+        `Kanal Ayarları → Kanal Türü → "Önizlemeyi Etkinleştir" (Preview Channel) seçeneğini açsın.`
+      );
+    }
+
     const messages: ScrapedMessage[] = [];
 
     // Split HTML into per-message sections on data-post boundaries
@@ -180,7 +202,11 @@ async function scrapeTelegramChannel(username: string): Promise<ScrapedMessage[]
     return messages;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(msg.includes("kanal bulunamadı") ? msg : `Kanal verisi alınamadı: ${msg}`);
+    // Pass through already-formatted errors
+    if (msg.includes("kapalı") || msg.includes("bulunamadı") || msg.includes("erişilemiyor")) {
+      throw new Error(msg);
+    }
+    throw new Error(`Kanal verisi alınamadı: ${msg}`);
   }
 }
 
