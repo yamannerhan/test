@@ -33,40 +33,72 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 /* ── Swipeable row ────────────────────────────────────────────── */
+// React'ın synthetic onTouchMove olayı PWA'da passive geldiğinden
+// preventDefault() çalışmaz ve scroll swipe'ı yutar.
+// Çözüm: native addEventListener ile { passive: false } kullanmak.
 function SwipeableMessage({ children, onReply }: { children: React.ReactNode; onReply: () => void }) {
   const x = useMotionValue(0);
   const opacity = useTransform(x, [0, 50], [0, 1]);
   const scale = useTransform(x, [0, 50, 80], [0.5, 1, 1.2]);
   const iconBg = useTransform(x, [40, 65], ["rgba(79,70,229,0.6)", "rgba(79,70,229,1)"]);
-  const touchStartX = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const isHoriz = useRef<boolean | null>(null);
   const swiped = useRef(false);
   const vibrated = useRef(false);
+  const onReplyRef = useRef(onReply);
+  useEffect(() => { onReplyRef.current = onReply; }, [onReply]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onStart = (e: TouchEvent) => {
+      startX.current = e.touches[0]!.clientX;
+      startY.current = e.touches[0]!.clientY;
+      isHoriz.current = null;
+      swiped.current = false;
+      vibrated.current = false;
+    };
+
+    const onMove = (e: TouchEvent) => {
+      const dx = e.touches[0]!.clientX - startX.current;
+      const dy = e.touches[0]!.clientY - startY.current;
+      // İlk harekette yönü belirle (5px eşiği)
+      if (isHoriz.current === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+        isHoriz.current = Math.abs(dx) > Math.abs(dy);
+      }
+      if (!isHoriz.current || dx <= 0) return;
+      e.preventDefault(); // Scroll'u engelle — passive:false sayesinde çalışır
+      x.set(Math.min(dx, 90));
+      if (dx >= 60 && !vibrated.current) {
+        vibrated.current = true;
+        if (navigator.vibrate) navigator.vibrate(45);
+      }
+    };
+
+    const onEnd = () => {
+      if (isHoriz.current && x.get() >= 60 && !swiped.current) {
+        swiped.current = true;
+        onReplyRef.current();
+      }
+      animate(x, 0, { type: "spring", stiffness: 380, damping: 28 });
+      isHoriz.current = null;
+    };
+
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false }); // ← kritik
+    el.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+    };
+  }, []);
 
   return (
-    <div className="relative overflow-hidden"
-      onTouchStart={e => {
-        touchStartX.current = e.touches[0]!.clientX;
-        swiped.current = false;
-        vibrated.current = false;
-      }}
-      onTouchMove={e => {
-        const dx = e.touches[0]!.clientX - touchStartX.current;
-        if (dx > 0) {
-          x.set(Math.min(dx, 90));
-          if (dx >= 60 && !vibrated.current) {
-            vibrated.current = true;
-            if (navigator.vibrate) navigator.vibrate(45);
-          }
-        }
-      }}
-      onTouchEnd={() => {
-        if (x.get() >= 60 && !swiped.current) {
-          swiped.current = true;
-          onReply();
-        }
-        animate(x, 0, { type: "spring", stiffness: 380, damping: 28 });
-      }}
-    >
+    <div ref={containerRef} className="relative">
       <motion.div
         style={{ opacity, scale, backgroundColor: iconBg }}
         className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center pointer-events-none z-10 shadow-lg"
