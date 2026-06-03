@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { db, sourcesTable, importedPostsTable, pendingJobsTable, listingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { getUpdates, isBotTokenSet } from "../services/telegram-client";
+import { getUpdates, isBotTokenSet, isClientConnected, fetchMessagesViaClient } from "../services/telegram-client";
 import type { BotUpdate } from "../services/telegram-client";
 
 // ── Keyword lists ──────────────────────────────────────────────────
@@ -349,9 +349,21 @@ async function checkTelegramSource(source: typeof sourcesTable.$inferSelect): Pr
     return;
   }
 
-  logger.info(`scraper: web-scraping @${username}`);
+  logger.info(`scraper: checking @${username} (gramjs=${isClientConnected()}, bot=${isBotTokenSet()})`);
 
-  const messages = await scrapeTelegramChannel(username);
+  let messages: ScrapedMessage[];
+  if (isClientConnected()) {
+    try {
+      const raw = await fetchMessagesViaClient(username);
+      messages = raw;
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      logger.warn(`scraper: GramJS fetch failed for @${username}, fallback to web: ${errMsg}`);
+      messages = await scrapeTelegramChannel(username);
+    }
+  } else {
+    messages = await scrapeTelegramChannel(username);
+  }
 
   if (messages.length === 0) {
     await db.update(sourcesTable)

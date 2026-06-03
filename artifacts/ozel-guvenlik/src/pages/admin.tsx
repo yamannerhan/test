@@ -1017,41 +1017,134 @@ interface Source {
   lastError: string | null; totalImported: number; createdAt: string;
 }
 
-function TelegramAuthSection({ apiCall }: { apiCall: (path: string, method?: string, body?: unknown) => Promise<unknown>; toast: ReturnType<typeof useToast>["toast"] }) {
-  const [status, setStatus] = useState<{ connected: boolean; bot: { username: string; firstName: string } | null; message: string | null } | null>(null);
+type TgAuthStateType = "disconnected" | "awaiting_code" | "awaiting_password" | "connected";
 
-  useEffect(() => {
-    apiCall("/admin/telegram/status")
-      .then(d => setStatus(d as typeof status))
-      .catch(() => setStatus({ connected: false, bot: null, message: "Durum alınamadı" }));
-  }, []);
+function TelegramAuthSection({ apiCall, toast }: { apiCall: (path: string, method?: string, body?: unknown) => Promise<unknown>; toast: ReturnType<typeof useToast>["toast"] }) {
+  const [state, setState] = useState<TgAuthStateType>("disconnected");
+  const [phone, setPhone] = useState<string | null>(null);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [codeInput, setCodeInput] = useState("");
+  const [passInput, setPassInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
 
-  if (!status) return null;
+  const loadStatus = async () => {
+    try {
+      const d = await apiCall("/admin/telegram/status") as { state: TgAuthStateType; phone: string | null; connected: boolean };
+      setState(d.state ?? "disconnected");
+      setPhone(d.phone);
+    } catch { /* ignore */ } finally { setChecking(false); }
+  };
+
+  useEffect(() => { void loadStatus(); }, []);
+
+  const sendCode = async () => {
+    if (!phoneInput.trim()) return;
+    setLoading(true);
+    try {
+      await apiCall("/admin/telegram/auth/start", "POST", { phone: phoneInput.trim() });
+      toast({ title: "Kod gönderildi", description: "Telegram'dan gelen kodu girin" });
+      setState("awaiting_code");
+      setPhone(phoneInput.trim());
+    } catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  };
+
+  const verifyCode = async () => {
+    if (!codeInput.trim()) return;
+    setLoading(true);
+    try {
+      const r = await apiCall("/admin/telegram/auth/verify", "POST", { code: codeInput.trim() }) as { needs2FA: boolean };
+      if (r.needs2FA) {
+        setState("awaiting_password");
+        toast({ title: "2FA gerekli", description: "Telegram şifrenizi girin" });
+      } else {
+        setState("connected");
+        toast({ title: "Telegram bağlantısı kuruldu" });
+      }
+      setCodeInput("");
+    } catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  };
+
+  const verifyPassword = async () => {
+    if (!passInput) return;
+    setLoading(true);
+    try {
+      await apiCall("/admin/telegram/auth/password", "POST", { password: passInput });
+      setState("connected");
+      setPassInput("");
+      toast({ title: "Telegram bağlantısı kuruldu" });
+    } catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  };
+
+  const doLogout = async () => {
+    setLoading(true);
+    try {
+      await apiCall("/admin/telegram/auth/logout", "POST");
+      setState("disconnected");
+      setPhone(null);
+      toast({ title: "Telegram bağlantısı kesildi" });
+    } catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  };
+
+  if (checking) return null;
 
   return (
-    <Section title="Telegram Bot" icon={Radio}>
-      {status.connected && status.bot ? (
+    <Section title="Telegram Hesabı" icon={Radio}>
+      {state === "connected" ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-xl p-3">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-green-300 font-medium">Bot aktif — @{status.bot.username}</p>
-              <p className="text-[10px] text-green-400/70 mt-0.5">Yeni mesajlar otomatik taranıyor</p>
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <div className="flex-1 text-xs text-green-300">
+              <strong>Bağlı</strong>{phone && ` — ${phone}`}
+              <p className="text-[10px] text-green-400/70 mt-0.5">Tüm kanallar ve özel gruplar taranabilir</p>
             </div>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">Botu grubunuza eklemek için:</p>
-            <p className="text-xs">1. Grup/kanal ayarlarına girin</p>
-            <p className="text-xs">2. "Üye Ekle" → <code className="bg-white/10 px-1 rounded text-primary">@{status.bot.username}</code> arayın</p>
-            <p className="text-xs">3. Ekleyin — bot artık o gruptan mesaj alır</p>
+          <Button onClick={doLogout} disabled={loading} size="sm" variant="outline" className="text-xs h-8 border-destructive/30 text-destructive hover:bg-destructive/10 w-full">
+            Bağlantıyı Kes
+          </Button>
+        </div>
+      ) : state === "awaiting_code" ? (
+        <div className="space-y-3">
+          <div className="flex items-start gap-2 bg-primary/10 border border-primary/20 rounded-xl p-3">
+            <Radio className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+            <p className="text-xs text-primary/80">{phone} numarasına Telegram'dan doğrulama kodu gönderildi</p>
+          </div>
+          <Input value={codeInput} onChange={e => setCodeInput(e.target.value)} placeholder="Telegram'dan gelen kod (örn: 12345)" className="h-9 text-sm bg-white/5 border-white/10 tracking-widest" inputMode="numeric" onKeyDown={e => e.key === "Enter" && void verifyCode()} />
+          <div className="flex gap-2">
+            <Button onClick={verifyCode} disabled={loading || !codeInput.trim()} size="sm" className="flex-1 text-xs h-8 bg-gradient-to-r from-primary to-secondary">
+              {loading ? "Doğrulanıyor…" : "Kodu Doğrula"}
+            </Button>
+            <Button onClick={() => { setState("disconnected"); setCodeInput(""); }} size="sm" variant="outline" className="text-xs h-8 border-white/10">İptal</Button>
           </div>
         </div>
+      ) : state === "awaiting_password" ? (
+        <div className="space-y-3">
+          <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+            <Lock className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-300">İki adımlı doğrulama (2FA) etkin. Telegram şifrenizi girin.</p>
+          </div>
+          <Input type="password" value={passInput} onChange={e => setPassInput(e.target.value)} placeholder="Telegram 2FA şifresi" className="h-9 text-sm bg-white/5 border-white/10" onKeyDown={e => e.key === "Enter" && void verifyPassword()} />
+          <Button onClick={verifyPassword} disabled={loading || !passInput} size="sm" className="w-full text-xs h-8 bg-gradient-to-r from-primary to-secondary">
+            {loading ? "Doğrulanıyor…" : "Şifreyi Doğrula"}
+          </Button>
+        </div>
       ) : (
-        <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-          <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-          <div className="text-xs text-amber-300">
-            <p className="font-medium">Bot bağlanamadı</p>
-            <p className="text-[10px] mt-0.5 text-amber-400/70">{status.message ?? "TELEGRAM_BOT_TOKEN eksik veya geçersiz"}</p>
+        <div className="space-y-3">
+          <div className="flex items-start gap-2 bg-white/5 border border-white/10 rounded-xl p-3">
+            <Radio className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div className="text-xs text-muted-foreground">
+              Kendi Telegram hesabınızla giriş yapın. Üye olduğunuz <strong>tüm gruplar ve kanallardan</strong> (özel dahil) ilan çekilebilir.
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Input value={phoneInput} onChange={e => setPhoneInput(e.target.value)} placeholder="+90 5XX XXX XX XX" className="h-9 text-sm bg-white/5 border-white/10 flex-1" inputMode="tel" onKeyDown={e => e.key === "Enter" && void sendCode()} />
+            <Button onClick={sendCode} disabled={loading || !phoneInput.trim()} size="sm" className="text-xs h-9 px-4 bg-gradient-to-r from-primary to-secondary whitespace-nowrap">
+              {loading ? "Gönderiliyor…" : "Kod Gönder"}
+            </Button>
           </div>
         </div>
       )}
