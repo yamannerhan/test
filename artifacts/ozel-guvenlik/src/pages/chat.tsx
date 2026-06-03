@@ -117,6 +117,7 @@ export default function Chat() {
   const [content, setContent] = useState("");
   const [replyTo, setReplyTo] = useState<ExtMsg | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const msgContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [, setSocket] = useState<Socket | null>(null);
   const [messages, setMessages] = useState<AnyMsg[]>([]);
@@ -131,10 +132,18 @@ export default function Chat() {
 
   useEffect(() => { if (initialData) setMessages([...initialData as ExtMsg[]]); }, [initialData]);
 
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    requestAnimationFrame(() => {
+      const el = msgContainerRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior });
+    });
+  }, []);
+
   const addMsg = useCallback((msg: AnyMsg) => {
     setMessages(prev => [...prev, msg]);
-    setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
-  }, []);
+    scrollToBottom("smooth");
+  }, [scrollToBottom]);
 
   useEffect(() => {
     const s = io({ path: "/ws" });
@@ -161,7 +170,7 @@ export default function Chat() {
     return () => { s.disconnect(); };
   }, [user?.id]);
 
-  useEffect(() => { setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "instant" }), 100); }, [isLoading]);
+  useEffect(() => { if (!isLoading) setTimeout(() => scrollToBottom("instant"), 120); }, [isLoading]);
 
   // @ mention search
   useEffect(() => {
@@ -240,6 +249,11 @@ export default function Chat() {
         startCooldown(data.waitSeconds ?? 5);
         return;
       }
+      if (r.status === 403) {
+        const data = await r.json().catch(() => ({})) as { error?: string };
+        alert(data.error ?? "Mesaj gönderme yetkiniz yok.");
+        return;
+      }
       if (r.ok) {
         setContent("");
         setReplyTo(null);
@@ -248,6 +262,8 @@ export default function Chat() {
         if (user.role !== "admin" && user.role !== "moderator") {
           startCooldown(5);
         }
+        // iOS/mobile: async sonrası focus kaybını önle
+        setTimeout(() => inputRef.current?.focus(), 50);
       }
     } catch {} finally { setSending(false); }
   };
@@ -543,7 +559,7 @@ export default function Chat() {
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto py-4 space-y-3 pb-36">
+        <div ref={msgContainerRef} className="flex-1 overflow-y-auto py-4 space-y-3 pb-36">
           {isLoading ? (
             <div className="flex justify-center items-center h-full">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -556,7 +572,7 @@ export default function Chat() {
           <div ref={scrollRef} />
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 bg-background/90 backdrop-blur-xl border-t border-white/10 p-4">
+        <div className="absolute bottom-0 left-0 right-0 z-10 bg-background/90 backdrop-blur-xl border-t border-white/10 p-4">
           {!user ? (
             <div className="text-center py-2 text-sm text-muted-foreground">
               Mesaj yazmak için <a href="/giris" className="text-primary font-medium">giriş yapmanız</a> gerekiyor.
