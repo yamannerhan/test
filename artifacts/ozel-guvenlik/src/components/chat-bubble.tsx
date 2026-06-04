@@ -105,12 +105,16 @@ export function ChatBubble() {
   const sendErrorRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const msgContainerRef = useRef<HTMLDivElement>(null);
+  const msgInnerRef = useRef<HTMLDivElement>(null);
+  // Kullanıcı en altta mı (scroll event'iyle güncellenir) — resize/yeni mesajda zorla indirip indirmemeyi belirler
+  const pinnedRef = useRef(true);
   const isOnChatPage = location === "/sohbet";
 
   const scrollToBottom = useCallback(() => {
     // Kapsayıcının kendi scrollTop'unu ayarla — popup zaten kendi overflow container'ı.
     // scrollIntoView KULLANMA: üst kapsayıcıları (canvas iframe/sayfa) da kaydırıp
     // scrollbar bozulmasına ve en sona inememeye yol açıyordu.
+    pinnedRef.current = true;
     const jump = () => {
       const el = msgContainerRef.current;
       if (el) el.scrollTop = el.scrollHeight;
@@ -173,10 +177,27 @@ export function ChatBubble() {
     }
   }, [open, scrollToBottom]);
 
-  // Paint öncesi en alta kaydır
+  // Yeni mesajda en alta kaydır. messages.length 60'ta SABİTLENİR (slice(-59)) → uzunluğa
+  // bağlanırsak yeni mesajlar tetiklemez. Son mesajın id'si değiştiğinde tetikle.
+  // Kullanıcı geçmişi okumak için yukarı kaydırdıysa (pinnedRef false) zorla indirme.
+  const lastMsg = messages[messages.length - 1] as { id?: number | string; createdAt?: string } | undefined;
+  const lastMsgKey = lastMsg ? `${lastMsg.id ?? ""}|${lastMsg.createdAt ?? ""}` : "";
   useLayoutEffect(() => {
-    scrollToBottom();
-  }, [messages.length, scrollToBottom]);
+    if (pinnedRef.current) scrollToBottom();
+  }, [lastMsgKey, scrollToBottom]);
+
+  // İçerik sonradan büyüse (çok satırlı mesaj, yanıt önizleme, animasyon) ve kullanıcı
+  // resize ÖNCESİ en alttaysa (pinnedRef), otomatik en altta kal — "altta kalmasını" engeller.
+  useEffect(() => {
+    const inner = msgInnerRef.current;
+    const cont = msgContainerRef.current;
+    if (!inner || !cont) return;
+    const ro = new ResizeObserver(() => {
+      if (pinnedRef.current) cont.scrollTop = cont.scrollHeight;
+    });
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, [open]);
 
   const startCooldown = (seconds: number) => {
     setCooldownLeft(seconds);
@@ -364,8 +385,9 @@ export function ChatBubble() {
               backdropFilter: "blur(20px)",
               border: "1px solid rgba(255,255,255,0.08)",
               boxShadow: "0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(79,70,229,0.2)",
-              // Klavye açılınca dvh küçülür → popup ekrana sığar, input+son mesaj görünür kalır
-              maxHeight: "min(500px, calc(100dvh - 11rem))",
+              // SABİT yükseklik (definite height): mesaj alanının min-h-full + justify-end'i güvenilir
+              // çalışsın, en yeni mesaj daima input'un hemen üstünde dursun. dvh klavye/viewport'a uyar.
+              height: "min(500px, calc(100dvh - 11rem))",
             }}
           >
             {/* Header */}
@@ -403,7 +425,15 @@ export function ChatBubble() {
             </div>
 
             {/* Messages */}
-            <div ref={msgContainerRef} className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0">
+            <div
+              ref={msgContainerRef}
+              onScroll={() => {
+                const el = msgContainerRef.current;
+                if (el) pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+              }}
+              className="flex-1 overflow-y-auto min-h-0"
+            >
+              <div ref={msgInnerRef} className="flex flex-col justify-end min-h-full p-3 space-y-2.5">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-24 gap-2">
                   <MessageSquareDot className="w-8 h-8 text-white/10" />
@@ -548,6 +578,7 @@ export function ChatBubble() {
                 })
               )}
               <div ref={messagesEndRef} />
+              </div>
             </div>
 
             {/* Input */}
