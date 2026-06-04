@@ -134,7 +134,7 @@ export function getAuthState(): AuthState { return currentState; }
 export function getCurrentPhone(): string | null { return currentPhone; }
 export function isClientConnected(): boolean { return currentState === "connected" && client !== null; }
 
-export async function fetchMessagesViaClient(username: string, limit = 50): Promise<{ id: string; text: string; url: string }[]> {
+export async function fetchMessagesViaClient(username: string, limit = 50): Promise<{ id: string; text: string; url: string; postedAt?: Date }[]> {
   if (!client || !isClientConnected()) return [];
   const entity = await client.getEntity(username);
   const messages = await client.getMessages(entity, { limit });
@@ -144,6 +144,8 @@ export async function fetchMessagesViaClient(username: string, limit = 50): Prom
       id: String(m.id),
       text: m.message,
       url: `https://t.me/${username}/${m.id}`,
+      // m.date Telegram'da unix saniye — gerçek gönderim tarihi
+      postedAt: typeof m.date === "number" ? new Date(m.date * 1000) : undefined,
     }));
 }
 

@@ -54,3 +54,12 @@ The app was 100% mobile-first: header, `<main>`, and bottom-nav were all hard-ca
 **Why:** User explicitly wanted it to stop replying to everything and act as a domain expert.
 
 **How to apply:** When adding bot topics, update BOTH `RELEVANT_TOPIC_RE` (the gate) and the `KEYWORD_RULES`/system prompt (the answers), or the bot will accept a question it has no good reply for.
+
+# Telegram scraper post-date / "eski ilan alıyor" fix
+The Telegram import chronology spans FOUR places that must stay in lockstep, or old channel history leaks in as "current" listings:
+1. `fetchMessagesViaClient` (GramJS) — `m.date` is unix **seconds** → `postedAt`.
+2. `scrapeTelegramChannel` (web t.me/s/) — `<time datetime="...">` per data-post section → `postedAt`.
+3. `processBotUpdates` (Bot API) — `post.date` unix seconds → `postedAt`.
+4. `routes/pending-jobs.ts` approve endpoint — must carry `job.createdAt` onto the new listing.
+**Why:** `listingsTable`/`pendingJobsTable`/listing-on-approve all default `createdAt` to `now()`. Without passing the real `postedAt`, an old post imported today shows as brand-new ("güncel ilan diye eski ilan alıyor"). The scraper does a bulk first-scan of up to 50 msgs, so old backlog floods in on a channel's first check.
+**How to apply:** capture `postedAt` in all 3 fetch paths, skip msgs older than `MAX_POST_AGE_DAYS` (env `SCRAPER_MAX_POST_AGE_DAYS`, default 7, validated >0), sort newest-first, and stamp `createdAt: postedAt` on every insert incl. the approval route. Parse failures must NOT drop the msg (only drop when a date exists AND is too old).

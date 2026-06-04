@@ -173,8 +173,15 @@ function extractTelegramUsername(url: string): string | null {
   return name.startsWith("+") ? null : name.toLowerCase();
 }
 
+// Sadece bu kadar günden yeni ilanlar içeri alınır — eski gönderiler atlanır.
+// SCRAPER_MAX_POST_AGE_DAYS env'i ile ayarlanabilir (varsayılan 7 gün).
+// Geçersiz/negatif değer kazara her şeyi elemesin diye 7'ye düşülür.
+const envAgeDays = Number(process.env["SCRAPER_MAX_POST_AGE_DAYS"]);
+const MAX_POST_AGE_DAYS = Number.isFinite(envAgeDays) && envAgeDays > 0 ? envAgeDays : 7;
+const MAX_POST_AGE_MS = MAX_POST_AGE_DAYS * 24 * 60 * 60 * 1000;
+
 // ── Telegram web scraping (no bot token needed) ────────────────────
-interface ScrapedMessage { id: string; text: string; url: string }
+interface ScrapedMessage { id: string; text: string; url: string; postedAt?: Date }
 
 function decodeHtmlEntities(html: string): string {
   return html
@@ -260,12 +267,18 @@ async function scrapeTelegramChannel(username: string): Promise<ScrapedMessage[]
         ? section.slice(openEnd + 1, openEnd + 2000)
         : section.slice(openEnd + 1, closeDiv);
 
+      // Gönderim tarihini <time datetime="..."> öğesinden al
+      const timeMatch = section.match(/<time[^>]+datetime="([^"]+)"/);
+      const parsed = timeMatch?.[1] ? new Date(timeMatch[1]) : null;
+      const postedAt = parsed && !Number.isNaN(parsed.getTime()) ? parsed : undefined;
+
       const text = stripHtmlTags(rawHtml).trim();
       if (text.length > 0) {
         messages.push({
           id: msgId,
           text,
           url: `https://t.me/${postPath}/${msgId}`,
+          postedAt,
         });
       }
     }
@@ -287,9 +300,13 @@ async function processMessage(
   externalId: string,
   text: string,
   sourceUrl: string,
+  postedAt?: Date,
 ): Promise<void> {
   if (!text?.trim() || isChatMessage(text)) return;
   if (!isJobPosting(text)) return;
+
+  // Sadece güncel ilanlar: tarihi belli olup eşik değerden eski olanları atla
+  if (postedAt && Date.now() - postedAt.getTime() > MAX_POST_AGE_MS) return;
 
   const hash = createDuplicateHash(text);
 
@@ -332,6 +349,8 @@ async function processMessage(
       description: text,
       status: "active",
       applyUrl: sourceUrl,
+      // Gerçek gönderim tarihini kullan ki "X gün önce" ve sıralama doğru olsun
+      ...(postedAt ? { createdAt: postedAt } : {}),
     });
     await db.update(importedPostsTable)
       .set({ status: "approved" })
@@ -352,6 +371,7 @@ async function processMessage(
       platform: source.platform,
       status: "pending",
       duplicateHash: hash,
+      ...(postedAt ? { createdAt: postedAt } : {}),
     });
   }
 }
@@ -398,8 +418,9 @@ async function processBotUpdates(): Promise<void> {
       const msgUrl = chatUsername
         ? `https://t.me/${chatUsername}/${post.message_id}`
         : `https://t.me/c/${chatId.replace("-100", "")}/${post.message_id}`;
+      const postedAt = typeof post.date === "number" ? new Date(post.date * 1000) : undefined;
       try {
-        await processMessage(source, `bot_${chatId}_${post.message_id}`, post.text, msgUrl);
+        await processMessage(source, `bot_${chatId}_${post.message_id}`, post.text, msgUrl, postedAt);
       } catch (e) {
         logger.error(e, `scraper: bot update processing error`);
       }
@@ -445,10 +466,13 @@ async function checkTelegramSource(source: typeof sourcesTable.$inferSelect): Pr
     return;
   }
 
+  // En yeni gönderiler önce işlensin (tarihi olmayanlar sona)
+  messages.sort((a, b) => (b.postedAt?.getTime() ?? 0) - (a.postedAt?.getTime() ?? 0));
+
   let processed = 0;
   for (const msg of messages) {
     try {
-      await processMessage(source, `${username}_${msg.id}`, msg.text, msg.url);
+      await processMessage(source, `${username}_${msg.id}`, msg.text, msg.url, msg.postedAt);
       processed++;
     } catch (e) {
       logger.error(e, `scraper: error processing msg ${msg.id} from @${username}`);

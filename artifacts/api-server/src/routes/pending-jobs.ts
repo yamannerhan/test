@@ -94,6 +94,8 @@ router.post("/admin/pending-jobs/:id/approve", authMiddleware, requireAdmin, asy
     requirements: `Kaynak: ${platformTag} | ${job.sourceUrl ?? ""}`,
     status: "active",
     applyUrl: job.applicationUrl ?? job.sourceUrl ?? undefined,
+    // Gerçek gönderim tarihini koru (onay anı değil) — sıralama ve "X gün önce" doğru olsun
+    ...(job.createdAt ? { createdAt: job.createdAt } : {}),
   }).returning();
 
   // Update pending job status
