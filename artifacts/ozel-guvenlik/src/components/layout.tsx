@@ -26,7 +26,7 @@ function getNotifIcon(type: string) {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, isModerator } = useAuth();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const queryClient = useQueryClient();
   const [liveCount, setLiveCount] = useState<number | null>(null);
   const [showPanel, setShowPanel] = useState(false);
@@ -90,9 +90,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-20">
+    <div className="min-h-screen bg-background text-foreground pb-20 md:pb-10">
       <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-xl border-b border-white/10 shadow-[0_2px_24px_rgba(79,70,229,0.15)]">
-        <div className="flex items-center justify-between px-4 h-14 max-w-md mx-auto">
+        <div className="flex items-center justify-between px-4 h-14 max-w-md md:max-w-6xl mx-auto">
           <Link href="/" className="flex items-center gap-2 group">
             <div className="relative w-9 h-9 shrink-0">
               <img src="/logo.png" alt="ÖZEL GÜVENLİK" className="w-full h-full object-contain rounded-lg logo-glow-anim" />
@@ -102,6 +102,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <span className="text-accent text-[10px] font-semibold tracking-widest">.Online</span>
             </span>
           </Link>
+
+          {/* ── Masaüstü üst navigasyon ─────────────────────── */}
+          <nav className="hidden md:flex items-center gap-1 ml-8 mr-auto">
+            {[
+              { label: "Ana Sayfa", path: "/" },
+              { label: "İlanlar", path: "/ilanlar" },
+              { label: "Part Time", path: "/part-time" },
+              { label: "CV Oluştur", path: "/cv-olustur" },
+              { label: "Destek", path: "/destek" },
+            ].map((item) => {
+              const active = location === item.path || (item.path !== "/" && location.startsWith(item.path));
+              return (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    active ? "text-accent bg-accent/10" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
 
           <div className="flex items-center gap-2.5">
             <div className="flex items-center gap-1 px-2 py-0.5">
@@ -229,7 +253,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="max-w-md mx-auto relative min-h-[calc(100vh-7rem)]">
+      <main className="max-w-md md:max-w-6xl mx-auto relative min-h-[calc(100vh-7rem)]">
         {children}
       </main>
 

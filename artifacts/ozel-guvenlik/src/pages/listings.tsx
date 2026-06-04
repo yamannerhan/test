@@ -64,13 +64,13 @@ export default function Listings() {
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4">
           {isLoading ? (
             [1, 2, 3, 4, 5].map(i => (
               <div key={i} className="h-[130px] glass-card rounded-2xl animate-pulse bg-white/5" />
             ))
           ) : data?.listings?.length === 0 ? (
-            <div className="text-center py-12 glass-card rounded-2xl">
+            <div className="text-center py-12 glass-card rounded-2xl md:col-span-2 lg:col-span-3">
               <p className="text-muted-foreground">İlan bulunamadı</p>
             </div>
           ) : (

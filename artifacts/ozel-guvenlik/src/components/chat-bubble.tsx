@@ -100,7 +100,9 @@ export function ChatBubble() {
   const [sending, setSending] = useState(false);
   const [pulse, setPulse] = useState(false);
   const [cooldownLeft, setCooldownLeft] = useState(0);
+  const [sendError, setSendError] = useState("");
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sendErrorRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const msgContainerRef = useRef<HTMLDivElement>(null);
   const isOnChatPage = location === "/sohbet";
@@ -184,6 +186,12 @@ export function ChatBubble() {
     }, 1000);
   };
 
+  const showSendError = (msg: string) => {
+    setSendError(msg);
+    if (sendErrorRef.current) clearTimeout(sendErrorRef.current);
+    sendErrorRef.current = setTimeout(() => setSendError(""), 5000);
+  };
+
   const sendMsg = async () => {
     if (!content.trim() || !user || sending || cooldownLeft > 0) return;
     setSending(true);
@@ -203,8 +211,14 @@ export function ChatBubble() {
         if (sent) addMsg(sent); // anında ekle — soketten gelince çift olmaz (id kontrolü var)
         setContent("");
         setReplyTo(null);
+        return;
       }
-    } catch {} finally { setSending(false); }
+      // 403 (kilitli/susturulmuş), 400, 500 vb. — sebebi kullanıcıya göster
+      const data = await r.json().catch(() => ({})) as { error?: string };
+      showSendError(data.error ?? "Mesaj gönderilemedi. Lütfen tekrar deneyin.");
+    } catch {
+      showSendError("Bağlantı hatası. Lütfen tekrar deneyin.");
+    } finally { setSending(false); }
   };
 
   const handleClearChat = async () => {
@@ -561,6 +575,11 @@ export function ChatBubble() {
                       </motion.div>
                     )}
                   </AnimatePresence>
+                  {sendError && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 mb-1 rounded-lg bg-red-500/15 border border-red-500/30">
+                      <span className="text-[11px] text-red-300 leading-snug">{sendError}</span>
+                    </div>
+                  )}
                   {cooldownLeft > 0 && (
                     <div className="flex items-center gap-1.5 px-1">
                       <div className="h-0.5 flex-1 bg-white/10 rounded-full overflow-hidden">

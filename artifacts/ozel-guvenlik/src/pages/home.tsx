@@ -222,7 +222,7 @@ export default function Home() {
               Tümü <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4">
             {isLoading
               ? [1, 2, 3, 4].map(i => (
                   <div key={i} className="h-[110px] glass-card rounded-2xl animate-pulse bg-white/5" />

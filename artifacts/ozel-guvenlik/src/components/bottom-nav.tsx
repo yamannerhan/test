@@ -80,7 +80,7 @@ export function BottomNav() {
         )}
       </AnimatePresence>
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-xl border-t border-white/10 pb-safe">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-xl border-t border-white/10 pb-safe md:hidden">
         <div className="flex items-center justify-around h-[70px] max-w-md mx-auto px-2">
           {navItems.map((item) => {
             const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path));
