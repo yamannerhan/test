@@ -3,6 +3,7 @@ import { db, usersTable, listingsTable, chatMessagesTable, announcementsTable, a
 import { eq, desc, ilike, and, sql, asc, or, isNull, gt, inArray } from "drizzle-orm";
 import { authMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
 import { onlineSockets } from "./chat";
+import { extractGender } from "../lib/job-parsing";
 import bcrypt from "bcryptjs";
 
 const router = Router();
@@ -989,12 +990,8 @@ function parseListingText(raw: string): Record<string, string> {
   const description = descLines.join("\n").trim();
 
   // ── Gender ─────────────────────────────────────────────────────────────────
-  let gender = "";
-  const hasBayan = /\bbayan\b/i.test(text);
-  const hasBay   = /\b(?:bay|erkek)\b/i.test(text);
-  if (hasBayan && hasBay) gender = "Bay / Bayan";
-  else if (hasBayan) gender = "Bayan";
-  else if (hasBay)   gender = "Bay";
+  // Ortak çıkarım mantığı (bayan/kadın/hanım → Bayan, bay/erkek → Bay)
+  const gender = extractGender(text) ?? "";
 
   // ── Formalize description ─────────────────────────────────────────────────
   function formalizeDescription(raw: string): string {

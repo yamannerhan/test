@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { getUpdates, isBotTokenSet, isClientConnected, fetchMessagesViaClient } from "../services/telegram-client";
 import type { BotUpdate } from "../services/telegram-client";
+import { extractSalary, extractGender } from "../lib/job-parsing";
 
 // ── Keyword lists ──────────────────────────────────────────────────
 const JOB_KEYWORDS = [
@@ -88,35 +89,6 @@ function extractCity(text: string): string | null {
   const lower = normalizeText(text);
   const found = TR_CITIES.find(c => lower.includes(c));
   return found ? (CITY_DISPLAY[found] ?? found) : null;
-}
-
-function extractSalary(text: string): string | null {
-  // Always match against Turkish-lowercased text so İ/Ş/ş case-fold correctly
-  const tl = text.toLocaleLowerCase("tr-TR");
-
-  // 1) Toplam hakediş/paket — highest priority (real take-home)
-  const total = tl.match(/toplam\s+(?:hakedi[şs]|kazanç|ücret|paket)\s*[:\-]?\s*(\d[\d.]+)\s*(?:tl|₺)/);
-  if (total) return `${total[1]} TL (Toplam Hakediş)`;
-
-  // 2) Labeled salary "maaş: 44.453 tl net + ..."
-  const labeled = tl.match(/(?:maa[şs]|ücret|aylık)\s*[:\-]?\s*(\d[\d.]+)\s*(?:tl|₺)/);
-  if (labeled) {
-    const extras: string[] = [];
-    if (/yol\b/.test(tl)) extras.push("Yol");
-    if (/yemek\b/.test(tl)) extras.push("Yemek");
-    const suffix = extras.length ? ` + ${extras.join(" + ")}` : "";
-    return `${labeled[1]} TL${suffix}`;
-  }
-
-  // 3) Range "25.000 – 30.000 tl"
-  const range = tl.match(/(\d[\d.]+)\s*[-–]\s*(\d[\d.]+)\s*(?:tl|₺)/);
-  if (range) return `${range[1]}-${range[2]} TL`;
-
-  // 4) Generic number + tl (at least 4 chars to avoid "08.00" time patterns)
-  const m = tl.match(/(\d[\d.]{3,})\s*(?:tl|₺)/);
-  if (m) return `${m[1]} TL`;
-
-  return null;
 }
 
 function extractTitle(text: string): string {
@@ -338,6 +310,7 @@ async function processMessage(
   const salary = extractSalary(text);
   const phone = extractPhone(text);
   const contactName = extractContactName(text);
+  const gender = extractGender(text);
 
   if (source.autoPublish && !source.requireApproval) {
     await db.insert(listingsTable).values({
@@ -347,6 +320,8 @@ async function processMessage(
       salary: salary ?? undefined,
       workType: "Tam Zamanlı",
       description: text,
+      // Cinsiyet her zaman gösterilsin; metinde yoksa "Belirtilmemiş"
+      requirements: `Cinsiyet: ${gender ?? "Belirtilmemiş"}`,
       status: "active",
       // Başvuru doğrudan iletişim numarasına gitsin (Telegram'a değil); numara yoksa kaynağa düş
       applyUrl: phone ? `tel:${phone}` : sourceUrl,

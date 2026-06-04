@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, pendingJobsTable, importedPostsTable, listingsTable, sourcesTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { authMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
+import { extractGender } from "../lib/job-parsing";
 
 const router = Router();
 
@@ -84,6 +85,8 @@ router.post("/admin/pending-jobs/:id/approve", authMiddleware, requireAdmin, asy
 
   // Create listing
   const platformTag = job.platform === "telegram" ? "Telegram" : "Facebook";
+  // Cinsiyet her zaman gösterilsin; ham metinden çıkar, yoksa "Belirtilmemiş"
+  const gender = extractGender(job.rawText) ?? "Belirtilmemiş";
   const [listing] = await db.insert(listingsTable).values({
     title: job.title ?? "Güvenlik Personeli Aranıyor",
     company: job.company ?? "Belirtilmemiş",
@@ -91,7 +94,7 @@ router.post("/admin/pending-jobs/:id/approve", authMiddleware, requireAdmin, asy
     salary: job.salary ?? undefined,
     workType: "Tam Zamanlı",
     description: job.description ?? job.rawText,
-    requirements: `Kaynak: ${platformTag} | ${job.sourceUrl ?? ""}`,
+    requirements: `Cinsiyet: ${gender}\nKaynak: ${platformTag} | ${job.sourceUrl ?? ""}`,
     status: "active",
     // Başvuru doğrudan iletişim numarasına gitsin (Telegram'a değil); numara yoksa link/kaynağa düş
     applyUrl: job.phone ? `tel:${job.phone}` : (job.applicationUrl ?? job.sourceUrl ?? undefined),
