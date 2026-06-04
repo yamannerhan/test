@@ -108,9 +108,12 @@ export function ChatBubble() {
   const isOnChatPage = location === "/sohbet";
 
   const scrollToBottom = useCallback(() => {
-    // scrollIntoView: tarayıcı scroll container'ı kendisi bulur — scrollTop'tan çok daha güvenilir
+    // Kapsayıcının kendi scrollTop'unu ayarla — popup zaten kendi overflow container'ı.
+    // scrollIntoView KULLANMA: üst kapsayıcıları (canvas iframe/sayfa) da kaydırıp
+    // scrollbar bozulmasına ve en sona inememeye yol açıyordu.
     const jump = () => {
-      messagesEndRef.current?.scrollIntoView({ block: "end", behavior: "instant" });
+      const el = msgContainerRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
     };
     jump();
     requestAnimationFrame(jump);
