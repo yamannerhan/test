@@ -107,7 +107,13 @@ export function ChatBubble() {
 
   const scrollToBottom = useCallback(() => {
     const el = msgContainerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const jump = () => { el.scrollTop = el.scrollHeight; };
+    // Anında + paint sonrası + geç yüklenen içerik (avatar/görsel) için tekrar dene
+    jump();
+    requestAnimationFrame(jump);
+    setTimeout(jump, 60);
+    setTimeout(jump, 200);
   }, []);
 
   const addMsg = useCallback((msg: AnyMsg) => {

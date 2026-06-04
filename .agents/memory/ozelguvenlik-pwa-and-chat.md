@@ -18,3 +18,17 @@ Chat exists in TWO places and a feature added to one is invisible in the other:
 **Why:** A whole round of work (moderator purple animation, reply button, clear-chat) was added only to `chat.tsx`, but the user was looking at the bubble widget the entire time and saw no change.
 
 **How to apply:** When changing chat appearance/behavior (role badges, name colors, socket events), update BOTH files. Note socket event naming: server emits `chat:cleared` for bulk clear — make sure listeners match. Moderator styling is purple smoky (`smoke-mod` keyframe, `.badge-mod`/`.name-mod`), admin is blue shimmer.
+
+# Chat auto-scroll: must escape the Layout page scroll
+`Layout` wraps pages in `min-h-screen pb-20`, so the **document** scrolls, not any inner div. A messages container using `flex-1 overflow-y-auto` inside that never becomes the scroll target — `el.scrollTop = el.scrollHeight` silently does nothing because the element isn't the thing overflowing.
+
+**Why:** Took several attempts (scrollTop, scrollIntoView, useLayoutEffect) that all failed on mobile/PWA before realizing the page (not the container) was the scroller.
+
+**How to apply:** The full-page chat (`chat.tsx`) container must be `position: fixed` between header and bottom-nav (`top-14 bottom-[calc(70px+env(safe-area-inset-bottom))]`) so it owns its own height; messages div needs `flex-1 min-h-0 overflow-y-auto` (the `min-h-0` is mandatory or flex won't let it shrink to scroll); input is `shrink-0`. The bubble widget (`chat-bubble.tsx`) already works because it has a fixed `maxHeight` + `min-h-0`. Make `scrollToBottom` retry (rAF + setTimeout ~60/200ms) so late-loading avatars don't leave it stranded mid-list.
+
+# Chat bot is topic-gated, not reply-to-everything
+`chat-bot.ts` `shouldReply` only fires for: direct @mention (`@bot`/`@guvenlikbot`, NOT bare "bot"), greetings/thanks (incl. 2-char "sa" — courtesy check must run BEFORE the <3-char length reject), or a relevant-topic regex (security sector, İSG/6331, fire, first aid, 5188, emergencies). Everything else is ignored. OpenAI system prompt + keyword fallback rules mirror these same expertise areas.
+
+**Why:** User explicitly wanted it to stop replying to everything and act as a domain expert.
+
+**How to apply:** When adding bot topics, update BOTH `RELEVANT_TOPIC_RE` (the gate) and the `KEYWORD_RULES`/system prompt (the answers), or the bot will accept a question it has no good reply for.

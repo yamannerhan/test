@@ -133,12 +133,14 @@ export default function Chat() {
   useEffect(() => { if (initialData) setMessages([...initialData as ExtMsg[]]); }, [initialData]);
 
   const scrollToBottom = useCallback(() => {
-    // Önce container'ı direkt kaydır, yedek olarak scrollRef sentinel'i kullan
     const el = msgContainerRef.current;
-    if (el) {
-      el.scrollTop = el.scrollHeight;
-    }
-    scrollRef.current?.scrollIntoView({ block: "end" });
+    if (!el) return;
+    const jump = () => { el.scrollTop = el.scrollHeight; };
+    // Anında + paint sonrası + geç yüklenen içerik (avatar/görsel) için tekrar dene
+    jump();
+    requestAnimationFrame(jump);
+    setTimeout(jump, 60);
+    setTimeout(jump, 200);
   }, []);
 
   // Çift mesaj önleme: aynı id'li mesaj zaten varsa ekleme
@@ -561,8 +563,9 @@ export default function Chat() {
           text-shadow: 0 0 8px rgba(148,163,184,0.3);
         }
       `}</style>
-      {/* fixed: header(56px) ile bottom-nav(70px) arasını kapla — Layout scroll'undan bağımsız */}
-      <div className="fixed left-0 right-0 top-14 bottom-[70px] flex flex-col bg-background z-20">
+      {/* fixed: header(56px) ile bottom-nav(70px) arasını kapla — Layout scroll'undan bağımsız.
+          Alt offset safe-area duyarlı (iOS home indicator). */}
+      <div className="fixed left-0 right-0 top-14 bottom-[calc(70px+env(safe-area-inset-bottom))] flex flex-col bg-background z-20">
         {/* Admin/Moderatör sohbet temizleme butonu */}
         {user && (user.role === "admin" || user.role === "moderator") && (
           <div className="flex items-center justify-end px-4 py-2 border-b border-white/5 bg-background/60 backdrop-blur shrink-0">

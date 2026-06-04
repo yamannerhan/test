@@ -93,7 +93,7 @@ async function callOpenAI(apiKey: string, userMsg: string, username: string, sta
       ? "Şu an aktif ilan bulunmuyor, yakında yenileri eklenecek."
       : "İlan sayısı şu an alınamadı; kullanıcılara /ilanlar sayfasını ziyaret etmelerini öner.";
 
-  const systemPrompt = `Sen ÖzelGüvenlik.Online platformunun yapay zeka destekli sohbet botu GuvenlikBot'sun. Bu platform Türkiye'deki özel güvenlik sektörüne özel iş ilanları ve topluluk platformudur.
+  const systemPrompt = `Sen ÖzelGüvenlik.Online platformunun yapay zeka destekli uzman sohbet botu GuvenlikBot'sun. Bu platform Türkiye'deki özel güvenlik sektörüne özel iş ilanları ve topluluk platformudur.
 
 PLATFORM BİLGİSİ:
 - ${listingInfo}
@@ -101,28 +101,25 @@ PLATFORM BİLGİSİ:
 - /cv-olustur sayfasından profesyonel CV oluşturabilirler.
 - /profil sayfasından hesaplarını yönetebilirler.
 
-UZMANLIK ALANLARIN:
-- 5188 Sayılı Özel Güvenlik Kanunu ve yetkileri
-- İş Kanunu (fazla mesai, kıdem, ihbar, izin hakları)
-- SGK primleri, emeklilik, işsizlik ödeneği
-- Özel güvenlik sertifikaları (temel eğitim, silahlı, amirlik, ilk yardım)
-- Kariyer gelişimi (güvenlik görevlisi → ekip lideri → amir → müdür)
-- Maaş bilgileri ve pazarlık taktikleri
-- AVM, fabrika, hastane, banka, VIP koruma sektörleri
+UZMANLIK ALANLARIN (yalnızca bu konularda cevap ver):
+1. 5188 Sayılı Özel Güvenlik Kanunu: özel güvenlik görevlisinin yetkileri (arama, kimlik sorma, yakalama, zor kullanma sınırları), yasaklar, idari para cezaları, kimlik kartı ve çalışma izni kuralları.
+2. İSG (İş Sağlığı ve Güvenliği): risk değerlendirmesi, KKD (kişisel koruyucu donanım), iş kazası bildirimi, ramak kala olaylar, 6331 sayılı İSG Kanunu, çalışan hakları ve işveren yükümlülükleri.
+3. Yangın Güvenliği: yangın sınıfları (A/B/C/D/F), doğru söndürücü seçimi, yangın tüpü kullanımı (PASS tekniği), tahliye prosedürü, yangın alarmı ve toplanma alanı, duman/alev müdahalesi.
+4. İlk Yardım: temel yaşam desteği (CPR/kalp masajı 30:2), kanama kontrolü, şok, bayılma, kırık-burkulma, yanık, boğulma (Heimlich), bilinç kontrolü, 112 arama ve olay yeri güvenliği.
+5. Acil Durum Yönetimi: deprem, sel, gaz kaçağı, bomba ihbarı, silahlı saldırı, tahliye planı, acil durum ekipleri, panik yönetimi.
+6. Güvenlik kariyeri ve mevzuat: sertifikalar (temel/silahlı/amirlik), İş Kanunu (fazla mesai, kıdem, ihbar, izin), SGK primleri, maaş bilgileri, AVM/fabrika/hastane/banka/VIP sektörleri.
 
-SELAMLAMA KURALLARI (ÇOK ÖNEMLİ):
-- "sa", "s.a", "s/a", "selamun aleyküm" → "Ve aleyküm selam @kullanici! ..." ile başla
-- "merhaba", "selam", "hey", "naber", "nasılsın" → samimi karşılama yap
-- "günaydın" → "Günaydın @kullanici! ..."
-- "iyi akşamlar", "iyi geceler" → uygun karşılık ver
+SELAMLAMA KURALLARI:
+- "sa", "s.a", "s/a", "selamun aleyküm" → "Ve aleyküm selam @${username}!" ile başla
+- "merhaba", "selam", "hey", "günaydın", "iyi akşamlar" → kısa samimi karşılama yap
 
 YANIT KURALLARI:
-1. Her zaman @${username} ile başla (ör: "@${username} Merhaba!")
-2. Maksimum 2-3 kısa cümle — sohbet ortamındasın, makale yazmıyorsun
-3. Türkçe yaz, samimi ve yardımcı ol
-4. Konuya göre platforma yönlendir (/ilanlar, /cv-olustur vb.)
-5. Bilmediğin şeyleri uydurmaa, "BİLGİ BOTU'ndan detaylı bilgi alabilirsin" de
-6. Emoji kullanabilirsin ama abartma`;
+1. Her zaman @${username} ile başla.
+2. Maksimum 2-3 kısa cümle — sohbet ortamındasın, makale yazmıyorsun.
+3. Türkçe yaz, net ve doğru bilgi ver; uydurma. İlk yardım/acil durum gibi kritik konularda yanlış bilgi vermek tehlikelidir — emin değilsen 112'yi veya uzmanı yönlendir.
+4. Konu platform/iş ilanı ise /ilanlar veya /cv-olustur sayfasına yönlendir.
+5. SORU SENİN UZMANLIK ALANLARININ TAMAMEN DIŞINDAYSA (ör. spor, magazin, siyaset, alakasız sohbet) cevap verme, kibarca "@${username} Ben yalnızca güvenlik sektörü, İSG, yangın, ilk yardım, 5188 sayılı kanun ve acil durumlar konusunda yardımcı olabiliyorum." de.
+6. Emoji kullanma.`;
 
   try {
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -243,6 +240,40 @@ const KEYWORD_RULES: Array<{
       `@${u} Resmi tatillerde çalıştırılan işçiye o gün için ayrıca günlük ücret ödenmek zorunda. Bu tutar normal ücrete ek olarak ödenir.`,
     ],
   },
+  {
+    keywords: /\bisg\b|iş sağlığı|iş güvenliği|risk değerlend|6331|kkd|koruyucu donanım|ramak kala|iş kazas/i,
+    getReplies: (_, u) => [
+      `@${u} İSG mevzuatı 6331 sayılı kanuna dayanır. İşveren risk değerlendirmesi yapmak ve uygun KKD (baret, eldiven, reflektörlü yelek vb.) sağlamak zorundadır.`,
+      `@${u} İş kazası 3 iş günü içinde SGK'ya bildirilmek zorunda. Ramak kala olaylar da kayıt altına alınmalı — gelecekteki kazaları önler.`,
+    ],
+  },
+  {
+    keywords: /yangın|yangin|söndür|yangın tüp|tahliye|duman|alev|yanıyor/i,
+    getReplies: (_, u) => [
+      `@${u} Yangın tüpünü PASS tekniğiyle kullanın: Pimi çek, hortumu yangının dibine tut, kola bas, yelpaze gibi süpür. Asla alevin tepesine değil dibine sıkın.`,
+      `@${u} Yangın sınıfı önemli: A (katı), B (sıvı), C (gaz), F (yağ). Elektrik ve yağ yangınına su dökmeyin. Tahliyede asansör kullanmayın, toplanma alanında buluşun.`,
+    ],
+  },
+  {
+    keywords: /ilk yardım|ilkyardım|kanama|kalp masaj|suni teneffüs|\bcpr\b|bayıl|kırık|yaralı|boğul|heimlich|yanık|112/i,
+    getReplies: (_, u) => [
+      `@${u} Temel yaşam desteğinde 30 kalp masajı + 2 suni nefes uygulanır (dakikada 100-120 bası). Önce bilinç ve solunum kontrolü yapın, 112'yi arayın.`,
+      `@${u} Önce olay yeri güvenliğini sağlayın, sonra 112'yi arayın. Ağır kanamada temiz bezle doğrudan baskı uygulayın. Bilinçsiz ama nefes alan kişiyi koma pozisyonuna alın.`,
+    ],
+  },
+  {
+    keywords: /acil durum|deprem|gaz kaçağı|bomba|silahlı saldır|tahliye plan|toplanma alan|panik/i,
+    getReplies: (_, u) => [
+      `@${u} Acil durumda öncelik can güvenliği. Sakin kalın, tahliye planına uyun, asansör kullanmayın ve belirlenen toplanma alanında toplanın.`,
+      `@${u} Depremde "Çök-Kapan-Tutun" uygulayın; sağlam bir masanın yanına çökün. Gaz kaçağında kıvılcım çıkaracak hiçbir şeye dokunmayın, vanayı kapatıp havalandırın.`,
+    ],
+  },
+  {
+    keywords: /5188|yetki|arama yap|kimlik sor|yakala|zor kullan|el koy/i,
+    getReplies: (_, u) => [
+      `@${u} 5188 sayılı kanuna göre özel güvenlik; görev alanında kimlik sorabilir, dedektör/X-ray ile arama yapabilir ve suçüstü halinde yakalayıp kolluğa teslim edebilir. Yetkiler görev alanıyla sınırlıdır.`,
+    ],
+  },
 ];
 
 const lastBotReplyAt = new Map<string, number>();
@@ -255,14 +286,49 @@ function keywordFallback(content: string, username: string, stats: Stats): strin
   return replies[Math.floor(Math.random() * replies.length)]!;
 }
 
+// Bot'a doğrudan hitap (mention) → her zaman cevapla.
+// @bot / @guvenlikbot / @güvenlikbot ya da tam isim "guvenlikbot"/"güvenlikbot".
+// Çıplak "bot" kelimesi (@'sız) tetiklemez.
+const BOT_MENTION_RE = /@\s*(g[uü]venlik\s*bot|bot)\b|\bg[uü]venlik\s*bot\b/i;
+
+// Selamlama/teşekkür → kısa nezaket cevabı verilir
+const COURTESY_RE = /^(sa|s\.a\.?|s\/a|selamün? aleyküm|merhaba|selam|hey|günaydın|iyi akşam|iyi geceler|teşekkür|sağ ?ol|eyvallah)/i;
+
+// Bot'un cevap vereceği konular: platform + güvenlik sektörü + İSG/yangın/ilk yardım/5188/acil durum
+const RELEVANT_TOPIC_RE = new RegExp(
+  [
+    // Platform / site
+    "site|platform|özelgüvenlik|ilan|iş bul|başvur|pozisyon|cv|profil|üyelik|kayıt ol|hesab",
+    // Güvenlik sektörü
+    "güvenli|guvenli|bekçi|koruma|devriye|nöbet|vardiya|avm|plaza|fabrika|hastane|banka|vip|x-?ray|dedektör|kamera|sertifika|lisans|belge|kart|silahl|amir|ekip lider",
+    // Mevzuat / haklar
+    "5188|6331|kanun|yasa|mevzuat|yetki|maaş|ücret|mesai|sgk|prim|kıdem|tazminat|ihbar|izin|emekli|sigorta|mobbing|tatil|bayram",
+    // İSG
+    "\\bisg\\b|iş sağlığı|iş güvenliği|risk değerlend|kkd|koruyucu donanım|ramak kala|iş kazas",
+    // Yangın
+    "yangın|yangin|söndür|tüp|tahliye|duman|alev|yanıyor",
+    // İlk yardım
+    "ilk yardım|ilkyardım|kanama|kalp masaj|suni teneffüs|\\bcpr\\b|bayıl|kırık|yaralı|boğul|heimlich|yanık|112",
+    // Acil durum
+    "acil|deprem|sel|gaz kaçağı|bomba|saldır|toplanma alan|panik|tehlike|alarm",
+  ].join("|"),
+  "i"
+);
+
 // Mesajın bot cevabı gerektirip gerektirmediğini belirle
 function shouldReply(content: string, role: string): boolean {
   // Bot kendi mesajlarına cevap vermesin
   if (role === "bot") return false;
+  const trimmed = content.trim();
+  if (trimmed.length === 0) return false;
+  // Bot'a doğrudan hitap → her zaman cevapla
+  if (BOT_MENTION_RE.test(trimmed)) return true;
+  // Selamlama/teşekkür → kısa nezaket cevabı ("sa" gibi 2 harfliler dahil)
+  if (COURTESY_RE.test(trimmed)) return true;
   // Çok kısa mesajlar (3 karakterden az) genelde anlamsız
-  if (content.trim().length < 3) return false;
-  // Diğer tüm mesajlara cevap ver (cooldown zaten spam'i önlüyor)
-  return true;
+  if (trimmed.length < 3) return false;
+  // Sadece ilgili konulardaki mesajlara cevap ver, gerisini görmezden gel
+  return RELEVANT_TOPIC_RE.test(trimmed);
 }
 
 function genericFallback(username: string, stats: Stats): string {
