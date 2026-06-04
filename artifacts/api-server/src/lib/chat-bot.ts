@@ -257,18 +257,12 @@ function keywordFallback(content: string, username: string, stats: Stats): strin
 
 // Mesajın bot cevabı gerektirip gerektirmediğini belirle
 function shouldReply(content: string, role: string): boolean {
-  const trimmed = content.trim().toLowerCase();
   // Bot kendi mesajlarına cevap vermesin
   if (role === "bot") return false;
   // Çok kısa mesajlar (3 karakterden az) genelde anlamsız
-  if (trimmed.length < 3) return false;
-  // @GuvenlikBot veya soru işareti varsa her zaman cevap ver
-  if (/guvenlikbot|güvenlikbot|@bot/i.test(trimmed)) return true;
-  if (trimmed.includes("?")) return true;
-  // Anahtar kelime eşleşmesi varsa her zaman cevap ver
-  if (KEYWORD_RULES.some(rule => rule.keywords.test(content))) return true;
-  // Yoksa %40 ihtimalle cevap ver (çok gürültülü olmasın)
-  return Math.random() < 0.40;
+  if (content.trim().length < 3) return false;
+  // Diğer tüm mesajlara cevap ver (cooldown zaten spam'i önlüyor)
+  return true;
 }
 
 function genericFallback(username: string, stats: Stats): string {
@@ -288,13 +282,19 @@ export function triggerContextualReply(content: string, username: string, role: 
   const last = lastBotReplyAt.get(username) ?? 0;
   if (now - last < BOT_REPLY_COOLDOWN_MS) return;
 
+  // Cooldown'u hemen kaydet — aynı kullanıcıdan spam önle
   lastBotReplyAt.set(username, now);
 
   const trimmed = content.trim();
-  const delay = 2000 + Math.random() * 4000;
+  const delay = 1500 + Math.random() * 3000;
 
   setTimeout(async () => {
-    if (!_io) return;
+    if (!_io) {
+      // IO yoksa cooldown'u sıfırla ki bir sonraki mesajda tekrar denesin
+      lastBotReplyAt.delete(username);
+      return;
+    }
+
     const stats = await getStats();
     const apiKey = await getOpenAiKey();
 
@@ -309,7 +309,7 @@ export function triggerContextualReply(content: string, username: string, role: 
       reply = keywordFallback(trimmed, username, stats);
     }
 
-    // Hiçbiri tutmadıysa genel bir yardımcı cevap ver (botu susturma)
+    // Hiçbiri tutmadıysa genel bir yardımcı cevap ver
     if (!reply) {
       reply = genericFallback(username, stats);
     }
