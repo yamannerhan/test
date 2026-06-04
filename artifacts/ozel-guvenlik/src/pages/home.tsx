@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Briefcase, ChevronRight, Clock, Star, Calendar, Users } from "lucide-react";
 import { getListingImage } from "@/lib/listing-image";
-import { extractGender } from "@/lib/utils";
+import { extractGender, displayCompany } from "@/lib/utils";
 
 interface Banner {
   id: number;
@@ -184,7 +184,9 @@ export default function Home() {
                         </div>
                         <div className="p-3">
                           <h3 className="font-semibold text-xs line-clamp-1">{listing.title}</h3>
-                          <p className="text-muted-foreground text-[10px] mt-0.5 line-clamp-1">{listing.company}</p>
+                          {displayCompany(listing.company) && (
+                            <p className="text-muted-foreground text-[10px] mt-0.5 line-clamp-1">{displayCompany(listing.company)}</p>
+                          )}
                           <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
                             <span className="flex items-center gap-0.5 text-accent">
                               <MapPin className="w-2.5 h-2.5" />{listing.city}
@@ -258,7 +260,9 @@ export default function Home() {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground line-clamp-1 mb-2">{listing.company}</p>
+                          {displayCompany(listing.company) && (
+                            <p className="text-xs text-muted-foreground line-clamp-1 mb-2">{displayCompany(listing.company)}</p>
+                          )}
                           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                             <span className="flex items-center gap-0.5">
                               <MapPin className="w-2.5 h-2.5 text-accent" />{listing.city}

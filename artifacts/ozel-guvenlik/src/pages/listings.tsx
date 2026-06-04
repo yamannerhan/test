@@ -7,7 +7,7 @@ import { MapPin, Briefcase, Search, Clock, Star, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getListingImage } from "@/lib/listing-image";
-import { extractGender } from "@/lib/utils";
+import { extractGender, displayCompany } from "@/lib/utils";
 
 function formatDate(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -104,7 +104,9 @@ export default function Listings() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{listing.company}</p>
+                      {displayCompany(listing.company) && (
+                        <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{displayCompany(listing.company)}</p>
+                      )}
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-0.5">
                           <MapPin className="w-3 h-3 text-accent" />{listing.city}

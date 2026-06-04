@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Redirect, Link } from "wouter";
 import { motion } from "framer-motion";
 import { Bookmark, MapPin, Briefcase } from "lucide-react";
+import { displayCompany } from "@/lib/utils";
 
 export default function Favorites() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -50,7 +51,9 @@ export default function Favorites() {
               >
                 <Link href={`/ilan/${listing.id}`} className="block">
                   <h3 className="font-semibold text-lg leading-tight mb-1">{listing.title}</h3>
-                  <p className="text-sm text-muted-foreground mb-3">{listing.company}</p>
+                  {displayCompany(listing.company) && (
+                    <p className="text-sm text-muted-foreground mb-3">{displayCompany(listing.company)}</p>
+                  )}
                   
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <div className="flex items-center space-x-3">

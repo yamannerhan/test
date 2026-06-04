@@ -19,3 +19,13 @@ export function extractGender(requirements?: string | null): string {
   }
   return "Belirtilmemiş";
 }
+
+// Firma adı anlamlı değilse (boş veya "Belirtilmemiş" gibi yer tutucu) null döner ki
+// arayüzde gereksiz "Belirtilmemiş" yazısı gösterilmesin.
+const COMPANY_PLACEHOLDERS = new Set(["", "n", "belirtilmemiş", "belirtilmemis"]);
+export function displayCompany(company?: string | null): string | null {
+  if (!company) return null;
+  const t = company.trim();
+  if (!t || COMPANY_PLACEHOLDERS.has(t.toLocaleLowerCase("tr-TR"))) return null;
+  return t;
+}

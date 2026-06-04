@@ -10,6 +10,7 @@ import { LogOut, MapPin, Briefcase, Camera, Loader2, Pencil, Check, X, KeyRound,
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
+import { displayCompany } from "@/lib/utils";
 
 function getToken() { return localStorage.getItem("auth_token") ?? ""; }
 
@@ -504,7 +505,9 @@ export default function Profile() {
                   >
                     <Link href={`/ilan/${listing.id}`} className="block">
                       <h3 className="font-semibold text-base mb-1 line-clamp-1">{listing.title}</h3>
-                      <p className="text-sm text-muted-foreground mb-3">{listing.company}</p>
+                      {displayCompany(listing.company) && (
+                        <p className="text-sm text-muted-foreground mb-3">{displayCompany(listing.company)}</p>
+                      )}
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex space-x-3 text-muted-foreground">
                           <span className="flex items-center"><MapPin className="w-3.5 h-3.5 mr-1" />{listing.city}</span>

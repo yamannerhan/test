@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { getListingImage } from "@/lib/listing-image";
+import { displayCompany } from "@/lib/utils";
 
 // Renders description with masked contact info placeholders as lock badges
 function MaskedDescription({ text }: { text: string }) {
@@ -184,11 +185,13 @@ export default function ListingDetail() {
 
             <div className="flex items-start gap-3 mb-5">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/30 to-secondary/20 flex items-center justify-center text-lg font-bold shrink-0 border border-white/10">
-                {listing.company.charAt(0)}
+                {(displayCompany(listing.company) ?? listing.title).charAt(0)}
               </div>
               <div className="flex-1 min-w-0">
                 <h1 className="text-xl font-bold leading-tight">{listing.title}</h1>
-                <p className="text-primary font-medium text-sm mt-0.5">{listing.company}</p>
+                {displayCompany(listing.company) && (
+                  <p className="text-primary font-medium text-sm mt-0.5">{displayCompany(listing.company)}</p>
+                )}
               </div>
             </div>
 
