@@ -564,8 +564,11 @@ export default function Chat() {
         }
       `}</style>
       {/* fixed: header(56px) ile bottom-nav(70px) arasını kapla — Layout scroll'undan bağımsız.
-          Alt offset safe-area duyarlı (iOS home indicator). */}
-      <div className="fixed left-0 right-0 top-14 bottom-[calc(70px+env(safe-area-inset-bottom))] flex flex-col bg-background z-20">
+          Inline style: calc içinde + etrafı boşluklu olmalı, yoksa CSS geçersiz sayar. */}
+      <div
+        className="fixed left-0 right-0 flex flex-col bg-background z-20"
+        style={{ top: "56px", bottom: "calc(70px + env(safe-area-inset-bottom))" }}
+      >
         {/* Admin/Moderatör sohbet temizleme butonu */}
         {user && (user.role === "admin" || user.role === "moderator") && (
           <div className="flex items-center justify-end px-4 py-2 border-b border-white/5 bg-background/60 backdrop-blur shrink-0">
