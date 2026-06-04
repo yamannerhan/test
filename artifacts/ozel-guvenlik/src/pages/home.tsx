@@ -3,8 +3,9 @@ import { useGetListings, useGetAnnouncements } from "@workspace/api-client-react
 import { Layout } from "@/components/layout";
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Briefcase, ChevronRight, Clock, Star, Calendar } from "lucide-react";
+import { MapPin, Briefcase, ChevronRight, Clock, Star, Calendar, Users } from "lucide-react";
 import { getListingImage } from "@/lib/listing-image";
+import { extractGender } from "@/lib/utils";
 
 interface Banner {
   id: number;
@@ -194,6 +195,9 @@ export default function Home() {
                               </span>
                             )}
                           </div>
+                          <div className="mt-1 flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                            <Users className="w-2.5 h-2.5 text-primary" />Cinsiyet {extractGender(listing.requirements)}
+                          </div>
                           <div className="mt-1.5 flex items-center text-[9px] text-muted-foreground/60">
                             <Clock className="w-2.5 h-2.5 mr-1" />
                             {formatDate(listing.createdAt)}
@@ -261,6 +265,9 @@ export default function Home() {
                             </span>
                             <span className="flex items-center gap-0.5">
                               <Briefcase className="w-2.5 h-2.5 text-secondary" />{listing.workType}
+                            </span>
+                            <span className="flex items-center gap-0.5">
+                              <Users className="w-2.5 h-2.5 text-primary" />Cinsiyet {extractGender(listing.requirements)}
                             </span>
                             <span className="flex items-center gap-0.5 ml-auto">
                               <Clock className="w-2.5 h-2.5" />{formatDate(listing.createdAt)}

@@ -3,10 +3,11 @@ import { useGetListings } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { MapPin, Briefcase, Search, Clock, Star } from "lucide-react";
+import { MapPin, Briefcase, Search, Clock, Star, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getListingImage } from "@/lib/listing-image";
+import { extractGender } from "@/lib/utils";
 
 function formatDate(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -110,6 +111,9 @@ export default function Listings() {
                         </span>
                         <span className="flex items-center gap-0.5">
                           <Briefcase className="w-3 h-3 text-secondary" />{listing.workType}
+                        </span>
+                        <span className="flex items-center gap-0.5">
+                          <Users className="w-3 h-3 text-primary" />Cinsiyet {extractGender(listing.requirements)}
                         </span>
                         <span className="flex items-center gap-0.5 ml-auto">
                           <Clock className="w-3 h-3" />{formatDate(listing.createdAt)}
