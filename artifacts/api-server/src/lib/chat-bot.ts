@@ -27,8 +27,14 @@ function makeBotMsg(content: string, replyToUsername?: string) {
   };
 }
 
-// ── DB'den istatistik ──────────────────────────────────────────────
-async function getStats() {
+// ── DB'den istatistik (5 dakika önbellekli) ────────────────────────
+type StatsResult = { total: number; minSalary: number; maxSalary: number; cities: string[]; ok: boolean };
+let cachedStats: StatsResult | null = null;
+let statsCachedAt = 0;
+const STATS_TTL_MS = 5 * 60_000;
+
+async function getStats(): Promise<StatsResult> {
+  if (cachedStats && Date.now() - statsCachedAt < STATS_TTL_MS) return cachedStats;
   try {
     const activeRows = await db
       .select({ city: listingsTable.city, salary: listingsTable.salary })
@@ -49,9 +55,13 @@ async function getStats() {
     const minSalary = nums.length > 0 ? Math.round(Math.min(...nums) / 1000) * 1000 : 25000;
     const maxSalary = nums.length > 0 ? Math.round(Math.max(...nums) / 1000) * 1000 : 55000;
 
-    return { total, minSalary, maxSalary, cities };
+    cachedStats = { total, minSalary, maxSalary, cities, ok: true };
+    statsCachedAt = Date.now();
+    return cachedStats;
   } catch {
-    return { total: 0, minSalary: 25000, maxSalary: 50000, cities: [] as string[] };
+    // Hata durumunda önceki cache varsa onu kullan, yoksa bilinmiyor işareti
+    if (cachedStats) return cachedStats;
+    return { total: -1, minSalary: 25000, maxSalary: 50000, cities: [] as string[], ok: false };
   }
 }
 
@@ -79,7 +89,9 @@ async function callOpenAI(apiKey: string, userMsg: string, username: string, sta
   const cityStr = stats.cities.length > 0 ? stats.cities.join(", ") : "İstanbul, Ankara, İzmir";
   const listingInfo = stats.total > 0
     ? `Şu an ${stats.total} aktif iş ilanı var. Maaş aralığı: ${stats.minSalary.toLocaleString("tr-TR")}–${stats.maxSalary.toLocaleString("tr-TR")} TL. Aktif şehirler: ${cityStr}.`
-    : "İş ilanları için siteyi takip edin.";
+    : stats.total === 0
+      ? "Şu an aktif ilan bulunmuyor, yakında yenileri eklenecek."
+      : "İlan sayısı şu an alınamadı; kullanıcılara /ilanlar sayfasını ziyaret etmelerini öner.";
 
   const systemPrompt = `Sen ÖzelGüvenlik.Online platformunun yapay zeka destekli sohbet botu GuvenlikBot'sun. Bu platform Türkiye'deki özel güvenlik sektörüne özel iş ilanları ve topluluk platformudur.
 

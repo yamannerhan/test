@@ -133,17 +133,20 @@ export default function Chat() {
   useEffect(() => { if (initialData) setMessages([...initialData as ExtMsg[]]); }, [initialData]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    requestAnimationFrame(() => {
-      const el = msgContainerRef.current;
-      if (!el) return;
-      el.scrollTo({ top: el.scrollHeight, behavior });
-    });
+    const el = msgContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
   }, []);
 
   const addMsg = useCallback((msg: AnyMsg) => {
     setMessages(prev => [...prev, msg]);
+  }, []);
+
+  // Mesajlar DOM'a işlendikten SONRA en alta kaydır
+  useEffect(() => {
+    if (messages.length === 0) return;
     scrollToBottom("smooth");
-  }, [scrollToBottom]);
+  }, [messages.length, scrollToBottom]);
 
   useEffect(() => {
     const s = io({ path: "/ws" });
