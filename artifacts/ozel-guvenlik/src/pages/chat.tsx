@@ -133,13 +133,17 @@ export default function Chat() {
   useEffect(() => { if (initialData) setMessages([...initialData as ExtMsg[]]); }, [initialData]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    const el = msgContainerRef.current;
-    if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior });
+    scrollRef.current?.scrollIntoView({ behavior, block: "end" });
   }, []);
 
+  // Çift mesaj önleme: aynı id'li mesaj zaten varsa ekleme
   const addMsg = useCallback((msg: AnyMsg) => {
-    setMessages(prev => [...prev, msg]);
+    setMessages(prev => {
+      if (!isSystem(msg) && prev.some(m => !isSystem(m) && (m as ExtMsg).id === (msg as ExtMsg).id)) {
+        return prev;
+      }
+      return [...prev, msg];
+    });
   }, []);
 
   // Mesajlar DOM'a işlendikten SONRA en alta kaydır
@@ -258,6 +262,8 @@ export default function Chat() {
         return;
       }
       if (r.ok) {
+        const sent = await r.json().catch(() => null) as ExtMsg | null;
+        if (sent) addMsg(sent); // anında ekle — soketten gelince çift olmaz (id kontrolü var)
         setContent("");
         setReplyTo(null);
         setMentionQuery(null);

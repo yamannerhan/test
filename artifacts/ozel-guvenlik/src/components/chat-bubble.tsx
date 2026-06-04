@@ -105,7 +105,13 @@ export function ChatBubble() {
   const isOnChatPage = location === "/sohbet";
 
   const addMsg = useCallback((msg: AnyMsg) => {
-    setMessages(prev => [...prev.slice(-59), msg]);
+    setMessages(prev => {
+      // Çift mesaj önleme: aynı id zaten varsa ekleme
+      if (!isSystem(msg) && prev.some(m => !isSystem(m) && (m as ChatMessage).id === (msg as ChatMessage).id)) {
+        return prev;
+      }
+      return [...prev.slice(-59), msg];
+    });
     setPulse(true);
     setTimeout(() => setPulse(false), 600);
   }, []);
@@ -179,7 +185,12 @@ export function ChatBubble() {
         startCooldown(data.waitSeconds ?? 3);
         return;
       }
-      if (r.ok) { setContent(""); setReplyTo(null); }
+      if (r.ok) {
+        const sent = await r.json().catch(() => null) as ChatMessage | null;
+        if (sent) addMsg(sent); // anında ekle — soketten gelince çift olmaz (id kontrolü var)
+        setContent("");
+        setReplyTo(null);
+      }
     } catch {} finally { setSending(false); }
   };
 
