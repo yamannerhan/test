@@ -106,10 +106,10 @@ export function ChatBubble() {
   const isOnChatPage = location === "/sohbet";
 
   const scrollToBottom = useCallback(() => {
-    const el = msgContainerRef.current;
-    if (!el) return;
-    const jump = () => { el.scrollTop = el.scrollHeight; };
-    // Anında + paint sonrası + geç yüklenen içerik (avatar/görsel) için tekrar dene
+    // scrollIntoView: tarayıcı scroll container'ı kendisi bulur — scrollTop'tan çok daha güvenilir
+    const jump = () => {
+      messagesEndRef.current?.scrollIntoView({ block: "end", behavior: "instant" });
+    };
     jump();
     requestAnimationFrame(jump);
     setTimeout(jump, 60);

@@ -133,10 +133,9 @@ export default function Chat() {
   useEffect(() => { if (initialData) setMessages([...initialData as ExtMsg[]]); }, [initialData]);
 
   const scrollToBottom = useCallback(() => {
-    const el = msgContainerRef.current;
-    if (!el) return;
-    const jump = () => { el.scrollTop = el.scrollHeight; };
-    // Anında + paint sonrası + geç yüklenen içerik (avatar/görsel) için tekrar dene
+    const jump = () => {
+      scrollRef.current?.scrollIntoView({ block: "end", behavior: "instant" });
+    };
     jump();
     requestAnimationFrame(jump);
     setTimeout(jump, 60);
