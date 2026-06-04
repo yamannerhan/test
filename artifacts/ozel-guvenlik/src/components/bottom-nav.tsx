@@ -95,7 +95,6 @@ export function BottomNav() {
                 >
                   <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 transition-all duration-300">
                     <item.icon className="w-[22px] h-[22px]" />
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full border border-background" />
                   </div>
                   <span className="text-[11px] font-medium text-primary">{item.label}</span>
                 </button>
@@ -119,11 +118,8 @@ export function BottomNav() {
                     : ""
                 }`}>
                   <item.icon className={`w-[22px] h-[22px] ${isActive ? "animate-pulse" : ""}`} />
-                  {isCv && !isActive && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full border border-background" />
-                  )}
                 </div>
-                <span className={`text-[11px] font-medium ${isCv && !isActive ? "text-primary" : ""}`}>{item.label}</span>
+                <span className="text-[11px] font-medium">{item.label}</span>
               </Link>
             );
           })}
