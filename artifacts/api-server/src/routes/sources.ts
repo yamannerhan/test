@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { db, sourcesTable } from "@workspace/db";
+import { db, sourcesTable, importedPostsTable, pendingJobsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { authMiddleware, requireAdmin } from "../middlewares/auth";
-import { isTelegramTokenSet } from "../workers/scraper";
+import { isTelegramTokenSet, triggerRescan, reparseImportedListings } from "../workers/scraper";
 
 const router = Router();
 
@@ -98,6 +98,29 @@ router.delete("/admin/sources/:id", authMiddleware, requireAdmin, async (req, re
   if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
   await db.delete(sourcesTable).where(eq(sourcesTable.id, id));
   res.json({ success: true });
+});
+
+// ── Reset bots & re-scan ──────────────────────────────────────────
+// İçe aktarma geçmişini ve bekleyen (onaylanmamış) ilanları temizler, kaynak
+// sayaçlarını sıfırlar ve hemen yeniden tarama başlatır. Yayındaki ilanlar SİLİNMEZ;
+// mükerrer kontrolü sayesinde aynı ilanlar tekrar eklenmez.
+router.post("/admin/sources/reset", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {
+  await db.delete(pendingJobsTable).where(eq(pendingJobsTable.status, "pending"));
+  await db.delete(importedPostsTable);
+  await db.update(sourcesTable).set({ lastCheckedAt: null, totalImported: 0, lastError: null });
+
+  // Taramayı arka planda tetikle (yanıtı bekletme)
+  void triggerRescan().catch(() => { /* hata logger içinde yakalanır */ });
+
+  res.json({ success: true, message: "Botlar sıfırlandı, yeniden tarama başlatıldı." });
+});
+
+// ── Re-check / re-parse imported listings ─────────────────────────
+// Otomatik içe aktarılan ilanları kayıtlı metinlerinden yeniden ayrıştırır
+// (maaş, şehir, başlık, cinsiyet). Eksik bilgiyle eklenmiş eski ilanları düzeltir.
+router.post("/admin/sources/reparse", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {
+  const result = await reparseImportedListings();
+  res.json({ success: true, ...result, message: `${result.updated}/${result.total} ilan güncellendi.` });
 });
 
 export default router;

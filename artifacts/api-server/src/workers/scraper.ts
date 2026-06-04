@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { db, sourcesTable, importedPostsTable, pendingJobsTable, listingsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, isNotNull } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { getUpdates, isBotTokenSet, isClientConnected, fetchMessagesViaClient } from "../services/telegram-client";
 import type { BotUpdate } from "../services/telegram-client";
@@ -119,10 +119,31 @@ function extractTitle(text: string): string {
 }
 
 function createDuplicateHash(text: string): string {
-  const phone = extractPhone(text) ?? "";
+  const phone = extractPhone(text);
   const city = extractCity(text) ?? "";
+  // Telefon varsa onu birincil imza yap: aynı iletişim numarası farklı gruplarda
+  // paylaşılsa bile (mesaj başlık/altlık farklı olsa da) tek ilan sayılır.
+  if (phone) {
+    return crypto.createHash("sha256").update(`tel:${phone}|${city}`).digest("hex");
+  }
+  // Telefon yoksa metnin gövdesine düş
   const normalized = normalizeText(text).slice(0, 250);
-  return crypto.createHash("sha256").update(`${phone}|${city}|${normalized}`).digest("hex");
+  return crypto.createHash("sha256").update(`${city}|${normalized}`).digest("hex");
+}
+
+// Aynı telefon + şehre sahip yayında (aktif) bir ilan var mı? (gruplar arası mükerrer
+// kontrolü). Şehir de karşılaştırılır ki aynı numaradan farklı şehirler için açılan
+// ayrı ilanlar yanlışlıkla bastırılmasın.
+async function listingExistsForPhone(phone: string, city: string): Promise<boolean> {
+  const rows = await db.select({ id: listingsTable.id })
+    .from(listingsTable)
+    .where(and(
+      eq(listingsTable.applyUrl, `tel:${phone}`),
+      eq(listingsTable.city, city),
+      eq(listingsTable.status, "active"),
+    ))
+    .limit(1);
+  return rows.length > 0;
 }
 
 function isJobPosting(text: string): boolean {
@@ -312,6 +333,15 @@ async function processMessage(
   const contactName = extractContactName(text);
   const gender = extractGender(text);
 
+  // Aynı iletişim numarasına sahip aktif bir ilan zaten yayında ise (başka gruptan
+  // gelen mükerrer ilan) tekrar yayınlama / onaya düşürme.
+  if (phone && (await listingExistsForPhone(phone, city))) {
+    await db.update(importedPostsTable)
+      .set({ status: "duplicate" })
+      .where(eq(importedPostsTable.id, imported.id));
+    return;
+  }
+
   if (source.autoPublish && !source.requireApproval) {
     await db.insert(listingsTable).values({
       title: title ?? "Güvenlik Personeli Aranıyor",
@@ -323,6 +353,7 @@ async function processMessage(
       // Cinsiyet her zaman gösterilsin; metinde yoksa "Belirtilmemiş"
       requirements: `Cinsiyet: ${gender ?? "Belirtilmemiş"}`,
       status: "active",
+      sourceTag: source.platform,
       // Başvuru doğrudan iletişim numarasına gitsin (Telegram'a değil); numara yoksa kaynağa düş
       applyUrl: phone ? `tel:${phone}` : sourceUrl,
       // Gerçek gönderim tarihini kullan ki "X gün önce" ve sıralama doğru olsun
@@ -463,7 +494,20 @@ async function checkTelegramSource(source: typeof sourcesTable.$inferSelect): Pr
 }
 
 // ── Main scraper loop ──────────────────────────────────────────────
+// Aynı anda iki tarama döngüsü çalışmasın (interval + manuel tetikleme yarışını önler).
+let cycleRunning = false;
+
 async function runScraperCycle(): Promise<void> {
+  if (cycleRunning) return;
+  cycleRunning = true;
+  try {
+    await runScraperCycleInner();
+  } finally {
+    cycleRunning = false;
+  }
+}
+
+async function runScraperCycleInner(): Promise<void> {
   // 1) Pull all updates the bot received across all its chats
   await processBotUpdates();
 
@@ -524,4 +568,64 @@ export function startScraperWorker(): void {
 
 export function isTelegramTokenSet(): boolean {
   return isBotTokenSet();
+}
+
+// Botları sıfırlayıp hemen yeniden taramayı tetikler.
+// İçe aktarma geçmişi route tarafında temizlenir; burada bot offset sıfırlanıp
+// tarama döngüsü hemen çalıştırılır (interval beklenmez).
+export async function triggerRescan(): Promise<void> {
+  botUpdateOffset = 0;
+  await runScraperCycle();
+}
+
+// Otomatik içe aktarılmış (sourceTag dolu) ilanları, kayıtlı metinlerinden
+// yeniden ayrıştırır: maaş, şehir, başlık ve cinsiyet bilgisini günceller.
+// Eksik bilgiyle eklenen eski ilanları düzeltmek için kullanılır.
+export async function reparseImportedListings(): Promise<{ total: number; updated: number }> {
+  const rows = await db.select().from(listingsTable)
+    .where(isNotNull(listingsTable.sourceTag));
+
+  let updated = 0;
+  for (const row of rows) {
+    const text = row.description;
+    if (!text?.trim()) continue;
+
+    const newTitle = extractTitle(text);
+    const newCity = extractCity(text);
+    const newSalary = extractSalary(text);
+    const newGender = extractGender(text);
+    const newPhone = extractPhone(text);
+
+    // Mevcut "Kaynak:" satırını koru
+    const reqLines = (row.requirements ?? "").split("\n");
+    const kaynakLine = reqLines.find(l => l.trim().toLocaleLowerCase("tr-TR").startsWith("kaynak:"));
+    // Önceden tespit edilmiş cinsiyeti bilgisi, yeniden ayrıştırma boş dönerse silinmesin
+    const existingGenderLine = reqLines.find(l => l.trim().toLocaleLowerCase("tr-TR").startsWith("cinsiyet:"));
+    const existingGender = existingGenderLine ? existingGenderLine.split(":").slice(1).join(":").trim() : "";
+    const genderVal = newGender ?? (existingGender && existingGender !== "Belirtilmemiş" ? existingGender : null);
+    const requirements = `Cinsiyet: ${genderVal ?? "Belirtilmemiş"}`
+      + (kaynakLine ? `\n${kaynakLine.trim()}` : "");
+
+    const next: Partial<typeof listingsTable.$inferInsert> = {
+      title: newTitle,
+      requirements,
+    };
+    // Yeni bilgi bulunduysa güncelle; bulunamazsa mevcut değeri silme
+    if (newCity) next.city = newCity;
+    if (newSalary) next.salary = newSalary;
+    if (newPhone) next.applyUrl = `tel:${newPhone}`;
+
+    const changed = next.title !== row.title
+      || next.requirements !== row.requirements
+      || (next.city !== undefined && next.city !== row.city)
+      || (next.salary !== undefined && next.salary !== row.salary)
+      || (next.applyUrl !== undefined && next.applyUrl !== row.applyUrl);
+
+    if (!changed) continue;
+
+    await db.update(listingsTable).set(next).where(eq(listingsTable.id, row.id));
+    updated++;
+  }
+
+  return { total: rows.length, updated };
 }

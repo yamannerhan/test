@@ -1200,6 +1200,29 @@ function SourcesSection({ apiCall, toast }: { apiCall: (path: string, method?: s
     catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
   };
 
+  const [resetting, setResetting] = useState(false);
+  const [reparsing, setReparsing] = useState(false);
+
+  const resetBots = async () => {
+    if (!confirm("Botlar sıfırlanacak: içe aktarma geçmişi ve bekleyen (onaylanmamış) ilanlar silinip tüm kanallar yeniden taranacak. Yayındaki ilanlar SİLİNMEZ ve aynı ilanlar tekrar eklenmez. Devam edilsin mi?")) return;
+    setResetting(true);
+    try {
+      const r = await apiCall("/admin/sources/reset", "POST") as { message?: string };
+      toast({ title: "Botlar sıfırlandı", description: r.message ?? "Yeniden tarama başlatıldı." });
+      void load();
+    } catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+    finally { setResetting(false); }
+  };
+
+  const reparseListings = async () => {
+    setReparsing(true);
+    try {
+      const r = await apiCall("/admin/sources/reparse", "POST") as { message?: string };
+      toast({ title: "İlanlar yeniden kontrol edildi", description: r.message ?? "Tamamlandı." });
+    } catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+    finally { setReparsing(false); }
+  };
+
   const startEdit = (s: Source) => {
     setForm({ name: s.name, platform: s.platform, url: s.url, active: s.active, checkInterval: s.checkInterval, autoPublish: s.autoPublish, requireApproval: s.requireApproval });
     setEditingId(s.id); setShowAddForm(true);
@@ -1215,6 +1238,18 @@ function SourcesSection({ apiCall, toast }: { apiCall: (path: string, method?: s
           Telegram için bot gerekmez. <strong>Herkese açık</strong> kanal veya grup linkini ekleyin, sistem otomatik tarar. Örnek: <code className="bg-white/10 px-1 rounded">https://t.me/kanal_adi</code>
         </div>
       </div>
+
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <button onClick={resetBots} disabled={resetting} className="flex items-center justify-center gap-1.5 text-xs px-3 py-2 bg-amber-500/15 text-amber-300 rounded-lg hover:bg-amber-500/25 transition-colors disabled:opacity-50">
+          <RefreshCw className={`w-3.5 h-3.5 ${resetting ? "animate-spin" : ""}`} /> {resetting ? "Sıfırlanıyor…" : "Botları Sıfırla"}
+        </button>
+        <button onClick={reparseListings} disabled={reparsing} className="flex items-center justify-center gap-1.5 text-xs px-3 py-2 bg-primary/15 text-primary rounded-lg hover:bg-primary/25 transition-colors disabled:opacity-50">
+          <ListChecks className={`w-3.5 h-3.5 ${reparsing ? "animate-pulse" : ""}`} /> {reparsing ? "Kontrol ediliyor…" : "İlanları Yeniden Kontrol Et"}
+        </button>
+      </div>
+      <p className="text-[10px] text-muted-foreground mb-3 leading-relaxed">
+        <strong>Botları Sıfırla:</strong> içe aktarma geçmişini temizler ve kanalları baştan tarar (yayındaki ilanlar silinmez, mükerrer ilan eklenmez). <strong>Yeniden Kontrol Et:</strong> içe aktarılan ilanları tekrar okuyup eksik maaş/cinsiyet bilgisini doldurur.
+      </p>
 
       <div className="flex justify-between items-center mb-3">
         <span className="text-xs text-muted-foreground">{sources.length} kaynak</span>

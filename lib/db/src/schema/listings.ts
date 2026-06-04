@@ -16,6 +16,8 @@ export const listingsTable = pgTable("listings", {
   likeCount: integer("like_count").notNull().default(0),
   isFeatured: boolean("is_featured").notNull().default(false),
   applyUrl: text("apply_url"),
+  // Otomatik içe aktarılan ilanların kaynağı ('telegram'/'facebook'); elle eklenenlerde null
+  sourceTag: text("source_tag"),
   companyLogoUrl: text("company_logo_url"),
   authorId: integer("author_id"),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
