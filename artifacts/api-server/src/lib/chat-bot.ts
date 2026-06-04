@@ -243,23 +243,44 @@ function keywordFallback(content: string, username: string, stats: Stats): strin
   return replies[Math.floor(Math.random() * replies.length)]!;
 }
 
+// Mesajın bot cevabı gerektirip gerektirmediğini belirle
+function shouldReply(content: string, role: string): boolean {
+  const trimmed = content.trim().toLowerCase();
+  // Bot kendi mesajlarına cevap vermesin
+  if (role === "bot") return false;
+  // Çok kısa mesajlar (3 karakterden az) genelde anlamsız
+  if (trimmed.length < 3) return false;
+  // @GuvenlikBot veya soru işareti varsa her zaman cevap ver
+  if (/guvenlikbot|güvenlikbot|@bot/i.test(trimmed)) return true;
+  if (trimmed.includes("?")) return true;
+  // Anahtar kelime eşleşmesi varsa her zaman cevap ver
+  if (KEYWORD_RULES.some(rule => rule.keywords.test(content))) return true;
+  // Yoksa %40 ihtimalle cevap ver (çok gürültülü olmasın)
+  return Math.random() < 0.40;
+}
+
+function genericFallback(username: string, stats: Stats): string {
+  const opts = [
+    `@${username} Maaş, sertifika, yasal haklar veya iş ilanları hakkında sorularınızı yanıtlayabilirim. Ne öğrenmek istersiniz?`,
+    `@${username} 5188 sayılı kanun, fazla mesai hakları, SGK primleri veya kariyer konularında yardımcı olabilirim.`,
+    `@${username} Güvenlik sektöründe ${stats.total > 0 ? `${stats.total} aktif ilan` : "güncel ilanlar"} mevcut. Soru sormaktan çekinmeyin!`,
+  ];
+  return opts[Math.floor(Math.random() * opts.length)]!;
+}
+
 export function triggerContextualReply(content: string, username: string, role: string): void {
   if (!_io) return;
-  if (role === "admin" || role === "moderator") return;
+  if (!shouldReply(content, role)) return;
 
   const now = Date.now();
   const last = lastBotReplyAt.get(username) ?? 0;
   if (now - last < BOT_REPLY_COOLDOWN_MS) return;
 
-  const trimmed = content.trim();
-
-  // Keyword eşleşmesi varsa her zaman cevap ver; yoksa %85 cevap ver
-  const hasKeyword = KEYWORD_RULES.some(rule => rule.keywords.test(trimmed));
-  if (!hasKeyword && Math.random() > 0.85) return;
-
   lastBotReplyAt.set(username, now);
 
-  const delay = 3000 + Math.random() * 6000;
+  const trimmed = content.trim();
+  const delay = 2000 + Math.random() * 4000;
+
   setTimeout(async () => {
     if (!_io) return;
     const stats = await getStats();
@@ -271,12 +292,15 @@ export function triggerContextualReply(content: string, username: string, role: 
       reply = await callOpenAI(apiKey, trimmed, username, stats);
     }
 
-    // AI yoksa veya başarısız olduysa keyword fallback
+    // OpenAI yoksa veya başarısız olduysa anahtar kelime fallback
     if (!reply) {
       reply = keywordFallback(trimmed, username, stats);
     }
 
-    if (!reply) return;
+    // Hiçbiri tutmadıysa genel bir yardımcı cevap ver (botu susturma)
+    if (!reply) {
+      reply = genericFallback(username, stats);
+    }
 
     _io!.emit("chat:message", makeBotMsg(reply, username));
   }, delay);
