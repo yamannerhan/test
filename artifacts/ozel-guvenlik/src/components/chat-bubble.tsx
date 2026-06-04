@@ -340,13 +340,15 @@ export function ChatBubble() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.92 }}
             transition={{ type: "spring", stiffness: 320, damping: 28 }}
-            className="fixed bottom-[calc(6rem+56px)] right-4 z-50 w-[22rem] flex flex-col rounded-3xl overflow-hidden"
+            className="fixed right-4 z-50 w-[22rem] flex flex-col rounded-3xl overflow-hidden"
             style={{
+              bottom: "calc(6rem + 56px)",
               background: "rgba(15,23,42,0.97)",
               backdropFilter: "blur(20px)",
               border: "1px solid rgba(255,255,255,0.08)",
               boxShadow: "0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(79,70,229,0.2)",
-              maxHeight: 500,
+              // Klavye açılınca dvh küçülür → popup ekrana sığar, input+son mesaj görünür kalır
+              maxHeight: "min(500px, calc(100dvh - 11rem))",
             }}
           >
             {/* Header */}
@@ -384,7 +386,7 @@ export function ChatBubble() {
             </div>
 
             {/* Messages */}
-            <div ref={msgContainerRef} className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0" style={{ maxHeight: 360 }}>
+            <div ref={msgContainerRef} className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-24 gap-2">
                   <MessageSquareDot className="w-8 h-8 text-white/10" />
