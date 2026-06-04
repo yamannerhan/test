@@ -93,10 +93,10 @@ export function BottomNav() {
                   onClick={() => setShowAuthPrompt(true)}
                   className="flex flex-col items-center justify-center w-full h-full gap-1 transition-all duration-300 text-muted-foreground"
                 >
-                  <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 transition-all duration-300">
+                  <div className="relative flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-300">
                     <item.icon className="w-[22px] h-[22px]" />
                   </div>
-                  <span className="text-[11px] font-medium text-primary">{item.label}</span>
+                  <span className="text-[11px] font-medium">{item.label}</span>
                 </button>
               );
             }
@@ -111,11 +111,7 @@ export function BottomNav() {
                 data-testid={`nav-${item.label.toLowerCase()}`}
               >
                 <div className={`relative flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-300 ${
-                  isActive
-                    ? "bg-accent/20 shadow-[0_0_15px_rgba(6,182,212,0.3)]"
-                    : isCv
-                    ? "bg-primary/10 border border-primary/20"
-                    : ""
+                  isActive ? "bg-accent/20 shadow-[0_0_15px_rgba(6,182,212,0.3)]" : ""
                 }`}>
                   <item.icon className={`w-[22px] h-[22px] ${isActive ? "animate-pulse" : ""}`} />
                 </div>
