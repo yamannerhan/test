@@ -132,8 +132,9 @@ export default function Chat() {
 
   useEffect(() => { if (initialData) setMessages([...initialData as ExtMsg[]]); }, [initialData]);
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    scrollRef.current?.scrollIntoView({ behavior, block: "end" });
+  const scrollToBottom = useCallback(() => {
+    const el = msgContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, []);
 
   // Çift mesaj önleme: aynı id'li mesaj zaten varsa ekleme
@@ -146,10 +147,10 @@ export default function Chat() {
     });
   }, []);
 
-  // Mesajlar DOM'a işlendikten SONRA en alta kaydır
+  // Yeni mesaj gelince direkt en alta kaydır
   useEffect(() => {
     if (messages.length === 0) return;
-    scrollToBottom("smooth");
+    scrollToBottom();
   }, [messages.length, scrollToBottom]);
 
   useEffect(() => {
@@ -177,7 +178,7 @@ export default function Chat() {
     return () => { s.disconnect(); };
   }, [user?.id]);
 
-  useEffect(() => { if (!isLoading) setTimeout(() => scrollToBottom("instant"), 120); }, [isLoading]);
+  useEffect(() => { if (!isLoading) scrollToBottom(); }, [isLoading, scrollToBottom]);
 
   // @ mention search
   useEffect(() => {

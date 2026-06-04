@@ -102,7 +102,13 @@ export function ChatBubble() {
   const [cooldownLeft, setCooldownLeft] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const msgContainerRef = useRef<HTMLDivElement>(null);
   const isOnChatPage = location === "/sohbet";
+
+  const scrollToBottom = useCallback(() => {
+    const el = msgContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
 
   const addMsg = useCallback((msg: AnyMsg) => {
     setMessages(prev => {
@@ -152,13 +158,14 @@ export function ChatBubble() {
   useEffect(() => {
     if (open) {
       setUnread(0);
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
+      scrollToBottom();
     }
-  }, [open]);
+  }, [open, scrollToBottom]);
 
+  // Yeni mesaj gelince direkt en alta kaydır
   useEffect(() => {
-    if (open) setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-  }, [messages.length]);
+    scrollToBottom();
+  }, [messages.length, scrollToBottom]);
 
   const startCooldown = (seconds: number) => {
     setCooldownLeft(seconds);
@@ -371,7 +378,7 @@ export function ChatBubble() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0" style={{ maxHeight: 360 }}>
+            <div ref={msgContainerRef} className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0" style={{ maxHeight: 360 }}>
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-24 gap-2">
                   <MessageSquareDot className="w-8 h-8 text-white/10" />
