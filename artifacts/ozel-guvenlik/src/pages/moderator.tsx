@@ -287,10 +287,19 @@ export default function ModeratorDashboard() {
   const [banTarget, setBanTarget] = useState<number | null>(null);
   const [banExpiry, setBanExpiry] = useState("");
   const banInputRef = useRef<HTMLInputElement>(null);
+  const [selectedListings, setSelectedListings] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (banTarget && banInputRef.current) banInputRef.current.focus();
   }, [banTarget]);
+
+  useEffect(() => {
+    const valid = new Set(listingsData?.listings?.map(l => l.id) ?? []);
+    setSelectedListings(prev => {
+      const next = new Set([...prev].filter(id => valid.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [listingsData]);
 
   if (isLoading) return null;
   if (!user || (!isModerator && !isAdmin)) return <Redirect to="/" />;
@@ -321,6 +330,29 @@ export default function ModeratorDashboard() {
     try {
       await apiCall(`/admin/listings/${id}`, "DELETE");
       toast({ title: "İlan silindi" });
+      refetchListings();
+    } catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
+  };
+
+  const toggleSelectListing = (id: number) => {
+    setSelectedListings(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+  const toggleSelectAllListings = () => {
+    const all = listingsData?.listings?.map(l => l.id) ?? [];
+    setSelectedListings(prev => prev.size === all.length ? new Set() : new Set(all));
+  };
+  const bulkDeleteListings = async () => {
+    const ids = [...selectedListings];
+    if (ids.length === 0) return;
+    if (!confirm(`${ids.length} ilan silinecek. Emin misiniz?`)) return;
+    try {
+      const resp = await apiCall(`/admin/listings/bulk-delete`, "POST", { ids }) as { deleted?: number };
+      toast({ title: `${resp?.deleted ?? ids.length} ilan silindi` });
+      setSelectedListings(new Set());
       refetchListings();
     } catch (e: unknown) { toast({ title: "Hata", description: (e as Error).message, variant: "destructive" }); }
   };
@@ -368,17 +400,41 @@ export default function ModeratorDashboard() {
         </Section>
 
         <Section title={`İlan Yönetimi${listingsData ? ` (${listingsData.total})` : ""}`} icon={Briefcase}>
-          <div className="flex justify-end mb-3">
-            <Button size="sm" variant="ghost" onClick={refetchListings}>
-              <RefreshCw className="w-3 h-3 mr-1" /> Yenile
-            </Button>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            {listings.length > 0 ? (
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={listings.every(l => selectedListings.has(l.id))}
+                  onChange={toggleSelectAllListings}
+                  className="w-4 h-4 rounded accent-primary"
+                />
+                Tümünü seç
+              </label>
+            ) : <span />}
+            <div className="flex items-center gap-2">
+              {selectedListings.size > 0 && (
+                <button onClick={bulkDeleteListings} className="text-[10px] flex items-center gap-0.5 px-2 py-1 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors">
+                  <Trash2 className="w-3 h-3" /> Seçilenleri Sil ({selectedListings.size})
+                </button>
+              )}
+              <Button size="sm" variant="ghost" onClick={refetchListings}>
+                <RefreshCw className="w-3 h-3 mr-1" /> Yenile
+              </Button>
+            </div>
           </div>
           <div className="space-y-2">
             {listings.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">İlan bulunamadı</p>}
             {listings.map(l => (
               <div key={l.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={selectedListings.has(l.id)}
+                    onChange={() => toggleSelectListing(l.id)}
+                    className="w-4 h-4 mt-0.5 rounded accent-primary shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-white truncate">{l.title}</p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-xs text-muted-foreground flex items-center gap-1">

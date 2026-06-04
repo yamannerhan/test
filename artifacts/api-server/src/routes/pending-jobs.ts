@@ -93,7 +93,8 @@ router.post("/admin/pending-jobs/:id/approve", authMiddleware, requireAdmin, asy
     description: job.description ?? job.rawText,
     requirements: `Kaynak: ${platformTag} | ${job.sourceUrl ?? ""}`,
     status: "active",
-    applyUrl: job.applicationUrl ?? job.sourceUrl ?? undefined,
+    // Başvuru doğrudan iletişim numarasına gitsin (Telegram'a değil); numara yoksa link/kaynağa düş
+    applyUrl: job.phone ? `tel:${job.phone}` : (job.applicationUrl ?? job.sourceUrl ?? undefined),
     // Gerçek gönderim tarihini koru (onay anı değil) — sıralama ve "X gün önce" doğru olsun
     ...(job.createdAt ? { createdAt: job.createdAt } : {}),
   }).returning();

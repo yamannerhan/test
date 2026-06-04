@@ -348,7 +348,8 @@ async function processMessage(
       workType: "Tam Zamanlı",
       description: text,
       status: "active",
-      applyUrl: sourceUrl,
+      // Başvuru doğrudan iletişim numarasına gitsin (Telegram'a değil); numara yoksa kaynağa düş
+      applyUrl: phone ? `tel:${phone}` : sourceUrl,
       // Gerçek gönderim tarihini kullan ki "X gün önce" ve sıralama doğru olsun
       ...(postedAt ? { createdAt: postedAt } : {}),
     });

@@ -1536,6 +1536,14 @@ export default function AdminDashboard() {
     title: "", company: "", city: "", workType: "Tam Zamanlı",
     salary: "", description: "", isFeatured: false, isTimed: false, expiresAt: ""
   });
+  const [selectedListings, setSelectedListings] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    const valid = new Set(listingsData?.listings?.map(l => l.id) ?? []);
+    setSelectedListings(prev => {
+      const next = new Set([...prev].filter(id => valid.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [listingsData]);
 
   if (isLoading) return null;
   if (!user || !isAdmin) return <Redirect to="/" />;
@@ -1666,6 +1674,30 @@ export default function AdminDashboard() {
     try {
       await apiCall(`/admin/listings/${id}`, "DELETE");
       toast({ title: "İlan silindi" });
+      refetchListings();
+      refetchStats();
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const toggleSelectListing = (id: number) => {
+    setSelectedListings(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+  const toggleSelectAllListings = () => {
+    const all = listingsData?.listings?.map(l => l.id) ?? [];
+    setSelectedListings(prev => prev.size === all.length ? new Set() : new Set(all));
+  };
+  const bulkDeleteListings = async () => {
+    const ids = [...selectedListings];
+    if (ids.length === 0) return;
+    if (!confirm(`${ids.length} ilan silinecek. Emin misiniz?`)) return;
+    try {
+      const resp = await apiCall(`/admin/listings/bulk-delete`, "POST", { ids }) as { deleted?: number };
+      toast({ title: `${resp?.deleted ?? ids.length} ilan silindi` });
+      setSelectedListings(new Set());
       refetchListings();
       refetchStats();
     } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
@@ -2044,10 +2076,34 @@ export default function AdminDashboard() {
         <PendingJobsSection apiCall={apiCall} toast={toast} />
 
         <Section title="İlan Listesi" icon={Briefcase}>
+          {!!listingsData?.listings?.length && (
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={listingsData.listings.every(l => selectedListings.has(l.id))}
+                  onChange={toggleSelectAllListings}
+                  className="w-4 h-4 rounded accent-primary"
+                />
+                Tümünü seç
+              </label>
+              {selectedListings.size > 0 && (
+                <button onClick={bulkDeleteListings} className="text-[10px] flex items-center gap-0.5 px-2 py-1 bg-destructive/20 text-destructive rounded-lg hover:bg-destructive/30 transition-colors">
+                  <Trash2 className="w-3 h-3" /> Seçilenleri Sil ({selectedListings.size})
+                </button>
+              )}
+            </div>
+          )}
           <div className="space-y-2">
             {listingsData?.listings?.map(l => (
               <div key={l.id} className="bg-white/5 rounded-xl p-3 space-y-2">
                 <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedListings.has(l.id)}
+                    onChange={() => toggleSelectListing(l.id)}
+                    className="w-4 h-4 mt-0.5 rounded accent-primary shrink-0"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium line-clamp-1">{l.title}</div>
                     <div className="text-xs text-muted-foreground">{l.company} · {l.city}</div>

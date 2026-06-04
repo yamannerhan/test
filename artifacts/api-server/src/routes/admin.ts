@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, usersTable, listingsTable, chatMessagesTable, announcementsTable, adminSettingsTable, bannedWordsTable, bannersTable, supportTicketsTable, chatRulesTable, listingPublishGrantsTable, ipBansTable, deviceBansTable } from "@workspace/db";
-import { eq, desc, ilike, and, sql, asc, or, isNull, gt } from "drizzle-orm";
+import { eq, desc, ilike, and, sql, asc, or, isNull, gt, inArray } from "drizzle-orm";
 import { authMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
 import { onlineSockets } from "./chat";
 import bcrypt from "bcryptjs";
@@ -1171,6 +1171,16 @@ router.delete("/admin/listings/:id", authMiddleware, requireAdminOrModerator, as
   if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
   await db.delete(listingsTable).where(eq(listingsTable.id, id));
   res.sendStatus(204);
+});
+
+router.post("/admin/listings/bulk-delete", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
+  const { ids } = req.body as { ids?: unknown };
+  const cleanIds = Array.isArray(ids)
+    ? [...new Set(ids.map(n => Number(n)).filter(n => Number.isInteger(n) && n > 0))]
+    : [];
+  if (cleanIds.length === 0) { res.status(400).json({ error: "Silinecek ilan seçilmedi" }); return; }
+  const deletedRows = await db.delete(listingsTable).where(inArray(listingsTable.id, cleanIds)).returning({ id: listingsTable.id });
+  res.json({ success: true, deleted: deletedRows.length });
 });
 
 // ─── Banners ─────────────────────────────────────────────────────
