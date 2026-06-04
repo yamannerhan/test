@@ -133,8 +133,12 @@ export default function Chat() {
   useEffect(() => { if (initialData) setMessages([...initialData as ExtMsg[]]); }, [initialData]);
 
   const scrollToBottom = useCallback(() => {
+    // Önce container'ı direkt kaydır, yedek olarak scrollRef sentinel'i kullan
     const el = msgContainerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+    scrollRef.current?.scrollIntoView({ block: "end" });
   }, []);
 
   // Çift mesaj önleme: aynı id'li mesaj zaten varsa ekleme
@@ -557,7 +561,8 @@ export default function Chat() {
           text-shadow: 0 0 8px rgba(148,163,184,0.3);
         }
       `}</style>
-      <div className="flex flex-col h-[calc(100vh-7rem)] bg-background relative">
+      {/* fixed: header(56px) ile bottom-nav(70px) arasını kapla — Layout scroll'undan bağımsız */}
+      <div className="fixed left-0 right-0 top-14 bottom-[70px] flex flex-col bg-background z-20">
         {/* Admin/Moderatör sohbet temizleme butonu */}
         {user && (user.role === "admin" || user.role === "moderator") && (
           <div className="flex items-center justify-end px-4 py-2 border-b border-white/5 bg-background/60 backdrop-blur shrink-0">
@@ -569,7 +574,8 @@ export default function Chat() {
             </button>
           </div>
         )}
-        <div ref={msgContainerRef} className="flex-1 overflow-y-auto py-4 space-y-3 pb-36">
+        {/* min-h-0: flex-1 + overflow-y-auto'nun çalışması için zorunlu */}
+        <div ref={msgContainerRef} className="flex-1 min-h-0 overflow-y-auto py-4 space-y-3">
           {isLoading ? (
             <div className="flex justify-center items-center h-full">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -582,7 +588,7 @@ export default function Chat() {
           <div ref={scrollRef} />
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 z-10 bg-background/90 backdrop-blur-xl border-t border-white/10 p-4">
+        <div className="shrink-0 bg-background/90 backdrop-blur-xl border-t border-white/10 p-4">
           {!user ? (
             <div className="text-center py-2 text-sm text-muted-foreground">
               Mesaj yazmak için <a href="/giris" className="text-primary font-medium">giriş yapmanız</a> gerekiyor.
