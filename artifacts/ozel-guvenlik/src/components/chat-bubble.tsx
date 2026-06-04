@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, Maximize2, Bot, Shield, Star, MessageSquareDot, CornerUpLeft, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -162,8 +162,8 @@ export function ChatBubble() {
     }
   }, [open, scrollToBottom]);
 
-  // Yeni mesaj gelince direkt en alta kaydır
-  useEffect(() => {
+  // Paint öncesi en alta kaydır
+  useLayoutEffect(() => {
     scrollToBottom();
   }, [messages.length, scrollToBottom]);
 

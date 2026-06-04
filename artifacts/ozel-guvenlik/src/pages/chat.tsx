@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
 import { useGetChatMessages } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -147,8 +147,8 @@ export default function Chat() {
     });
   }, []);
 
-  // Yeni mesaj gelince direkt en alta kaydır
-  useEffect(() => {
+  // Paint öncesi en alta kaydır (useLayoutEffect = DOM commit sonrası, paint öncesi)
+  useLayoutEffect(() => {
     if (messages.length === 0) return;
     scrollToBottom();
   }, [messages.length, scrollToBottom]);
