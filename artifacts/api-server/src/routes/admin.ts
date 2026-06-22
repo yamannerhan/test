@@ -363,7 +363,6 @@ const DISTRICT_TO_CITY: Record<string, { city: string; district: string }> = {
   "bayrampa a":    {city:"İstanbul", district:"Bayrampaşa"},
   "bayrampa":      {city:"İstanbul", district:"Bayrampaşa"},
   "bayrampaşa":    {city:"İstanbul", district:"Bayrampaşa"},
-  "bayrampa a":    {city:"İstanbul", district:"Bayrampaşa"},
   "besiktas":      {city:"İstanbul", district:"Beşiktaş"},
   "beykoz":        {city:"İstanbul", district:"Beykoz"},
   "beylikduzu":    {city:"İstanbul", district:"Beylikdüzü"},
@@ -650,7 +649,7 @@ const DISTRICT_TO_CITY: Record<string, { city: string; district: string }> = {
   // ─── ŞANLIURFA ───
   "haliliye":      {city:"Şanlıurfa", district:"Haliliye"},
   "karakopru":     {city:"Şanlıurfa", district:"Karaköprü"},
-  "eyup":          {city:"Şanlıurfa", district:"Eyyübiye"},
+  "eyyubiye":      {city:"Şanlıurfa", district:"Eyyübiye"},
   "birecik":       {city:"Şanlıurfa", district:"Birecik"},
   "viransehir":    {city:"Şanlıurfa", district:"Viranşehir"},
   "siverek":       {city:"Şanlıurfa", district:"Siverek"},

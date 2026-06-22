@@ -36,9 +36,8 @@ router.post("/support", authMiddleware, async (req, res): Promise<void> => {
       staff.map(s => ({
         userId: s.id,
         type: "support",
-        title: "Yeni Destek Talebi",
-        message: `#${ticket!.id} — ${subject.trim()}`,
-        relatedId: ticket!.id,
+        message: `Yeni Destek Talebi: #${ticket!.id} — ${subject.trim()}`,
+        linkUrl: `/support/${ticket!.id}`,
         isRead: false,
       }))
     );
@@ -137,9 +136,8 @@ router.post("/support/:id/reply", authMiddleware, async (req, res): Promise<void
     await db.insert(notificationsTable).values({
       userId: ticket.userId,
       type: "support",
-      title: "Destek Talebiniz Yanıtlandı",
-      message: `#${id} numaralı talebinize yanıt geldi.`,
-      relatedId: id,
+      message: `Destek Talebiniz Yanıtlandı: #${id} numaralı talebinize yanıt geldi.`,
+      linkUrl: `/support/${id}`,
       isRead: false,
     });
   } else {
@@ -157,9 +155,8 @@ router.post("/support/:id/reply", authMiddleware, async (req, res): Promise<void
         staff.map(s => ({
           userId: s.id,
           type: "support",
-          title: "Destek Talebi Güncellendi",
-          message: `#${id} nolu talebe kullanıcı yanıt verdi.`,
-          relatedId: id,
+          message: `Destek Talebi Güncellendi: #${id} nolu talebe kullanıcı yanıt verdi.`,
+          linkUrl: `/support/${id}`,
           isRead: false,
         }))
       );
@@ -203,9 +200,8 @@ router.patch("/support/:id/status", authMiddleware, requireAdmin, async (req, re
   await db.insert(notificationsTable).values({
     userId: ticket.userId,
     type: "support",
-    title: "Destek Talebi Güncellendi",
-    message: `#${id} talebinizin durumu "${statusLabels[status]}" olarak güncellendi.`,
-    relatedId: id,
+    message: `Destek Talebi Güncellendi: #${id} talebinizin durumu "${statusLabels[status]}" olarak güncellendi.`,
+    linkUrl: `/support/${id}`,
     isRead: false,
   });
 

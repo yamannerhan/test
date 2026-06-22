@@ -6,7 +6,28 @@ import { authMiddleware, signToken } from "../middlewares/auth";
 
 const router = Router();
 
-function userJson(user: typeof usersTable.$inferSelect) {
+function userJson(user: {
+  id: number;
+  username: string;
+  email: string;
+  role: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  nameColor: string | null;
+  nameAnimated: boolean;
+  isBanned: boolean;
+  banReason: string | null;
+  banExpiresAt: Date | null;
+  createdAt: Date;
+  displayName?: string | null;
+  fullName?: string | null;
+  phone?: string | null;
+  birthDate?: string | null;
+  height?: string | null;
+  weight?: string | null;
+  address?: string | null;
+  maritalStatus?: string | null;
+}) {
   return {
     id: user.id,
     username: user.username,
