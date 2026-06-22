@@ -70,17 +70,25 @@ function makeBotMsg(content: string, replyToUsername?: string | null) {
 // ── Dinamik ilan verisi ───────────────────────────────────────────
 async function getListingStats(): Promise<{ total: number; cities: string[]; minSalary: number; maxSalary: number }> {
   try {
-    const [{ total }] = await db.select({ total: count() }).from(listingsTable).where(eq(listingsTable.isActive, true));
-    const cityRows = await db.selectDistinct({ city: listingsTable.city }).from(listingsTable).where(eq(listingsTable.isActive, true)).limit(8);
-    const salaryRows = await db.select({
-      minSalary: sql<number>`min(${listingsTable.salaryMin})`,
-      maxSalary: sql<number>`max(${listingsTable.salaryMax})`,
-    }).from(listingsTable).where(eq(listingsTable.isActive, true));
+    const activeFilter = eq(listingsTable.status, "active");
+    const [{ total }] = await db.select({ total: count() }).from(listingsTable).where(activeFilter);
+    const cityRows = await db.selectDistinct({ city: listingsTable.city }).from(listingsTable).where(activeFilter).limit(8);
+    const salaryRows = await db.select({ salary: listingsTable.salary }).from(listingsTable).where(activeFilter);
+
+    const amounts: number[] = [];
+    for (const row of salaryRows) {
+      if (!row.salary) continue;
+      const nums = [...row.salary.matchAll(/\d[\d.,]*/g)]
+        .map((m) => parseInt(m[0].replace(/[.,]/g, ""), 10))
+        .filter((n) => !Number.isNaN(n) && n >= 1000);
+      amounts.push(...nums);
+    }
+
     return {
       total: Number(total),
       cities: cityRows.map(r => r.city).filter(Boolean) as string[],
-      minSalary: Math.round((salaryRows[0]?.minSalary ?? 25000) / 1000) * 1000,
-      maxSalary: Math.round((salaryRows[0]?.maxSalary ?? 55000) / 1000) * 1000,
+      minSalary: amounts.length ? Math.round(Math.min(...amounts) / 1000) * 1000 : 25000,
+      maxSalary: amounts.length ? Math.round(Math.max(...amounts) / 1000) * 1000 : 55000,
     };
   } catch {
     return { total: 0, cities: ["İstanbul", "Ankara", "İzmir"], minSalary: 25000, maxSalary: 50000 };
