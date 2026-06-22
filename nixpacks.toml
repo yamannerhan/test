@@ -1,0 +1,9 @@
+[phases.install]
+cmds = ["pnpm install --no-frozen-lockfile"]
+
+[phases.build]
+cmds = ["pnpm --filter @workspace/api-server run build", "pnpm --filter @workspace/ozel-guvenlik run build"]
+
+[variables]
+BASE_PATH = "/"
+NODE_ENV = "production"

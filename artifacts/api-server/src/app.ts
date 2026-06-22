@@ -35,4 +35,12 @@ app.use("/api/avatars", express.static(path.join(process.cwd(), "uploads", "avat
 
 app.use("/api", router);
 
+if (process.env.NODE_ENV === "production") {
+  const staticDir = path.resolve(process.cwd(), "artifacts/ozel-guvenlik/dist/public");
+  app.use(express.static(staticDir));
+  app.get(/^(?!\/api).*/, (_req, res) => {
+    res.sendFile(path.join(staticDir, "index.html"));
+  });
+}
+
 export default app;
