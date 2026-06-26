@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
- * Production bootstrap: env defaults, DB schema sync, then start API server.
- * Run on every deploy so the app works on any fresh Postgres instance.
+ * Portable production bootstrap:
+ * - env defaults for any server
+ * - auto DB schema sync
+ * - start API server
  */
 import { spawnSync } from "node:child_process";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { normalizeEnv, requireDatabaseUrl } from "./lib/env.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -20,24 +22,13 @@ function fail(msg) {
   process.exit(1);
 }
 
-if (!process.env.DATABASE_URL) {
-  fail(
-    "DATABASE_URL tanimli degil. Postgres servisini baglayin (Railway: Variables -> Add Reference -> Postgres.DATABASE_URL).",
-  );
-}
+normalizeEnv((msg) => log(msg.replace("[env] ", "")));
 
-if (!process.env.SESSION_SECRET) {
-  process.env.SESSION_SECRET = crypto.randomBytes(32).toString("hex");
-  log("SESSION_SECRET otomatik uretildi (kalici oturum icin Variables'a ekleyin).");
+try {
+  requireDatabaseUrl();
+} catch (e) {
+  fail(e instanceof Error ? e.message : String(e));
 }
-
-if (!process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = process.env.SESSION_SECRET;
-  log("JWT_SECRET = SESSION_SECRET olarak ayarlandi.");
-}
-
-process.env.NODE_ENV ??= "production";
-process.env.BASE_PATH ??= "/";
 
 for (const dir of ["uploads/avatars", "uploads/parttime"]) {
   fs.mkdirSync(path.join(rootDir, dir), { recursive: true });
@@ -45,7 +36,9 @@ for (const dir of ["uploads/avatars", "uploads/parttime"]) {
 
 const staticDir = path.join(rootDir, "artifacts/ozel-guvenlik/dist/public");
 if (!fs.existsSync(path.join(staticDir, "index.html"))) {
-  log("UYARI: Frontend build bulunamadi, yalnizca API calisacak.");
+  log("UYARI: Frontend build yok, yalnizca API aktif.");
+} else {
+  log("Frontend build bulundu.");
 }
 
 log("Veritabani semasi uygulaniyor...");
@@ -57,10 +50,10 @@ const push = spawnSync("pnpm", ["--filter", "@workspace/db", "run", "push-force"
 });
 
 if (push.status !== 0) {
-  fail("Veritabani semasi uygulanamadi. DATABASE_URL ve Postgres erisimini kontrol edin.");
+  fail("Veritabani semasi uygulanamadi. Postgres baglantisini kontrol edin.");
 }
 
-log("Veritabani hazir. Sunucu baslatiliyor...");
+log(`Veritabani hazir. Sunucu baslatiliyor (PORT=${process.env.PORT})...`);
 
 const server = spawnSync(
   "node",
