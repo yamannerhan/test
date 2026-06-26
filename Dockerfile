@@ -1,21 +1,30 @@
-FROM node:22-bookworm-slim
+FROM node:22-alpine
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+RUN npm install -g pnpm@9.15.0
 
 WORKDIR /app
+
+COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
+COPY artifacts/api-server/package.json ./artifacts/api-server/
+COPY artifacts/ozel-guvenlik/package.json ./artifacts/ozel-guvenlik/
+COPY artifacts/mockup-sandbox/package.json ./artifacts/mockup-sandbox/
+COPY lib/db/package.json ./lib/db/
+COPY lib/api-zod/package.json ./lib/api-zod/
+COPY lib/api-client-react/package.json ./lib/api-client-react/
+
+RUN pnpm install --no-frozen-lockfile
+
 COPY . .
 
-RUN pnpm install --no-frozen-lockfile \
-    && pnpm run build
+RUN echo '{"extends": "./tsconfig.base.json"}' > tsconfig.json
+RUN pnpm --filter @workspace/ozel-guvenlik build
+RUN pnpm --filter @workspace/api-server build
 
 ENV NODE_ENV=production
+
+EXPOSE 3000 8080
+
+RUN chmod +x ./start.sh
+
 ENV BASE_PATH=/
-ENV PORT=8080
-
-EXPOSE 8080
-
 CMD ["node", "scripts/start.mjs"]

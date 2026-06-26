@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Download, X } from "lucide-react";
+import { Download } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -9,12 +8,12 @@ interface BeforeInstallPromptEvent extends Event {
 
 export function PwaInstall() {
   const [prompt, setPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [dismissed, setDismissed] = useState(false);
   const [installed, setInstalled] = useState(false);
 
   useEffect(() => {
-    // Don't show if already running as standalone PWA
-    if (window.matchMedia("(display-mode: standalone)").matches) {
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches
+      || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    if (isStandalone) {
       setInstalled(true);
       return;
     }
@@ -23,9 +22,13 @@ export function PwaInstall() {
       e.preventDefault();
       setPrompt(e as BeforeInstallPromptEvent);
     };
+    const installedHandler = () => setInstalled(true);
     window.addEventListener("beforeinstallprompt", handler);
-    window.addEventListener("appinstalled", () => setInstalled(true));
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    window.addEventListener("appinstalled", installedHandler);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("appinstalled", installedHandler);
+    };
   }, []);
 
   const install = async () => {
@@ -36,39 +39,16 @@ export function PwaInstall() {
     setPrompt(null);
   };
 
-  if (installed || dismissed || !prompt) return null;
+  if (installed || !prompt) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ y: 80, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 80, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="fixed bottom-20 left-4 right-4 z-50 max-w-md mx-auto"
-      >
-        <div className="rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
-          style={{ background: "linear-gradient(135deg,#1E293B,#0F172A)" }}>
-          <div className="flex items-center gap-3 p-4">
-            <img src="/icon-192.png" alt="Logo" className="w-12 h-12 rounded-xl shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-sm text-foreground">ÖZEL GÜVENLİK</p>
-              <p className="text-xs text-muted-foreground">Uygulamayı telefonuna ekle</p>
-            </div>
-            <button onClick={() => setDismissed(true)} className="text-muted-foreground hover:text-foreground shrink-0">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="px-4 pb-4">
-            <button onClick={install}
-              className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
-              style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }}>
-              <Download className="w-4 h-4" />
-              Uygulamayı İndir
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </AnimatePresence>
+    <button
+      onClick={install}
+      className="shrink-0 h-8 px-2 rounded-full bg-primary/15 border border-primary/25 text-primary hover:bg-primary/25 transition-colors flex items-center gap-1 text-[10px] font-extrabold whitespace-nowrap max-w-[76px]"
+      aria-label="Uygulamayı yükle"
+    >
+      <Download className="w-3.5 h-3.5 shrink-0" />
+      <span className="truncate">Yükle</span>
+    </button>
   );
 }

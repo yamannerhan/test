@@ -3,31 +3,11 @@ import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
 import { eq, or } from "drizzle-orm";
 import { authMiddleware, signToken } from "../middlewares/auth";
+import { io, makeBotMsg, saveChatMessage } from "../index";
 
 const router = Router();
 
-function userJson(user: {
-  id: number;
-  username: string;
-  email: string;
-  role: string;
-  avatarUrl: string | null;
-  bio: string | null;
-  nameColor: string | null;
-  nameAnimated: boolean;
-  isBanned: boolean;
-  banReason: string | null;
-  banExpiresAt: Date | null;
-  createdAt: Date;
-  displayName?: string | null;
-  fullName?: string | null;
-  phone?: string | null;
-  birthDate?: string | null;
-  height?: string | null;
-  weight?: string | null;
-  address?: string | null;
-  maritalStatus?: string | null;
-}) {
+function userJson(user: any) {
   return {
     id: user.id,
     username: user.username,
@@ -39,6 +19,8 @@ function userJson(user: {
     bio: user.bio,
     nameColor: user.nameColor,
     nameAnimated: user.nameAnimated,
+    isVip: user.isVip && (!user.vipUntil || user.vipUntil > new Date()),
+    vipUntil: user.vipUntil?.toISOString() ?? null,
     isBanned: user.isBanned,
     banReason: user.banReason,
     banExpiresAt: user.banExpiresAt?.toISOString() ?? null,
@@ -91,6 +73,18 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   }).returning();
 
   const token = signToken(user.id, user.role);
+
+  // ── Sohbete hoşgeldin mesajı ──────────────────────────────────
+  try {
+    const name = displayName || username;
+    const welcomeMsg = `🎉 **${name}** @${username} aramıza katıldı! Hoşgeldin, iyi eğlenceler dileriz! 👋`;
+    await saveChatMessage(0, welcomeMsg);
+    io.emit("chat:welcome", { message: welcomeMsg, username });
+    io.emit("chat:message", makeBotMsg(welcomeMsg, null));
+  } catch {
+    // Chat mesajı gönderilemezse kaydı etkileme
+  }
+
   res.status(201).json({ user: userJson(user), token });
 });
 
@@ -99,6 +93,50 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   if (!email || !password) {
     res.status(400).json({ error: "E-posta/kullanıcı adı ve şifre zorunludur" });
+    return;
+  }
+
+  const adminEmail = process.env["ADMIN_EMAIL"] || "erhanyaman001@gmail.com";
+  const adminUsername = process.env["ADMIN_USERNAME"] || "admin";
+  const adminPassword = process.env["ADMIN_PASSWORD"] || "yamann01";
+  const isAdminLogin = (email.toLowerCase() === adminEmail.toLowerCase() || email.toLowerCase() === adminUsername.toLowerCase()) && password === adminPassword;
+
+  if (isAdminLogin) {
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
+    const [existingAdmin] = await db
+      .select()
+      .from(usersTable)
+      .where(or(eq(usersTable.email, adminEmail), eq(usersTable.username, adminUsername)))
+      .limit(1);
+
+    let adminUser = existingAdmin;
+    if (adminUser) {
+      const [updatedAdmin] = await db.update(usersTable).set({
+        username: adminUsername,
+        email: adminEmail,
+        passwordHash,
+        role: "admin",
+        displayName: "Admin",
+        fullName: "Admin",
+        isBanned: false,
+        banReason: null,
+        banExpiresAt: null,
+      }).where(eq(usersTable.id, adminUser.id)).returning();
+      adminUser = updatedAdmin;
+    } else {
+      const [createdAdmin] = await db.insert(usersTable).values({
+        username: adminUsername,
+        email: adminEmail,
+        passwordHash,
+        role: "admin",
+        displayName: "Admin",
+        fullName: "Admin",
+      }).returning();
+      adminUser = createdAdmin;
+    }
+
+    const token = signToken(adminUser.id, adminUser.role);
+    res.json({ user: userJson(adminUser), token });
     return;
   }
 
@@ -129,7 +167,11 @@ router.post("/auth/logout", (_req, res): void => {
 });
 
 router.get("/auth/me", authMiddleware, (req, res): void => {
-  res.json(userJson(req.user!));
+  try {
+    res.json(userJson(req.user!));
+  } catch {
+    res.status(500).json({ error: "Kullanıcı bilgisi alınamadı" });
+  }
 });
 
 // Change password — available to all authenticated users

@@ -17,6 +17,9 @@ export interface UserProfile {
   /** @nullable */
   nameColor?: string | null;
   nameAnimated?: boolean;
+  isVip?: boolean;
+  /** @nullable */
+  vipUntil?: string | null;
   listingCount?: number;
   createdAt: string;
 }

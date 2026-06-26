@@ -1,8 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
 import sharp from "sharp";
-import path from "path";
-import fs from "fs";
 import { db, usersTable, listingsTable, listingFavoritesTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { authMiddleware } from "../middlewares/auth";
@@ -27,16 +25,14 @@ function userJson(u: typeof usersTable.$inferSelect) {
     maritalStatus: u.maritalStatus ?? null,
     nameColor: u.nameColor,
     nameAnimated: u.nameAnimated,
+    isVip: u.isVip && (!u.vipUntil || u.vipUntil > new Date()),
+    vipUntil: u.vipUntil?.toISOString() ?? null,
     isBanned: u.isBanned,
     banReason: u.banReason,
     banExpiresAt: u.banExpiresAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
   };
 }
-
-// ── Avatar upload ─────────────────────────────────────────────────
-const UPLOADS_DIR = path.join(process.cwd(), "uploads", "avatars");
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -59,26 +55,22 @@ router.post("/users/avatar", authMiddleware, upload.single("avatar"), async (req
       res.status(403).json({ error: "Hareketli GIF yükleme sadece yönetici ve moderatörlere özeldir." });
       return;
     }
-    // GIF'i olduğu gibi kaydet — sharp animasyonu bozar
-    const filename = `${req.user!.id}_${Date.now()}.gif`;
-    const filepath = path.join(UPLOADS_DIR, filename);
-    fs.writeFileSync(filepath, req.file.buffer);
-    const avatarUrl = `/api/avatars/${filename}`;
+    if (req.file.buffer.length > 3 * 1024 * 1024) {
+      res.status(400).json({ error: "Kalıcı GIF profil resmi en fazla 3 MB olabilir." });
+      return;
+    }
+    const avatarUrl = `data:image/gif;base64,${req.file.buffer.toString("base64")}`;
     const [updated] = await db.update(usersTable).set({ avatarUrl }).where(eq(usersTable.id, req.user!.id)).returning();
     res.json(userJson(updated));
     return;
   }
 
-  // Statik görseller için normal sharp işlemi
-  const filename = `${req.user!.id}_${Date.now()}.jpg`;
-  const filepath = path.join(UPLOADS_DIR, filename);
-
-  await sharp(req.file.buffer)
+  const avatarBuffer = await sharp(req.file.buffer)
     .resize(256, 256, { fit: "cover", position: "center" })
     .jpeg({ quality: 85 })
-    .toFile(filepath);
+    .toBuffer();
 
-  const avatarUrl = `/api/avatars/${filename}`;
+  const avatarUrl = `data:image/jpeg;base64,${avatarBuffer.toString("base64")}`;
   const [updated] = await db.update(usersTable).set({ avatarUrl }).where(eq(usersTable.id, req.user!.id)).returning();
   res.json(userJson(updated));
 });
@@ -116,6 +108,8 @@ router.get("/users/profile/:username", async (req, res): Promise<void> => {
     bio: user.bio,
     nameColor: user.nameColor,
     nameAnimated: user.nameAnimated,
+    isVip: user.isVip && (!user.vipUntil || user.vipUntil > new Date()),
+    vipUntil: user.vipUntil?.toISOString() ?? null,
     listingCount: countResult?.count ?? 0,
     createdAt: user.createdAt.toISOString(),
   });
@@ -167,6 +161,7 @@ router.get("/users/favorites", authMiddleware, async (req, res): Promise<void> =
     viewCount: l.viewCount,
     likeCount: l.likeCount,
     isFeatured: l.isFeatured,
+    cardTheme: l.cardTheme,
     applyUrl: l.applyUrl,
     companyLogoUrl: l.companyLogoUrl,
     authorId: l.authorId,

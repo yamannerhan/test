@@ -2,7 +2,8 @@ import { Router } from "express";
 import { db, pendingJobsTable, importedPostsTable, listingsTable, sourcesTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { authMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
-import { extractGender } from "../lib/job-parsing";
+import { buildListingRequirements, createSmartListingImage, extractBenefits, extractGender, extractLocation, extractProjectType, extractWorkType } from "../lib/job-parsing";
+import { announceNewListing } from "../lib/listing-announcements";
 
 const router = Router();
 
@@ -85,23 +86,31 @@ router.post("/admin/pending-jobs/:id/approve", authMiddleware, requireAdmin, asy
 
   // Create listing
   const platformTag = job.platform === "telegram" ? "Telegram" : "Facebook";
-  // Cinsiyet her zaman gösterilsin; ham metinden çıkar, yoksa "Belirtilmemiş"
-  const gender = extractGender(job.rawText) ?? "Belirtilmemiş";
+  const location = extractLocation(job.rawText);
+  const gender = extractGender(job.rawText);
+  const benefits = extractBenefits(job.rawText);
+  const projectType = extractProjectType(job.rawText);
+  const title = job.title ?? "Güvenlik Personeli Aranıyor";
   const [listing] = await db.insert(listingsTable).values({
-    title: job.title ?? "Güvenlik Personeli Aranıyor",
+    title,
     company: job.company ?? "Belirtilmemiş",
     city: job.city ?? "Türkiye",
     salary: job.salary ?? undefined,
-    workType: "Tam Zamanlı",
+    workType: extractWorkType(job.rawText),
     description: job.description ?? job.rawText,
-    requirements: `Cinsiyet: ${gender}\nKaynak: ${platformTag} | ${job.sourceUrl ?? ""}`,
+    requirements: buildListingRequirements({ gender, location, benefits, projectType, source: `${platformTag} | ${job.sourceUrl ?? ""}` }),
     status: "active",
     sourceTag: job.platform,
+    companyLogoUrl: createSmartListingImage(job.rawText, title),
     // Başvuru doğrudan iletişim numarasına gitsin (Telegram'a değil); numara yoksa link/kaynağa düş
     applyUrl: job.phone ? `tel:${job.phone}` : (job.applicationUrl ?? job.sourceUrl ?? undefined),
+    ...(job.platform === "telegram" ? { expiresAt: new Date(job.createdAt.getTime() + 30 * 24 * 60 * 60 * 1000) } : {}),
     // Gerçek gönderim tarihini koru (onay anı değil) — sıralama ve "X gün önce" doğru olsun
     ...(job.createdAt ? { createdAt: job.createdAt } : {}),
   }).returning();
+  if (listing) {
+    await announceNewListing(listing);
+  }
 
   // Update pending job status
   await db.update(pendingJobsTable)

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, chatMessagesTable, usersTable, adminSettingsTable, chatReactionsTable } from "@workspace/db";
-import { eq, desc, and, lt, inArray } from "drizzle-orm";
+import { eq, desc, and, lt, gt, inArray } from "drizzle-orm";
 import { authMiddleware, optionalAuthMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
 import { triggerContextualReply } from "../lib/chat-bot";
 import { filterProfanity } from "../lib/profanity";
@@ -52,6 +52,8 @@ async function formatMessage(
     userNameColor:   vUser?.nameColor       ?? user?.nameColor       ?? null,
     userNameAnimated:vUser?.nameAnimated    ?? user?.nameAnimated    ?? false,
     userRole:        vUser?.role            ?? user?.role            ?? "user",
+    isVip:           user ? (user.isVip && (!user.vipUntil || user.vipUntil > new Date())) : false,
+    vipUntil:        user?.vipUntil?.toISOString() ?? null,
     isBot:           vUser?.isBot           ?? false,
     isFake:          vUser?.isFake          ?? false,
     replyToId: msg.replyToId,
@@ -65,38 +67,46 @@ async function formatMessage(
 }
 
 router.get("/chat/messages", optionalAuthMiddleware, async (req, res): Promise<void> => {
-  const limit = Math.min(100, Math.max(1, parseInt(String(req.query["limit"] ?? "50"), 10)));
-  const before = req.query["before"] ? parseInt(String(req.query["before"]), 10) : undefined;
+  try {
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query["limit"] ?? "50"), 10)));
+    const before = req.query["before"] ? parseInt(String(req.query["before"]), 10) : undefined;
+    const after = req.query["after"] ? parseInt(String(req.query["after"]), 10) : undefined;
 
-  const conditions = [eq(chatMessagesTable.isDeleted, false)];
-  if (before != null && !isNaN(before)) {
-    conditions.push(lt(chatMessagesTable.id, before));
-  }
-
-  const messages = await db.select().from(chatMessagesTable)
-    .where(and(...conditions))
-    .orderBy(desc(chatMessagesTable.createdAt))
-    .limit(limit);
-
-  messages.reverse();
-
-  const allUsers = await db.select().from(usersTable);
-  const userMap = new Map(allUsers.map(u => [u.id, u]));
-
-  // Batch-fetch reactions for all messages
-  const msgIds = messages.map(m => m.id);
-  let reactionsMap = new Map<number, Array<{ emoji: string; userId: number; username: string; displayName: string | null }>>();
-  if (msgIds.length > 0) {
-    const allReactions = await db.select().from(chatReactionsTable).where(inArray(chatReactionsTable.messageId, msgIds));
-    for (const r of allReactions) {
-      const list = reactionsMap.get(r.messageId) ?? [];
-      list.push({ emoji: r.emoji, userId: r.userId, username: r.username, displayName: r.displayName ?? null });
-      reactionsMap.set(r.messageId, list);
+    const conditions = [eq(chatMessagesTable.isDeleted, false)];
+    if (before != null && !isNaN(before)) {
+      conditions.push(lt(chatMessagesTable.id, before));
     }
-  }
+    if (after != null && !isNaN(after)) {
+      conditions.push(gt(chatMessagesTable.id, after));
+    }
 
-  const formatted = await Promise.all(messages.map(m => formatMessage(m, userMap, reactionsMap)));
-  res.json(formatted);
+    const messages = await db.select().from(chatMessagesTable)
+      .where(and(...conditions))
+      .orderBy(desc(chatMessagesTable.createdAt))
+      .limit(limit);
+
+    messages.reverse();
+
+    const allUsers = await db.select().from(usersTable);
+    const userMap = new Map(allUsers.map(u => [u.id, u]));
+
+    const msgIds = messages.map(m => m.id);
+    const reactionsMap = new Map<number, Array<{ emoji: string; userId: number; username: string; displayName: string | null }>>();
+    if (msgIds.length > 0) {
+      const allReactions = await db.select().from(chatReactionsTable).where(inArray(chatReactionsTable.messageId, msgIds));
+      for (const r of allReactions) {
+        const list = reactionsMap.get(r.messageId) ?? [];
+        list.push({ emoji: r.emoji, userId: r.userId, username: r.username, displayName: r.displayName ?? null });
+        reactionsMap.set(r.messageId, list);
+      }
+    }
+
+    const formatted = await Promise.all(messages.map(m => formatMessage(m, userMap, reactionsMap)));
+    res.json(formatted);
+  } catch (error) {
+    req.app.get("logger")?.error?.({ error }, "chat/messages failed");
+    res.status(500).json({ error: "Sohbet mesajları yüklenemedi" });
+  }
 });
 
 router.post("/chat/messages", authMiddleware, async (req, res): Promise<void> => {
@@ -174,7 +184,7 @@ router.post("/chat/messages/:id/react", authMiddleware, async (req, res): Promis
 
   const userId = req.user!.id;
   const username = req.user!.username;
-  const displayName = req.user!.displayName ?? null;
+  const displayName = (req.user as any).displayName ?? null;
 
   const [existing] = await db.select().from(chatReactionsTable)
     .where(and(
@@ -220,7 +230,7 @@ router.delete("/chat/messages/:id", authMiddleware, requireAdmin, async (req, re
 router.delete("/chat/messages", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   await db.update(chatMessagesTable).set({ isDeleted: true }).where(eq(chatMessagesTable.isDeleted, false));
 
-  const clearedBy = req.user!.displayName || req.user!.username;
+  const clearedBy = (req.user as any).displayName || req.user!.username;
   const roleLabel = req.user!.role === "admin" ? "Admin" : "Moderatör";
 
   const io = (req as unknown as { app: { get: (key: string) => unknown } }).app.get("io") as { emit: (event: string, data: unknown) => void } | null;

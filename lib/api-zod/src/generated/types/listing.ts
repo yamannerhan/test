@@ -23,6 +23,8 @@ export interface Listing {
   likeCount: number;
   isFeatured?: boolean;
   /** @nullable */
+  cardTheme?: string | null;
+  /** @nullable */
   applyUrl?: string | null;
   /** @nullable */
   companyLogoUrl?: string | null;

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, supportTicketsTable, supportMessagesTable, notificationsTable, usersTable } from "@workspace/db";
 import { eq, desc, and, sql } from "drizzle-orm";
-import { authMiddleware, requireAdmin } from "../middlewares/auth";
+import { authMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
 
 const router = Router();
 
@@ -36,8 +36,10 @@ router.post("/support", authMiddleware, async (req, res): Promise<void> => {
       staff.map(s => ({
         userId: s.id,
         type: "support",
-        message: `Yeni Destek Talebi: #${ticket!.id} — ${subject.trim()}`,
-        linkUrl: `/support/${ticket!.id}`,
+        title: "Yeni Destek Talebi",
+        message: `#${ticket!.id} — ${subject.trim()}`,
+        relatedId: ticket!.id,
+        linkUrl: "/admin",
         isRead: false,
       }))
     );
@@ -136,8 +138,10 @@ router.post("/support/:id/reply", authMiddleware, async (req, res): Promise<void
     await db.insert(notificationsTable).values({
       userId: ticket.userId,
       type: "support",
-      message: `Destek Talebiniz Yanıtlandı: #${id} numaralı talebinize yanıt geldi.`,
-      linkUrl: `/support/${id}`,
+      title: "Destek Talebiniz Yanıtlandı",
+      message: `#${id} numaralı talebinize yanıt geldi.`,
+      relatedId: id,
+      linkUrl: "/destek",
       isRead: false,
     });
   } else {
@@ -155,8 +159,10 @@ router.post("/support/:id/reply", authMiddleware, async (req, res): Promise<void
         staff.map(s => ({
           userId: s.id,
           type: "support",
-          message: `Destek Talebi Güncellendi: #${id} nolu talebe kullanıcı yanıt verdi.`,
-          linkUrl: `/support/${id}`,
+          title: "Destek Talebi Güncellendi",
+          message: `#${id} nolu talebe kullanıcı yanıt verdi.`,
+          relatedId: id,
+          linkUrl: "/admin",
           isRead: false,
         }))
       );
@@ -176,7 +182,7 @@ router.post("/support/:id/reply", authMiddleware, async (req, res): Promise<void
 });
 
 // ── Staff: change status ───────────────────────────────────────────────────────
-router.patch("/support/:id/status", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+router.patch("/support/:id/status", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params["id"]) ? req.params["id"][0] : req.params["id"];
   const id = parseInt(rawId ?? "", 10);
   if (isNaN(id)) { res.status(400).json({ error: "Geçersiz ID" }); return; }
@@ -200,8 +206,10 @@ router.patch("/support/:id/status", authMiddleware, requireAdmin, async (req, re
   await db.insert(notificationsTable).values({
     userId: ticket.userId,
     type: "support",
-    message: `Destek Talebi Güncellendi: #${id} talebinizin durumu "${statusLabels[status]}" olarak güncellendi.`,
-    linkUrl: `/support/${id}`,
+    title: "Destek Talebi Güncellendi",
+    message: `#${id} talebinizin durumu "${statusLabels[status]}" olarak güncellendi.`,
+    relatedId: id,
+    linkUrl: "/destek",
     isRead: false,
   });
 
@@ -209,7 +217,7 @@ router.patch("/support/:id/status", authMiddleware, requireAdmin, async (req, re
 });
 
 // ── Admin: list all tickets ────────────────────────────────────────────────────
-router.get("/admin/support", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+router.get("/admin/support", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   const status = req.query["status"] as string | undefined;
   const conditions = status ? [eq(supportTicketsTable.status, status)] : [];
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

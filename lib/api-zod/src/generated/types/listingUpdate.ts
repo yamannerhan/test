@@ -21,4 +21,6 @@ export interface ListingUpdate {
   /** @nullable */
   applyUrl?: string | null;
   isFeatured?: boolean;
+  /** @nullable */
+  cardTheme?: string | null;
 }

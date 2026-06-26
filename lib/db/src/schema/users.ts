@@ -12,6 +12,8 @@ export const usersTable = pgTable("users", {
   bio: text("bio"),
   nameColor: text("name_color"),
   nameAnimated: boolean("name_animated").notNull().default(false),
+  isVip: boolean("is_vip").notNull().default(false),
+  vipUntil: timestamp("vip_until", { withTimezone: true }),
   displayName: text("display_name"),
   fullName: text("full_name"),
   phone: text("phone"),

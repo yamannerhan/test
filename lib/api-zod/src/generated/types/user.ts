@@ -18,6 +18,9 @@ export interface User {
   /** @nullable */
   nameColor?: string | null;
   nameAnimated?: boolean;
+  isVip?: boolean;
+  /** @nullable */
+  vipUntil?: string | null;
   isBanned?: boolean;
   /** @nullable */
   banReason?: string | null;

@@ -1,77 +1,61 @@
-import { defineConfig, type PluginOption } from "vite";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import fs from "node:fs";
 
-const rawPort = process.env.PORT ?? "8080";
+const rawPort = process.env.PORT || "3000";
+
 const port = Number(rawPort);
+
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = process.env.BASE_PATH ?? "/";
+const basePath = process.env.BASE_PATH || "/";
 
 const DEV_CACHE_VERSION = Date.now().toString();
-
-const SW_TEMPLATE_PATH = path.resolve(import.meta.dirname, "public/sw-template.js");
-const SW_OUTPUT_PATH = path.resolve(import.meta.dirname, "public/sw.js");
-const swTemplate = fs.readFileSync(SW_TEMPLATE_PATH, "utf-8");
-fs.writeFileSync(SW_OUTPUT_PATH, swTemplate.replace("__CACHE_VERSION__", DEV_CACHE_VERSION));
-
-const VERSION_JSON_PATH = path.resolve(import.meta.dirname, "public/version.json");
-fs.writeFileSync(VERSION_JSON_PATH, JSON.stringify({ v: DEV_CACHE_VERSION }));
 
 const swVersionPlugin = {
   name: "sw-version-inject",
   transformIndexHtml(html: string) {
+    // Her sunucu başlangıcında index.html içindeki __BUILD_TS__ yerine taze timestamp yaz
     return html.replace(/__BUILD_TS__/g, DEV_CACHE_VERSION);
   },
   closeBundle() {
-    const outPath = path.resolve(import.meta.dirname, "dist/sw.js");
-    const outPathAlt = path.resolve(import.meta.dirname, "dist/public/sw.js");
-    const target = fs.existsSync(outPath) ? outPath : fs.existsSync(outPathAlt) ? outPathAlt : null;
-    if (target) {
-      const raw = fs.readFileSync(target, "utf-8");
-      fs.writeFileSync(target, raw.replace("__CACHE_VERSION__", Date.now().toString()));
-    }
+    return;
   },
 };
 
-async function replitDevPlugins(): Promise<PluginOption[]> {
-  if (process.env.NODE_ENV === "production" || process.env.REPL_ID === undefined) {
-    return [];
-  }
-
-  const [cartographer, devBanner, runtimeOverlay] = await Promise.all([
-    import("@replit/vite-plugin-cartographer"),
-    import("@replit/vite-plugin-dev-banner"),
-    import("@replit/vite-plugin-runtime-error-modal"),
-  ]);
-
-  return [
-    cartographer.cartographer({
-      root: path.resolve(import.meta.dirname, ".."),
-    }),
-    devBanner.devBanner(),
-    runtimeOverlay.default(),
-  ];
-}
-
-export default defineConfig(async () => ({
+export default defineConfig({
   base: basePath,
-  plugins: [swVersionPlugin, react(), tailwindcss(), ...(await replitDevPlugins())],
+  plugins: [
+    swVersionPlugin,
+    react(),
+    tailwindcss(),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
     },
-    dedupe: ["react", "react-dom"],
+    dedupe: ["react", "react-dom", "@tanstack/react-query"],
   },
   root: path.resolve(import.meta.dirname),
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom"],
+          router: ["wouter", "wouter/use-hash-location", "wouter/use-browser-location"],
+          query: ["@tanstack/react-query"],
+          ui: ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-tooltip", "@radix-ui/react-select", "@radix-ui/react-tabs", "@radix-ui/react-toast", "@radix-ui/react-popover", "@radix-ui/react-avatar", "@radix-ui/react-separator", "@radix-ui/react-slot", "@radix-ui/react-label", "@radix-ui/react-checkbox"],
+          pdf: ["html2canvas", "jspdf"],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 800,
   },
   server: {
     port,
@@ -87,4 +71,5 @@ export default defineConfig(async () => ({
     host: "0.0.0.0",
     allowedHosts: true,
   },
-}));
+});
+

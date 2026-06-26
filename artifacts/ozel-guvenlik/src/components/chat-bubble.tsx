@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, Maximize2, Bot, Shield, Star, MessageSquareDot, CornerUpLeft, Trash2 } from "lucide-react";
+import { X, Send, Maximize2, Bot, Shield, Star, MessageSquareDot, CornerUpLeft, Trash2, Crown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, useLocation } from "wouter";
 import { io, Socket } from "socket.io-client";
@@ -15,13 +15,33 @@ interface SystemMsg { id: number; type: "join" | "welcome"; text: string; create
 type AnyMsg = (ChatMessage & { isBot?: boolean }) | SystemMsg;
 function isSystem(m: AnyMsg): m is SystemMsg { return "type" in m; }
 
+function renderMessageContent(content: string) {
+  const parts = content.split(/(\*\*[^*]+\*\*|@\w+|\/ilan\/\d+)/g);
+  return parts.map((part, i) => {
+    if (/^\*\*([^*]+)\*\*$/.test(part)) {
+      const text = part.slice(2, -2);
+      return <span key={i} className="font-bold text-foreground">{text}</span>;
+    }
+    if (/^\/ilan\/\d+$/.test(part)) {
+      return <a key={i} href={part} className="ml-1 inline-flex rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary/30">İlana git</a>;
+    }
+    if (part.startsWith("@")) return <span key={i} className="text-primary font-semibold">{part}</span>;
+    return part;
+  });
+}
+
 /* ── Role badge ─────────────────────────────────────────── */
-function RoleBadge({ role }: { role: string }) {
+function RoleBadge({ role, isVip }: { role: string; isVip?: boolean }) {
   if (role === "admin") return (
     <span className="badge-admin text-[7px] font-black tracking-widest uppercase">YÖNETİCİ</span>
   );
   if (role === "moderator") return (
     <span className="badge-mod text-[7px] font-black tracking-widest uppercase">MODERATÖR</span>
+  );
+  if (isVip) return (
+    <span className="badge-vip text-[7px] font-black tracking-widest uppercase inline-flex items-center gap-0.5">
+      <Crown className="w-2.5 h-2.5" /> VIP
+    </span>
   );
   return (
     <span className="text-[7px] font-semibold tracking-wider uppercase text-white/70">ÜYE</span>
@@ -29,23 +49,26 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 /* ── User avatar ─────────────────────────────────────────── */
-function UserAvatar({ src, username, role }: { src?: string | null; username: string; role: string }) {
+function UserAvatar({ src, username, role, isVip }: { src?: string | null; username: string; role: string; isVip?: boolean }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const ringColor =
     role === "admin" ? "rgba(239,68,68,0.9)" :
     role === "moderator" ? "rgba(59,130,246,0.85)" :
+    isVip ? "rgba(250,204,21,0.95)" :
     "rgba(255,255,255,0.12)";
+  const showImage = !!src && !imageFailed;
 
   return (
     <div
       className="w-7 h-7 rounded-full shrink-0 overflow-hidden flex items-center justify-center text-[10px] font-bold text-white"
       style={{
         boxShadow: `0 0 0 2px ${ringColor}`,
-        background: src ? "transparent" : "linear-gradient(135deg,#4F46E5,#7C3AED)",
+        background: showImage ? "transparent" : "linear-gradient(135deg,#4F46E5,#7C3AED)",
         flexShrink: 0,
       }}
     >
-      {src ? (
-        <img src={src} alt={username} className="w-full h-full object-cover" />
+      {showImage ? (
+        <img src={src} alt={username} className="w-full h-full object-cover" onError={() => setImageFailed(true)} />
       ) : (
         username.substring(0, 2).toUpperCase()
       )}
@@ -106,9 +129,18 @@ export function ChatBubble() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const msgContainerRef = useRef<HTMLDivElement>(null);
   const msgInnerRef = useRef<HTMLDivElement>(null);
+  const syncInFlightRef = useRef(false);
+  const messageIdsRef = useRef<Set<number>>(new Set());
+  const systemKeysRef = useRef<Set<string>>(new Set());
+  const lastSeenMessageIdRef = useRef(0);
   // Kullanıcı en altta mı (scroll event'iyle güncellenir) — resize/yeni mesajda zorla indirip indirmemeyi belirler
   const pinnedRef = useRef(true);
+  const openRef = useRef(open);
   const isOnChatPage = location === "/sohbet";
+
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
 
   const scrollToBottom = useCallback(() => {
     // Kapsayıcının kendi scrollTop'unu ayarla — popup zaten kendi overflow container'ı.
@@ -125,35 +157,102 @@ export function ChatBubble() {
     setTimeout(jump, 200);
   }, []);
 
-  const addMsg = useCallback((msg: AnyMsg) => {
+  const rememberMessageIds = (items: AnyMsg[]) => {
+    const ids = items.filter(m => !isSystem(m)).map(m => (m as ChatMessage).id);
+    messageIdsRef.current = new Set(ids);
+    lastSeenMessageIdRef.current = Math.max(lastSeenMessageIdRef.current, ...ids, 0);
+  };
+
+  const addMsg = useCallback((msg: AnyMsg): boolean => {
+    if (!isSystem(msg) && messageIdsRef.current.has((msg as ChatMessage).id)) {
+      return false;
+    }
+    if (isSystem(msg)) {
+      if (msg.type !== "welcome") {
+        const key = `${msg.type}:${msg.text}`;
+        if (systemKeysRef.current.has(key)) return false;
+        systemKeysRef.current.add(key);
+      }
+    } else {
+      const id = (msg as ChatMessage).id;
+      messageIdsRef.current.add(id);
+      lastSeenMessageIdRef.current = Math.max(lastSeenMessageIdRef.current, id);
+    }
+
     setMessages(prev => {
-      // Çift mesaj önleme: aynı id zaten varsa ekleme
       if (!isSystem(msg) && prev.some(m => !isSystem(m) && (m as ChatMessage).id === (msg as ChatMessage).id)) {
         return prev;
       }
-      return [...prev.slice(-59), msg];
+      const next = [...prev.slice(-59), msg];
+      rememberMessageIds(next);
+      return next;
     });
     setPulse(true);
     setTimeout(() => setPulse(false), 600);
+    return true;
+  }, []);
+
+  const syncLatestMessages = useCallback(async () => {
+    if (syncInFlightRef.current) return;
+    syncInFlightRef.current = true;
+    try {
+      const after = lastSeenMessageIdRef.current;
+      const url = after > 0 ? `/api/chat/messages?limit=25&after=${after}` : "/api/chat/messages?limit=50";
+      const res = await fetch(url, {
+        headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => null) as ChatMessage[] | null;
+      if (!Array.isArray(data)) return;
+      setMessages(prev => {
+        const existingIds = new Set(prev.filter(m => !isSystem(m)).map(m => (m as ChatMessage).id));
+        const incoming = data.filter(m => !existingIds.has(m.id));
+        if (incoming.length === 0) return prev;
+        if (!openRef.current) setUnread(n => n + incoming.length);
+        setPulse(true);
+        setTimeout(() => setPulse(false), 600);
+        const next = [...prev, ...incoming].slice(-100);
+        rememberMessageIds(next);
+        return next;
+      });
+    } catch {
+      // ignore transient network errors
+    } finally {
+      syncInFlightRef.current = false;
+    }
   }, []);
 
   useEffect(() => {
-    fetch("/api/chat/messages?limit=100", {
-      headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
-    })
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setMessages(data); })
-      .catch(() => {});
-  }, []);
+    void syncLatestMessages();
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") void syncLatestMessages();
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [syncLatestMessages]);
 
   useEffect(() => {
-    const s = io({ path: "/ws" });
+    const s = io(window.location.origin, {
+      path: "/ws",
+      transports: ["polling", "websocket"],
+      upgrade: true,
+      secure: window.location.protocol === "https:",
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      timeout: 20000,
+      forceNew: true,
+    });
     setSocket(s);
-    if (user?.id) s.emit("authenticate", { userId: user.id });
+    const authenticate = () => {
+      if (user?.id) s.emit("authenticate", { userId: user.id });
+    };
+
+    s.on("connect", authenticate);
 
     s.on("chat:message", (msg: ChatMessage) => {
-      addMsg(msg);
-      if (!open) setUnread(n => n + 1);
+      const added = addMsg(msg);
+      if (added && !openRef.current) setUnread(n => n + 1);
     });
     s.on("chat:delete", ({ id }: { id: number }) => {
       setMessages(prev => prev.filter(m => !isSystem(m) && (m as ChatMessage).id !== id));
@@ -167,8 +266,12 @@ export function ChatBubble() {
     s.on("chat:welcome", ({ message }: { message: string }) => {
       addMsg({ id: Date.now() + 1, type: "welcome", text: message, createdAt: new Date().toISOString() });
     });
-    return () => { s.disconnect(); };
-  }, [user?.id]);
+    authenticate();
+    return () => {
+      s.off("connect", authenticate);
+      s.disconnect();
+    };
+  }, [user?.id, addMsg]);
 
   useEffect(() => {
     if (open) {
@@ -489,10 +592,10 @@ export function ChatBubble() {
                           {isInfo ? (
                             <>
                               <p className="text-[10px] font-bold mb-1" style={{ color: botColor }}>{lines[0]}</p>
-                              <p className="break-words text-foreground/90 leading-relaxed">{lines.slice(1).join(" ")}</p>
+                              <p className="break-words text-foreground/90 leading-relaxed">{renderMessageContent(lines.slice(1).join(" "))}</p>
                             </>
                           ) : (
-                            <p className="break-words text-foreground/90 leading-relaxed">{chatMsg.content}</p>
+                            <p className="break-words text-foreground/90 leading-relaxed">{renderMessageContent(chatMsg.content)}</p>
                           )}
                           <p className="text-[9px] text-white/25 mt-0.5">{formatTime(chatMsg.createdAt)}</p>
                         </div>
@@ -512,6 +615,7 @@ export function ChatBubble() {
                         src={chatMsg.userAvatarUrl}
                         username={chatMsg.username}
                         role={chatMsg.userRole ?? "user"}
+                        isVip={chatMsg.isVip}
                       />
                       <div className={`flex flex-col max-w-[75%] ${isMe ? "items-end" : "items-start"}`}>
                         <div className="flex flex-col mb-1 px-1">
@@ -519,17 +623,19 @@ export function ChatBubble() {
                             <span className="text-[9px] font-bold text-white/40">Sen</span>
                           ) : (
                             <>
-                              <RoleBadge role={chatMsg.userRole ?? "user"} />
+                              <RoleBadge role={chatMsg.userRole ?? "user"} isVip={chatMsg.isVip} />
                               <span
                                 className={`text-[13px] font-extrabold leading-tight tracking-wide ${
-                                  chatMsg.userNameAnimated ? "animate-rainbow"
+                                  chatMsg.isVip ? "name-vip"
+                                  : chatMsg.userNameAnimated ? "animate-rainbow"
                                   : chatMsg.userNameColor ? ""
                                   : chatMsg.userRole === "admin" ? "name-admin"
                                   : chatMsg.userRole === "moderator" ? "name-mod"
                                   : "name-user"
                                 }`}
-                                style={chatMsg.userNameColor && !chatMsg.userNameAnimated ? { color: chatMsg.userNameColor } : {}}
+                                style={chatMsg.userNameColor && !chatMsg.userNameAnimated && !chatMsg.isVip ? { color: chatMsg.userNameColor } : {}}
                               >
+                                {chatMsg.isVip && <Crown className="inline w-3 h-3 mr-0.5 text-amber-300 fill-amber-300" />}
                                 {(chatMsg as any).displayName || chatMsg.username}
                               </span>
                             </>
@@ -544,6 +650,8 @@ export function ChatBubble() {
                                 ? { background: "linear-gradient(135deg,rgba(110,8,8,0.6),rgba(35,4,4,0.75))", border: "1px solid rgba(239,68,68,0.45)", boxShadow: "0 0 18px rgba(239,68,68,0.22), inset 0 1px 0 rgba(239,68,68,0.1)" }
                                 : chatMsg.userRole === "moderator"
                                   ? { background: "linear-gradient(135deg,rgba(10,38,115,0.6),rgba(4,14,55,0.75))", border: "1px solid rgba(59,130,246,0.45)", boxShadow: "0 0 18px rgba(59,130,246,0.22), inset 0 1px 0 rgba(59,130,246,0.1)" }
+                                  : chatMsg.isVip
+                                    ? { background: "linear-gradient(135deg,rgba(146,64,14,0.78),rgba(8,47,73,0.72))", border: "1px solid rgba(250,204,21,0.55)", boxShadow: "0 0 22px rgba(250,204,21,0.28), 0 0 18px rgba(34,211,238,0.14), inset 0 1px 0 rgba(255,255,255,0.14)" }
                                   : { background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.06)" }
                           }
                         >
@@ -555,13 +663,7 @@ export function ChatBubble() {
                               <div className="line-clamp-1 opacity-70">{chatMsg.replyToContent}</div>
                             </div>
                           )}
-                          <p className="break-words leading-relaxed">
-                            {chatMsg.content.split(/(@\w+)/g).map((part, i) =>
-                              part.startsWith("@")
-                                ? <span key={i} className={isMe ? "font-semibold text-white" : "font-semibold text-accent"}>{part}</span>
-                                : <span key={i}>{part}</span>
-                            )}
-                          </p>
+                          <p className="break-words leading-relaxed">{renderMessageContent(chatMsg.content)}</p>
                           <p className={`text-[9px] mt-0.5 ${isMe ? "text-white/40" : "text-white/25"}`}>{formatTime(chatMsg.createdAt)}</p>
                         </div>
                         {user && (

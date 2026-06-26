@@ -18,12 +18,13 @@ declare global {
         id: number;
         username: string;
         email: string;
-        displayName: string | null;
         role: string;
         avatarUrl: string | null;
         bio: string | null;
         nameColor: string | null;
         nameAnimated: boolean;
+        isVip: boolean;
+        vipUntil: Date | null;
         isBanned: boolean;
         banReason: string | null;
         banExpiresAt: Date | null;
@@ -115,12 +116,13 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
       id: user.id,
       username: user.username,
       email: user.email,
-      displayName: user.displayName,
       role: user.role,
       avatarUrl: user.avatarUrl,
       bio: user.bio,
       nameColor: user.nameColor,
       nameAnimated: user.nameAnimated,
+      isVip: user.isVip && (!user.vipUntil || user.vipUntil > new Date()),
+      vipUntil: user.vipUntil,
       isBanned: user.isBanned,
       banReason: user.banReason,
       banExpiresAt: user.banExpiresAt,
@@ -150,12 +152,13 @@ export async function optionalAuthMiddleware(req: Request, _res: Response, next:
         id: user.id,
         username: user.username,
         email: user.email,
-        displayName: user.displayName,
         role: user.role,
         avatarUrl: user.avatarUrl,
         bio: user.bio,
         nameColor: user.nameColor,
         nameAnimated: user.nameAnimated,
+        isVip: user.isVip && (!user.vipUntil || user.vipUntil > new Date()),
+        vipUntil: user.vipUntil,
         isBanned: user.isBanned,
         banReason: user.banReason,
         banExpiresAt: user.banExpiresAt,

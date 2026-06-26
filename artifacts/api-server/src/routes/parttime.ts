@@ -9,11 +9,6 @@ import { authMiddleware } from "../middlewares/auth";
 
 const router = Router();
 
-function parseRouteId(raw: string | string[] | undefined): number {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  return parseInt(value ?? "0", 10);
-}
-
 // ── Avatar upload setup ─────────────────────────────────────────────
 const UPLOADS_DIR = path.join(process.cwd(), "uploads", "parttime");
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -132,7 +127,7 @@ router.post("/parttime", authMiddleware, async (req, res): Promise<void> => {
 
 // ── PATCH /api/parttime/:id — update own ──────────────────────────
 router.patch("/parttime/:id", authMiddleware, async (req, res): Promise<void> => {
-  const id = parseRouteId(req.params["id"]);
+  const id = parseInt((req.params["id"] as string) || "0");
   const [existing] = await db.select().from(partTimeWorkersTable).where(eq(partTimeWorkersTable.id, id));
 
   if (!existing) { res.status(404).json({ error: "Kayıt bulunamadı" }); return; }
@@ -154,8 +149,8 @@ router.patch("/parttime/:id", authMiddleware, async (req, res): Promise<void> =>
   if (isRetired !== undefined) updates.isRetired = !!isRetired;
   if (gender !== undefined) updates.gender = gender;
   if (phone !== undefined) updates.phone = phone.trim();
-  if (city !== undefined) updates.city = city.trim();
-  if (district !== undefined) updates.district = district.trim();
+  if (city !== undefined) updates.city = (city as string).trim();
+  if (district !== undefined) updates.district = (district as string).trim();
   if (hasVehicle !== undefined) updates.hasVehicle = hasVehicle;
   if (description !== undefined) updates.description = description?.trim() || null;
 
@@ -165,7 +160,7 @@ router.patch("/parttime/:id", authMiddleware, async (req, res): Promise<void> =>
 
 // ── DELETE /api/parttime/:id — delete ─────────────────────────────
 router.delete("/parttime/:id", authMiddleware, async (req, res): Promise<void> => {
-  const id = parseRouteId(req.params["id"]);
+  const id = parseInt((req.params["id"] as string) || "0");
   const [existing] = await db.select().from(partTimeWorkersTable).where(eq(partTimeWorkersTable.id, id));
 
   if (!existing) { res.status(404).json({ error: "Kayıt bulunamadı" }); return; }
@@ -183,7 +178,7 @@ router.delete("/parttime/:id", authMiddleware, async (req, res): Promise<void> =
 router.post("/parttime/:id/feature", authMiddleware, async (req, res): Promise<void> => {
   if (req.user!.role !== "admin") { res.status(403).json({ error: "Yetkisiz" }); return; }
 
-  const id = parseRouteId(req.params["id"]);
+  const id = parseInt((req.params["id"] as string) || "0");
   const [existing] = await db.select().from(partTimeWorkersTable).where(eq(partTimeWorkersTable.id, id));
   if (!existing) { res.status(404).json({ error: "Kayıt bulunamadı" }); return; }
 
@@ -201,7 +196,7 @@ router.post("/parttime/:id/ban", authMiddleware, async (req, res): Promise<void>
   const isStaff = req.user!.role === "admin" || req.user!.role === "moderator";
   if (!isStaff) { res.status(403).json({ error: "Yetkisiz" }); return; }
 
-  const id = parseRouteId(req.params["id"]);
+  const id = parseInt((req.params["id"] as string) || "0");
   const { ban, reason } = req.body as { ban?: boolean; reason?: string };
 
   const [existing] = await db.select().from(partTimeWorkersTable).where(eq(partTimeWorkersTable.id, id));
@@ -224,7 +219,7 @@ router.post("/parttime/:id/ban", authMiddleware, async (req, res): Promise<void>
 router.post("/parttime/:id/photo", authMiddleware, upload.single("photo"), async (req, res): Promise<void> => {
   if (!req.file) { res.status(400).json({ error: "Fotoğraf gerekli" }); return; }
 
-  const id = parseRouteId(req.params["id"]);
+  const id = parseInt((req.params["id"] as string) || "0");
   const [existing] = await db.select().from(partTimeWorkersTable).where(eq(partTimeWorkersTable.id, id));
   if (!existing) { res.status(404).json({ error: "Kayıt bulunamadı" }); return; }
 

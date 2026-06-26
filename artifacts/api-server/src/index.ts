@@ -1,38 +1,37 @@
-import { createServer } from "http";
+﻿import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { onlineSockets } from "./routes/chat";
 import { setBotIo } from "./lib/chat-bot";
+import { setRealtimeServer } from "./lib/realtime";
 import { startScraperWorker } from "./workers/scraper";
 import { initTelegramClient } from "./services/telegram-client";
-import { db, usersTable, listingsTable, adminSettingsTable, chatMessagesTable } from "@workspace/db";
-import { eq, count, sql, desc, lt } from "drizzle-orm";
+import { db, usersTable, listingsTable, adminSettingsTable, chatMessagesTable, chatRulesTable } from "@workspace/db";
+import { eq, count, sql, desc, lt, asc } from "drizzle-orm";
 
-process.on("unhandledRejection", (reason) => {
-  logger.error({ err: reason }, "unhandledRejection");
-});
-process.on("uncaughtException", (err) => {
-  logger.error({ err }, "uncaughtException");
-});
-
-const rawPort = process.env["PORT"] ?? "8080";
+const rawPort = process.env["PORT"] || "3000";
 const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT value: "${rawPort}"`);
 
 const httpServer = createServer(app);
-const io = new SocketIOServer(httpServer, {
+export const io = new SocketIOServer(httpServer, {
   path: "/ws",
   cors: { origin: "*", methods: ["GET", "POST"] },
+  transports: ["polling", "websocket"],
+  allowUpgrades: true,
+  pingInterval: 25000,
+  pingTimeout: 60000,
 });
+setRealtimeServer(io);
 app.set("io", io);
 setBotIo(io);
 
-async function saveToDB(userId: number, content: string): Promise<void> {
+export async function saveChatMessage(userId: number, content: string): Promise<void> {
   try {
     await db.insert(chatMessagesTable).values({ userId, content, isPinned: false });
   } catch (e) {
-    logger.error(e, "saveToDB error");
+    logger.error(e, "saveChatMessage error");
   }
 }
 
@@ -52,13 +51,13 @@ async function trimChatHistory(): Promise<void> {
 }
 
 // ── GuvenlikBot ───────────────────────────────────────────────────
-const BOT_USER = {
+export const BOT_USER = {
   id: 0, username: "GuvenlikBot", displayName: "GuvenlikBot",
   userRole: "bot", userAvatarUrl: null,
   userNameColor: "#06B6D4", userNameAnimated: false, isBot: true,
 };
 
-function makeBotMsg(content: string, replyToUsername?: string | null) {
+export function makeBotMsg(content: string, replyToUsername?: string | null) {
   return {
     ...BOT_USER,
     id: Date.now() + Math.random(),
@@ -76,25 +75,17 @@ function makeBotMsg(content: string, replyToUsername?: string | null) {
 // ── Dinamik ilan verisi ───────────────────────────────────────────
 async function getListingStats(): Promise<{ total: number; cities: string[]; minSalary: number; maxSalary: number }> {
   try {
-    const activeFilter = eq(listingsTable.status, "active");
-    const [{ total }] = await db.select({ total: count() }).from(listingsTable).where(activeFilter);
-    const cityRows = await db.selectDistinct({ city: listingsTable.city }).from(listingsTable).where(activeFilter).limit(8);
-    const salaryRows = await db.select({ salary: listingsTable.salary }).from(listingsTable).where(activeFilter);
-
-    const amounts: number[] = [];
-    for (const row of salaryRows) {
-      if (!row.salary) continue;
-      const nums = [...row.salary.matchAll(/\d[\d.,]*/g)]
-        .map((m) => parseInt(m[0].replace(/[.,]/g, ""), 10))
-        .filter((n) => !Number.isNaN(n) && n >= 1000);
-      amounts.push(...nums);
-    }
-
+    const [{ total }] = await db.select({ total: count() }).from(listingsTable).where(eq(listingsTable.isActive, true));
+    const cityRows = await db.selectDistinct({ city: listingsTable.city }).from(listingsTable).where(eq(listingsTable.isActive, true)).limit(8);
+    const salaryRows = await db.select({
+      minSalary: sql<number>`min(${listingsTable.salaryMin})`,
+      maxSalary: sql<number>`max(${listingsTable.salaryMax})`,
+    }).from(listingsTable).where(eq(listingsTable.isActive, true));
     return {
       total: Number(total),
       cities: cityRows.map(r => r.city).filter(Boolean) as string[],
-      minSalary: amounts.length ? Math.round(Math.min(...amounts) / 1000) * 1000 : 25000,
-      maxSalary: amounts.length ? Math.round(Math.max(...amounts) / 1000) * 1000 : 55000,
+      minSalary: Math.round((salaryRows[0]?.minSalary ?? 25000) / 1000) * 1000,
+      maxSalary: Math.round((salaryRows[0]?.maxSalary ?? 55000) / 1000) * 1000,
     };
   } catch {
     return { total: 0, cities: ["İstanbul", "Ankara", "İzmir"], minSalary: 25000, maxSalary: 50000 };
@@ -138,11 +129,11 @@ function scheduleHourlyReminder() {
   const msUntilNextHour = (60 - trNow.getUTCMinutes()) * 60 * 1000 - trNow.getUTCSeconds() * 1000 - trNow.getUTCMilliseconds();
   setTimeout(() => {
     const hourlyMsg = getHourlyMsg(turkeyHour());
-    void saveToDB(0, hourlyMsg);
+    void saveChatMessage(0, hourlyMsg);
     io.emit("chat:message", makeBotMsg(hourlyMsg));
     setInterval(() => {
       const m = getHourlyMsg(turkeyHour());
-      void saveToDB(0, m);
+      void saveChatMessage(0, m);
       io.emit("chat:message", makeBotMsg(m));
     }, 60 * 60 * 1000);
   }, msUntilNextHour);
@@ -188,11 +179,14 @@ async function getDynamicBotMsg(): Promise<string> {
 }
 
 function scheduleBotMessage() {
-  const delay = 5 * 60 * 1000 + Math.random() * 8 * 60 * 1000;
+  const delay = 30_000;
   setTimeout(async () => {
-    const msg = await getDynamicBotMsg();
-    void saveToDB(0, msg);
-    io.emit("chat:message", makeBotMsg(msg));
+    try {
+      const msg = await getDynamicBotMsg();
+      void saveChatMessage(0, msg);
+      io.emit("chat:message", makeBotMsg(msg));
+      logger.info("[BOT] GuvenlikBot mesaj gönderdi");
+    } catch(e) { logger.error({ err: e }, "[BOT] GuvenlikBot hata"); }
     scheduleBotMessage();
   }, delay);
 }
@@ -677,52 +671,56 @@ async function maybeBotReply(question: string, askerUsername: string) {
   const replyFn = botReplies[Math.floor(Math.random() * botReplies.length)]!;
   const content = `@${askerUsername} ${replyFn(stats)}`;
   setTimeout(() => {
-    void saveToDB(0, content);
+    void saveChatMessage(0, content);
     io.emit("chat:message", { ...makeBotMsg(content, askerUsername), content });
   }, 8000 + Math.random() * 12000);
 }
 
 function scheduleFakeConversation() {
-  const delay = 50000 + Math.random() * 110000;
+  const delay = 30_000;
   setTimeout(async () => {
-    const roll = Math.random();
-    if (roll < 0.35) {
-      const user = getRandomUser();
-      const standaloneContent = getNextStandalone();
-      void saveToDB(user.id, standaloneContent);
-      io.emit("chat:message", makeFakeMsg(user, standaloneContent));
-    } else {
-      const pair = getNextConvPair();
-      const stats = await getListingStats();
-      const userA = getRandomUser();
-      const userB = getRandomUser(userA);
+    try {
+      const roll = Math.random();
+      if (roll < 0.35) {
+        const user = getRandomUser();
+        const standaloneContent = getNextStandalone();
+        void saveChatMessage(user.id, standaloneContent);
+        io.emit("chat:message", makeFakeMsg(user, standaloneContent));
+      } else {
+        const pair = getNextConvPair();
+        const stats = await getListingStats();
+        const userA = getRandomUser();
+        const userB = getRandomUser(userA);
 
-      void saveToDB(userA.id, pair.a);
-      io.emit("chat:message", makeFakeMsg(userA, pair.a));
+        void saveChatMessage(userA.id, pair.a);
+        io.emit("chat:message", makeFakeMsg(userA, pair.a));
 
-      // Bot bazen soruya cevap verir
-      await maybeBotReply(pair.a, userA.username);
+        await maybeBotReply(pair.a, userA.username);
 
-      setTimeout(() => {
-        const answer = pair.bTemplate(stats);
-        const fullAnswer = `@${userA.username} ${answer}`;
-        void saveToDB(userB.id, fullAnswer);
-        io.emit("chat:message", makeFakeMsg(userB, answer, userA.username));
-      }, pair.delay);
-    }
+        setTimeout(() => {
+          const answer = pair.bTemplate(stats);
+          const fullAnswer = `@${userA.username} ${answer}`;
+          void saveChatMessage(userB.id, fullAnswer);
+          io.emit("chat:message", makeFakeMsg(userB, answer, userA.username));
+        }, pair.delay);
+      }
+      logger.info("[BOT] Fake sohbet mesaj gönderdi");
+    } catch (e) { logger.error({ err: e }, "[BOT] Fake conversation hata"); }
     scheduleFakeConversation();
   }, delay);
 }
 
-// ── Hoş geldiniz metni ────────────────────────────────────────────
-const WELCOME_RULES = `Hoş geldiniz! Topluluk Kuralları:
-1. Saygılı ve nazik olun
-2. Spam ve reklam yapmayın
-3. Kişisel bilgilerinizi paylaşmayın
-4. Hakaret ve küfür kesinlikle yasak
-5. İş ilanları için doğru kategoriyi kullanın
-
-İyi sohbetler dileriz!`;
+async function getChatWelcomeMessage(): Promise<string> {
+  const [settings, rules] = await Promise.all([
+    db.select().from(adminSettingsTable).limit(1),
+    db.select().from(chatRulesTable).orderBy(asc(chatRulesTable.sortOrder), asc(chatRulesTable.id)),
+  ]);
+  const header = settings[0]?.welcomeMessage?.trim() || "Hoş geldiniz! Topluluk Kuralları:";
+  const body = rules.length > 0
+    ? rules.map((rule, index) => `${index + 1}. ${rule.content}`).join("\n")
+    : "1. Saygılı ve nazik olun\n2. Spam ve reklam yapmayın\n3. Kişisel bilgilerinizi paylaşmayın\n4. Hakaret ve küfür kesinlikle yasak";
+  return `${header}\n${body}\n\nİyi sohbetler dileriz!`;
+}
 
 const userLastDisconnect = new Map<number, number>();
 const JOIN_THRESHOLD_MS = 20 * 60 * 1000;
@@ -743,17 +741,20 @@ io.on("connection", (socket) => {
       const alreadyConnected = [...onlineSockets.values()].filter(e => e.userId === userId).length;
 
       try {
-        const [user] = await db.select({ username: usersTable.username, displayName: usersTable.displayName })
+        const [user] = await db.select({ username: usersTable.username, displayName: usersTable.displayName, isVip: usersTable.isVip, vipUntil: usersTable.vipUntil })
           .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
         if (user) {
           if (alreadyConnected <= 1) {
             const lastDisconnect = userLastDisconnect.get(userId);
             const awayLong = !lastDisconnect || (Date.now() - lastDisconnect) >= JOIN_THRESHOLD_MS;
             if (awayLong) {
-              io.emit("chat:join", { username: user.displayName || user.username });
+              io.emit("chat:join", {
+                username: user.displayName || user.username,
+                isVip: user.isVip && (!user.vipUntil || user.vipUntil > new Date()),
+              });
             }
           }
-          socket.emit("chat:welcome", { message: WELCOME_RULES });
+          socket.emit("chat:welcome", { message: await getChatWelcomeMessage() });
         }
       } catch { /* ignore */ }
     }
@@ -895,12 +896,14 @@ function getNextInfoMsg(): string {
 }
 
 function scheduleInfoBot() {
-  // 90 saniye – 2,5 dakika arası rastgele aralık
-  const delay = 90 * 1000 + Math.random() * 60 * 1000;
-  setTimeout(() => {
-    const wrapped = wrapInfoContent(getNextInfoMsg());
-    void saveToDB(-999, wrapped);
-    io.emit("chat:message", makeInfoMsg(wrapped));
+  const delay = 30_000;
+  setTimeout(async () => {
+    try {
+      const wrapped = wrapInfoContent(getNextInfoMsg());
+      void saveChatMessage(-999, wrapped);
+      io.emit("chat:message", makeInfoMsg(wrapped));
+      logger.info("[BOT] Bilgi botu mesaj gönderdi");
+    } catch (e) { logger.error({ err: e }, "[BOT] Bilgi botu hata"); }
     scheduleInfoBot();
   }, delay);
 }
@@ -919,42 +922,66 @@ async function broadcastOnlineCount() {
   } catch { /* ignore */ }
 }
 
-// ── Süresi dolan ilanları otomatik pasif yap (7 gün kuralı) ─────
+// ── Süresi dolan ilanları otomatik pasif yap ─────────────────────
 async function expireListings() {
   try {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     await db.update(listingsTable)
       .set({ status: "expired" })
       .where(
         sql`${listingsTable.status} = 'active' AND (
           (${listingsTable.expiresAt} IS NOT NULL AND ${listingsTable.expiresAt} < NOW())
           OR
-          (${listingsTable.createdAt} < ${sevenDaysAgo.toISOString()})
+          (
+            (${listingsTable.sourceTag} IS NULL OR ${listingsTable.sourceTag} != 'telegram')
+            AND ${listingsTable.createdAt} < ${thirtyDaysAgo.toISOString()}
+          )
         )`
       );
   } catch { /* ignore */ }
 }
 
-// Başlangıç gecikmeleri
+process.on("unhandledRejection", (err) => {
+  logger.error({ err }, "Unhandled rejection");
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "Uncaught exception");
+});
+
 void expireListings();
 setInterval(() => { void expireListings(); }, 30 * 60 * 1000);
 void trimChatHistory();
 setInterval(() => { void trimChatHistory(); }, 5 * 60 * 1000);
-setTimeout(() => scheduleBotMessage(), 3 * 60 * 1000);
-setTimeout(() => scheduleFakeConversation(), 30000);
-// İlk bilgi mesajını 5 saniye sonra gönder, ardından döngü başlar
+setInterval(() => { void broadcastOnlineCount(); }, 45000);
+
+// Botlar her zaman çalışır; her schedule kendi DB ayarını kontrol eder.
+setTimeout(() => scheduleBotMessage(), 30 * 1000);
+setTimeout(() => scheduleFakeConversation(), 15000);
 setTimeout(() => {
   const firstWrapped = wrapInfoContent(getNextInfoMsg());
-  void saveToDB(-999, firstWrapped);
+  void saveChatMessage(-999, firstWrapped);
   io.emit("chat:message", makeInfoMsg(firstWrapped));
   scheduleInfoBot();
 }, 5 * 1000);
 scheduleHourlyReminder();
-setInterval(() => { void broadcastOnlineCount(); }, 45000);
+
 startScraperWorker();
 void initTelegramClient();
 
 httpServer.listen(port, "0.0.0.0", (err?: Error) => {
   if (err) { logger.error({ err }, "Error listening on port"); process.exit(1); }
-  logger.info({ port }, "Server listening on 0.0.0.0");
+  logger.info({ port, host: "0.0.0.0" }, "Server listening");
 });
+
+const railwayFallbackPort = 8080;
+if (port !== railwayFallbackPort) {
+  const fallbackServer = createServer(app);
+  fallbackServer.listen(railwayFallbackPort, "0.0.0.0", (err?: Error) => {
+    if (err) {
+      logger.warn({ err, port: railwayFallbackPort }, "Railway fallback");
+      return;
+    }
+    logger.info({ port: railwayFallbackPort, host: "0.0.0.0" }, "Fallback listening");
+  });
+}

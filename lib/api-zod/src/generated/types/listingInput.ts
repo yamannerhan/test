@@ -21,4 +21,6 @@ export interface ListingInput {
   applyUrl?: string | null;
   /** @nullable */
   companyLogoUrl?: string | null;
+  /** @nullable */
+  cardTheme?: string | null;
 }

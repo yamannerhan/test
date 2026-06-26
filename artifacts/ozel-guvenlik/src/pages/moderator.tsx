@@ -11,6 +11,7 @@ import {
   Shield, ChevronDown, Sparkles, RefreshCw, Trash2,
   ToggleLeft, ToggleRight, Ban, UserCheck, Clock, Eye,
   Building2, MessageSquare, Star, Infinity,
+  Headphones, ChevronLeft, Send,
 } from "lucide-react";
 
 function getToken() { return localStorage.getItem("auth_token") ?? ""; }
@@ -32,6 +33,147 @@ function useModApi<T>(path: string, deps: unknown[] = []) {
 
   useEffect(() => { if (user) refetch(); }, [user, ...deps]);
   return { data, loading, refetch };
+}
+
+interface ModSupportTicket { id: number; subject: string; status: string; userId: number; username: string; msgCount: number; updatedAt: string; createdAt: string; }
+interface ModSupportMsg { id: number; supportTicketId: number; userId: number; username: string; message: string; isStaff: boolean; createdAt: string; }
+interface ModSupportDetail { id: number; subject: string; status: string; username: string; userId: number; messages: ModSupportMsg[]; }
+
+function ModeratorSupportSection({ apiCall, toast }: {
+  apiCall: (path: string, method: string, body?: unknown) => Promise<unknown>;
+  toast: (opts: { title: string; description?: string; variant?: "default" | "destructive" }) => void;
+}) {
+  const [tickets, setTickets] = useState<ModSupportTicket[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const [active, setActive] = useState<ModSupportDetail | null>(null);
+  const [reply, setReply] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const loadTickets = async () => {
+    setLoading(true);
+    try {
+      const path = filter === "all" ? "/admin/support" : `/admin/support?status=${filter}`;
+      const data = await apiCall(path, "GET") as ModSupportTicket[];
+      setTickets(data);
+    } catch {} finally { setLoading(false); }
+  };
+
+  const loadDetail = async (id: number) => {
+    try {
+      const data = await apiCall(`/support/${id}`, "GET") as ModSupportDetail;
+      setActive(data);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch {}
+  };
+
+  const sendReply = async () => {
+    if (!reply.trim() || !active) return;
+    try {
+      const msg = await apiCall(`/support/${active.id}/reply`, "POST", { message: reply.trim() }) as ModSupportMsg;
+      setReply("");
+      setActive(prev => prev ? { ...prev, status: "answered", messages: [...prev.messages, msg] } : prev);
+      loadTickets();
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const changeStatus = async (id: number, status: string) => {
+    try {
+      await apiCall(`/support/${id}/status`, "PATCH", { status });
+      toast({ title: "Durum güncellendi" });
+      if (active?.id === id) setActive(prev => prev ? { ...prev, status } : prev);
+      loadTickets();
+    } catch (e: any) { toast({ title: "Hata", description: e.message, variant: "destructive" }); }
+  };
+
+  const fmt = (iso: string) => new Date(iso).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+
+  const StatusBadge = ({ s }: { s: string }) => {
+    const cfg: Record<string, string> = { waiting: "bg-amber-500/20 text-amber-400", answered: "bg-blue-500/20 text-blue-400", resolved: "bg-green-500/20 text-green-400" };
+    const lbl: Record<string, string> = { waiting: "Bekliyor", answered: "Yanıtlandı", resolved: "Çözüldü" };
+    return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cfg[s] ?? "bg-white/10 text-muted-foreground"}`}>{lbl[s] ?? s}</span>;
+  };
+
+  return (
+    <div>
+      {active ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setActive(null)} className="text-muted-foreground hover:text-foreground"><ChevronLeft className="w-4 h-4" /></button>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold line-clamp-1">{active.subject}</p>
+              <p className="text-[10px] text-muted-foreground">{active.username} · #{active.id}</p>
+            </div>
+            <StatusBadge s={active.status} />
+          </div>
+          <div className="flex gap-1 flex-wrap">
+            {["waiting", "answered", "resolved"].map(s => (
+              <button key={s} onClick={() => changeStatus(active.id, s)} disabled={active.status === s}
+                className={`text-[10px] px-2 py-1 rounded-lg font-medium disabled:opacity-40 transition-colors ${
+                  s === "waiting" ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30" :
+                  s === "answered" ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30" :
+                  "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                }`}>
+                {{ waiting: "Bekliyor", answered: "Yanıtlandı", resolved: "Çözüldü" }[s]}
+              </button>
+            ))}
+          </div>
+          <div className="max-h-60 overflow-y-auto space-y-2 bg-white/5 rounded-xl p-3">
+            {active.messages.map(m => (
+              <div key={m.id} className={`flex ${m.isStaff ? "justify-start" : "justify-end"}`}>
+                <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                  m.isStaff ? "bg-primary/20 text-foreground rounded-tl-sm" : "bg-white/10 text-foreground rounded-tr-sm"
+                }`}>
+                  <p className="text-[9px] font-bold text-muted-foreground mb-0.5">{m.username ?? "Kullanıcı"}{m.isStaff ? " · Ekip" : ""}</p>
+                  <p>{m.message}</p>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">{fmt(m.createdAt)}</p>
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+          {active.status !== "resolved" && (
+            <div className="flex gap-2">
+              <textarea value={reply} onChange={e => setReply(e.target.value)} placeholder="Yanıt yaz..."
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); }}}
+                rows={2} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-primary/50 resize-none text-foreground placeholder:text-muted-foreground" />
+              <button onClick={sendReply} disabled={!reply.trim()} className="w-9 h-9 self-end rounded-xl bg-primary flex items-center justify-center disabled:opacity-40">
+                <Send className="w-3.5 h-3.5 text-white" />
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-1.5 flex-wrap mb-3">
+            {[["all","Tümü"],["waiting","Bekliyor"],["answered","Yanıtlandı"],["resolved","Çözüldü"]].map(([v,l]) => (
+              <button key={v} onClick={() => setFilter(v)} className={`text-[10px] px-2.5 py-1 rounded-full font-medium transition-colors ${filter === v ? "bg-primary text-white" : "bg-white/10 text-muted-foreground hover:bg-white/15"}`}>{l}</button>
+            ))}
+            <button onClick={loadTickets} className="text-[10px] px-2.5 py-1 rounded-full bg-white/10 text-muted-foreground hover:bg-white/15 ml-auto">Yenile</button>
+          </div>
+          {loading ? (
+            <p className="text-xs text-center text-muted-foreground py-4">Yükleniyor...</p>
+          ) : tickets.length === 0 ? (
+            <p className="text-xs text-center text-muted-foreground py-4">Destek talebi bulunamadı.</p>
+          ) : (
+            <div className="space-y-2">
+              {tickets.map(t => (
+                <button key={t.id} onClick={() => loadDetail(t.id)} className="w-full text-left bg-white/5 hover:bg-white/10 rounded-xl p-3 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold line-clamp-1">{t.subject}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{t.username} · {t.msgCount} mesaj · {fmt(t.updatedAt)}</p>
+                    </div>
+                    <StatusBadge s={t.status} />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 function Section({ title, icon: Icon, children, defaultOpen = false }: { title: string; icon: React.ElementType; children: React.ReactNode; defaultOpen?: boolean }) {
@@ -562,6 +704,10 @@ export default function ModeratorDashboard() {
               {usersList.length} / {usersData.total} kullanıcı gösteriliyor
             </p>
           )}
+        </Section>
+
+        <Section title="Destek Talepleri" icon={Headphones}>
+          <ModeratorSupportSection apiCall={apiCall} toast={toast} />
         </Section>
 
         <div className="text-center mt-6">

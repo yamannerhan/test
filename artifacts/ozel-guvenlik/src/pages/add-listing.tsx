@@ -12,7 +12,20 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
-import { Calendar, Clock, Infinity, ImagePlus, Link2, X, Upload } from "lucide-react";
+import { ImagePlus, Link2, X, Upload, Sparkles, RefreshCw, Phone } from "lucide-react";
+
+const CARD_THEME_OPTIONS = [
+  { value: "auto", label: "Otomatik" },
+  { value: "urgent", label: "Acil / Kırmızı" },
+  { value: "gold", label: "Gold" },
+  { value: "radar", label: "Radar / Mavi" },
+  { value: "vip", label: "VIP / Mor" },
+  { value: "night", label: "Gece / Mor" },
+  { value: "map", label: "Harita / Yeşil" },
+  { value: "tactical", label: "Taktik / Koyu Yeşil" },
+  { value: "holo", label: "Hologram" },
+  { value: "light", label: "Beyaz Premium" },
+] as const;
 
 const listingSchema = z.object({
   title: z.string().min(5, "Başlık en az 5 karakter olmalıdır."),
@@ -22,8 +35,9 @@ const listingSchema = z.object({
   salary: z.string().optional(),
   description: z.string().min(20, "Açıklama en az 20 karakter olmalıdır."),
   requirements: z.string().optional(),
-  applyUrl: z.string().url("Geçerli bir başvuru linki (URL) girin.").optional().or(z.literal('')),
+  applyUrl: z.string().optional(),
   companyLogoUrl: z.string().optional(),
+  cardTheme: z.string().optional(),
 });
 
 type ListingFormValues = z.infer<typeof listingSchema>;
@@ -33,9 +47,9 @@ export default function AddListing() {
   const { toast } = useToast();
   const createMutation = useCreateListing();
   const { user } = useAuth();
-  const [isTimed, setIsTimed] = useState(false);
-  const [expiresAt, setExpiresAt] = useState("");
   const [dupWarning, setDupWarning] = useState<string | null>(null);
+  const [smartText, setSmartText] = useState("");
+  const [smartLoading, setSmartLoading] = useState(false);
 
   // Image upload state
   const [imageMode, setImageMode] = useState<"file" | "url">("file");
@@ -82,7 +96,7 @@ export default function AddListing() {
   const form = useForm<ListingFormValues>({
     resolver: zodResolver(listingSchema),
     defaultValues: {
-      title: "", company: "", city: "", workType: "", salary: "", description: "", requirements: "", applyUrl: ""
+      title: "", company: "", city: "", workType: "", salary: "", description: "", requirements: "", applyUrl: "", cardTheme: "auto"
     },
   });
 
@@ -91,6 +105,38 @@ export default function AddListing() {
   }, [user, setLocation]);
 
   if (!user) return null;
+
+  const parseSmartListing = async () => {
+    if (!smartText.trim()) return;
+    setSmartLoading(true);
+    try {
+      const token = localStorage.getItem("auth_token") ?? "";
+      const res = await fetch("/api/listings/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ text: smartText }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Ayıklama başarısız");
+      form.setValue("title", data.title || "");
+      form.setValue("company", data.company || "Belirtilmedi");
+      form.setValue("city", [data.city, data.district].filter(Boolean).join(" / ") || "Türkiye");
+      form.setValue("workType", data.workType || "Tam Zamanlı");
+      form.setValue("salary", data.salary || "");
+      form.setValue("description", data.description || smartText);
+      form.setValue("requirements", [data.requirements, data.benefits ? `Yan Haklar: ${data.benefits}` : null, data.gender ? `Cinsiyet: ${data.gender}` : null].filter(Boolean).join("\n"));
+      form.setValue("applyUrl", data.applyUrl || "");
+      if (data.companyLogoUrl) {
+        form.setValue("companyLogoUrl", data.companyLogoUrl);
+        setImagePreview(data.companyLogoUrl);
+      }
+      toast({ title: "İlan bilgileri ayıklandı", description: "Alanları kontrol edip yayınlayabilirsiniz." });
+    } catch (error: any) {
+      toast({ title: "Ayıklama başarısız", description: error.message, variant: "destructive" });
+    } finally {
+      setSmartLoading(false);
+    }
+  };
 
   const onSubmit = async (values: ListingFormValues) => {
     setDupWarning(null);
@@ -102,12 +148,10 @@ export default function AddListing() {
         requirements: values.requirements || null,
         applyUrl: values.applyUrl || null,
         companyLogoUrl: values.companyLogoUrl || null,
+        cardTheme: values.cardTheme && values.cardTheme !== "auto" ? values.cardTheme : null,
       };
-      if (isTimed && expiresAt) {
-        payload.expiresAt = new Date(expiresAt).toISOString();
-      }
       await createMutation.mutateAsync({ data: payload as any });
-      toast({ title: "İlan başarıyla eklendi", description: "7 gün boyunca yayında kalacaktır." });
+      toast({ title: "İlan başarıyla yayınlandı", description: "İlan 1 ay boyunca yayında kalacaktır. Adminlere inceleme bildirimi gönderildi." });
       setLocation("/ilanlar");
     } catch (error: any) {
       const serverMsg = (error?.data as any)?.error || error?.message || "İlan eklenirken bir hata oluştu.";
@@ -122,8 +166,26 @@ export default function AddListing() {
   return (
     <Layout>
       <div className="p-4 space-y-5">
-        <h1 className="text-xl font-bold">İlan Ekle</h1>
+        <h1 className="text-xl font-bold">İlan Oluştur</h1>
         <div className="glass-card rounded-2xl p-5">
+          <div className="mb-5 rounded-2xl border border-primary/20 bg-primary/10 p-3 space-y-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <div>
+                <p className="text-sm font-black">Akıllı İlan Ayıklama</p>
+                <p className="text-[11px] text-muted-foreground">WhatsApp/Telegram ilan metnini yapıştır, il-ilçe, telefon, maaş ve yan hakları otomatik dolduralım.</p>
+              </div>
+            </div>
+            <Textarea
+              value={smartText}
+              onChange={e => setSmartText(e.target.value)}
+              placeholder="İlan metnini buraya yapıştır..."
+              className="glass-card border-white/10 min-h-[105px] text-xs"
+            />
+            <Button type="button" onClick={parseSmartListing} disabled={smartLoading || !smartText.trim()} className="w-full text-sm">
+              {smartLoading ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Ayıklanıyor...</> : <><Sparkles className="w-4 h-4 mr-2" /> Akıllı Ayıkla ve Doldur</>}
+            </Button>
+          </div>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -158,9 +220,9 @@ export default function AddListing() {
                   name="city"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Şehir</FormLabel>
+                      <FormLabel>İl / İlçe / Semt</FormLabel>
                       <FormControl>
-                        <Input placeholder="İstanbul" className="glass-card border-white/10" {...field} />
+                        <Input placeholder="İstanbul / Kadıköy" className="glass-card border-white/10" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -197,9 +259,9 @@ export default function AddListing() {
                   name="salary"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Maaş (Opsiyonel)</FormLabel>
+                    <FormLabel>Maaş / Yan Haklar</FormLabel>
                       <FormControl>
-                        <Input placeholder="25.000 TL" className="glass-card border-white/10" {...field} />
+                        <Input placeholder="Maaş, servis, yemek, prim..." className="glass-card border-white/10" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -207,40 +269,28 @@ export default function AddListing() {
                 />
               </div>
 
-              <div>
-                <label className="text-sm font-medium mb-2 block">İlan Süresi</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsTimed(false)}
-                    className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-all ${!isTimed ? "border-primary bg-primary/20 text-primary-foreground" : "border-white/10 text-muted-foreground hover:border-white/20"}`}
-                  >
-                    <Infinity className="w-4 h-4" />
-                    Süresiz
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsTimed(true)}
-                    className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-all ${isTimed ? "border-accent bg-accent/20 text-accent" : "border-white/10 text-muted-foreground hover:border-white/20"}`}
-                  >
-                    <Clock className="w-4 h-4" />
-                    Süreli
-                  </button>
-                </div>
-                {isTimed && (
-                  <div className="mt-3">
-                    <label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" /> Bitiş Tarihi
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={expiresAt}
-                      onChange={e => setExpiresAt(e.target.value)}
-                      min={new Date().toISOString().slice(0, 16)}
-                      className="w-full glass-card border border-white/10 rounded-xl px-3 py-2 text-sm bg-transparent text-foreground"
-                    />
-                  </div>
+              <FormField
+                control={form.control}
+                name="cardTheme"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Kart Rengi / Tipi</FormLabel>
+                    <select
+                      value={field.value || "auto"}
+                      onChange={field.onChange}
+                      className="w-full bg-[#111827] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary/50"
+                    >
+                      {CARD_THEME_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value} className="bg-[#111827] text-white">{option.label}</option>
+                      ))}
+                    </select>
+                    <FormMessage />
+                  </FormItem>
                 )}
+              />
+
+              <div className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs text-primary">
+                İlan otomatik olarak 1 ay yayında kalır. Yayınlandıktan sonra adminlere inceleme bildirimi gider.
               </div>
 
               <FormField
@@ -248,9 +298,9 @@ export default function AddListing() {
                 name="applyUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Başvuru Linki (Opsiyonel)</FormLabel>
+                    <FormLabel className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> Telefon / Başvuru Linki</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://..." className="glass-card border-white/10" {...field} />
+                      <Input placeholder="tel:0532... veya https://..." className="glass-card border-white/10" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -276,9 +326,9 @@ export default function AddListing() {
                 name="requirements"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Aranan Nitelikler (Opsiyonel)</FormLabel>
+                    <FormLabel>Yan Haklar / Aranan Nitelikler</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Adaylarda aranan özellikler..." className="glass-card border-white/10" {...field} />
+                      <Textarea placeholder="Servis, yemek, SGK, cinsiyet, yaş, sertifika..." className="glass-card border-white/10" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

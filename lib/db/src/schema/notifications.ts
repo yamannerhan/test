@@ -5,8 +5,10 @@ import { z } from "zod/v4";
 export const notificationsTable = pgTable("notifications", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
-  type: text("type").notNull(), // listing | message | admin | system
+  type: text("type").notNull(), // listing | message | admin | system | support
+  title: text("title"),
   message: text("message").notNull(),
+  relatedId: integer("related_id"),
   isRead: boolean("is_read").notNull().default(false),
   linkUrl: text("link_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -30,6 +32,10 @@ export const adminSettingsTable = pgTable("admin_settings", {
   openaiApiKey: text("openai_api_key"),
   spamCooldown: integer("spam_cooldown").notNull().default(3),
   chatAnnounceListings: boolean("chat_announce_listings").notNull().default(true),
+  hiddenListingCities: text("hidden_listing_cities").notNull().default("[]"),
+  botGuvenlikEnabled: boolean("bot_guvenlik_enabled").notNull().default(true),
+  botBilgiEnabled: boolean("bot_bilgi_enabled").notNull().default(true),
+  botFakeEnabled: boolean("bot_fake_enabled").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 

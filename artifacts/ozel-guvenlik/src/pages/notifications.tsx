@@ -1,7 +1,6 @@
 import React from "react";
 import {
   useGetNotifications,
-  useMarkAllNotificationsRead,
   getGetNotificationsQueryKey,
   getGetUnreadNotificationCountQueryKey,
 } from "@workspace/api-client-react";
@@ -20,7 +19,6 @@ export default function Notifications() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const markRead = useMarkAllNotificationsRead();
 
   const { data: notificationsData, isLoading } = useGetNotifications({
     query: {
@@ -39,7 +37,11 @@ export default function Notifications() {
 
   const handleMarkAllRead = async () => {
     try {
-      await markRead.mutateAsync();
+      const res = await fetch("/api/notifications/read-all", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) throw new Error("Bildirimler okundu işaretlenemedi");
       invalidate();
     } catch { toast({ title: "Hata", variant: "destructive" }); }
   };
@@ -63,9 +65,29 @@ export default function Notifications() {
     switch (type) {
       case "like":    return <Heart className="w-5 h-5 text-red-500 fill-red-500" />;
       case "reply":   return <MessageCircle className="w-5 h-5 text-accent" />;
-      case "listing": return <Briefcase className="w-5 h-5 text-primary" />;
+      case "listing":
+      case "admin_listing": return <Briefcase className="w-5 h-5 text-emerald-400" />;
+      case "support": return <MessageCircle className="w-5 h-5 text-red-400" />;
       default:        return <Info className="w-5 h-5 text-primary" />;
     }
+  };
+
+  const notifClassName = (type: string, isRead: boolean) => {
+    const base = "glass-card rounded-2xl p-4 flex items-start gap-3 cursor-pointer transition-colors";
+    if (isRead) return `${base}`;
+    if (type === "admin_listing") return `${base} bg-emerald-500/10 ring-1 ring-emerald-400/25`;
+    if (type === "support") return `${base} bg-red-500/10 ring-1 ring-red-400/25`;
+    return `${base} bg-primary/5 ring-1 ring-primary/20`;
+  };
+
+  const markOneRead = async (id: number) => {
+    try {
+      const res = await fetch(`/api/notifications/${id}/read`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (res.ok) invalidate();
+    } catch { /* ignore */ }
   };
 
   return (
@@ -90,7 +112,7 @@ export default function Notifications() {
               variant="outline"
               size="sm"
               onClick={handleMarkAllRead}
-              disabled={unreadCount === 0 || markRead.isPending}
+              disabled={unreadCount === 0}
               className="flex-1 border-white/10 text-xs gap-1.5 bg-white/5 hover:bg-white/10"
             >
               <CheckCheck className="w-3.5 h-3.5" />
@@ -124,7 +146,8 @@ export default function Notifications() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.04 }}
                 key={notif.id}
-                className={`glass-card rounded-2xl p-4 flex items-start gap-3 ${!notif.isRead ? "bg-primary/5 ring-1 ring-primary/20" : ""}`}
+                onClick={() => { if (!notif.isRead) void markOneRead(notif.id); }}
+                className={notifClassName(notif.type, notif.isRead)}
               >
                 <div className="mt-0.5 bg-white/5 p-2 rounded-full shrink-0">
                   {getIcon(notif.type)}

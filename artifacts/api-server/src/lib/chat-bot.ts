@@ -27,6 +27,27 @@ function makeBotMsg(content: string, replyToUsername?: string) {
   };
 }
 
+// ── Bot enable/disable cache ───────────────────────────────────────
+let botEnabledCache = true;
+let botEnabledCacheAt = 0;
+const BOT_ENABLED_TTL = 30_000;
+
+async function isBotEnabled(): Promise<boolean> {
+  const now = Date.now();
+  if (now - botEnabledCacheAt < BOT_ENABLED_TTL) return botEnabledCache;
+  try {
+    const rows = await db.select({ v: adminSettingsTable.botGuvenlikEnabled }).from(adminSettingsTable).limit(1);
+    botEnabledCache = rows[0]?.v ?? true;
+  } catch { /* DB timeout'da devam et */ }
+  botEnabledCacheAt = now;
+  return botEnabledCache;
+}
+
+export async function setBotEnabled(v: boolean) {
+  botEnabledCache = v;
+  botEnabledCacheAt = Date.now();
+}
+
 // ── DB'den istatistik (5 dakika önbellekli) ────────────────────────
 type StatsResult = { total: number; minSalary: number; maxSalary: number; cities: string[]; ok: boolean };
 let cachedStats: StatsResult | null = null;
@@ -277,7 +298,7 @@ const KEYWORD_RULES: Array<{
 ];
 
 const lastBotReplyAt = new Map<string, number>();
-const BOT_REPLY_COOLDOWN_MS = 8_000;
+const BOT_REPLY_COOLDOWN_MS = 3_000; // 3 saniye daha hızlı cevap
 
 function keywordFallback(content: string, username: string, stats: Stats): string | null {
   const matched = KEYWORD_RULES.find(rule => rule.keywords.test(content));
@@ -355,6 +376,11 @@ export function triggerContextualReply(content: string, username: string, role: 
   const delay = 1500 + Math.random() * 3000;
 
   setTimeout(async () => {
+    // Bot ayarı kapalıysa bypass et ve cooldown'u sıfırla
+    if (!await isBotEnabled()) {
+      lastBotReplyAt.delete(username);
+      return;
+    }
     if (!_io) {
       // IO yoksa cooldown'u sıfırla ki bir sonraki mesajda tekrar denesin
       lastBotReplyAt.delete(username);

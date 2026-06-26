@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, usersTable, listingsTable, chatMessagesTable, announcementsTable, adminSettingsTable, bannedWordsTable, bannersTable, supportTicketsTable, chatRulesTable, listingPublishGrantsTable, ipBansTable, deviceBansTable } from "@workspace/db";
+import { db, usersTable, listingsTable, chatMessagesTable, announcementsTable, adminSettingsTable, bannedWordsTable, bannersTable, supportTicketsTable, chatRulesTable, listingPublishGrantsTable, ipBansTable, deviceBansTable, locationFilterTermsTable } from "@workspace/db";
 import { eq, desc, ilike, and, sql, asc, or, isNull, gt, inArray } from "drizzle-orm";
 import { authMiddleware, requireAdmin, requireAdminOrModerator } from "../middlewares/auth";
 import { onlineSockets } from "./chat";
@@ -7,10 +7,97 @@ import { extractGender } from "../lib/job-parsing";
 import bcrypt from "bcryptjs";
 
 const router = Router();
+const LISTING_CARD_THEMES = new Set(["auto", "gold", "radar", "vip", "urgent", "glass", "stripe", "night", "map", "timeline", "holo", "light", "tactical"]);
 
 function safeId(raw: string | string[] | undefined): number | null {
   const id = parseInt(String(Array.isArray(raw) ? raw[0] : raw ?? ""), 10);
   return isNaN(id) ? null : id;
+}
+
+function normalizeListingCardTheme(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const theme = value.trim().toLowerCase();
+  return LISTING_CARD_THEMES.has(theme) && theme !== "auto" ? theme : null;
+}
+
+function parseHiddenListingCities(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((city): city is string => typeof city === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeCityName(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function provinceFromListingCity(value: string | null) {
+  if (!value?.trim()) return null;
+  return normalizeCityName(value.split(/[\/,|-]/)[0] ?? value);
+}
+
+function normalizeLocationTerm(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+const BUILTIN_LOCATION_FILTER_TERMS: { province: string; term: string; display: string }[] = [
+  { province: "İstanbul", term: "istanbul", display: "İstanbul" },
+  { province: "İstanbul", term: "unkapanı", display: "İstanbul / Fatih / Unkapanı" },
+  { province: "İstanbul", term: "unkapani", display: "İstanbul / Fatih / Unkapanı" },
+  { province: "İstanbul", term: "fatihunkapanı", display: "İstanbul / Fatih / Unkapanı" },
+  { province: "İstanbul", term: "fatihunkapani", display: "İstanbul / Fatih / Unkapanı" },
+  { province: "İstanbul", term: "basın ekspres", display: "İstanbul / Bağcılar / Basın Ekspres" },
+  { province: "İstanbul", term: "basin ekspres", display: "İstanbul / Bağcılar / Basın Ekspres" },
+  { province: "İstanbul", term: "ikitelli osb", display: "İstanbul / Başakşehir / İkitelli OSB" },
+  { province: "İstanbul", term: "dudullu osb", display: "İstanbul / Ümraniye / Dudullu OSB" },
+  { province: "İstanbul", term: "hadımköy osb", display: "İstanbul / Arnavutköy / Hadımköy OSB" },
+  { province: "İstanbul", term: "hadimkoy osb", display: "İstanbul / Arnavutköy / Hadımköy OSB" },
+  { province: "İstanbul", term: "perpa", display: "İstanbul / Şişli / Perpa" },
+  { province: "İstanbul", term: "vadistanbul", display: "İstanbul / Sarıyer / Vadistanbul" },
+  { province: "İstanbul", term: "vadi istanbul", display: "İstanbul / Sarıyer / Vadi İstanbul" },
+  { province: "İstanbul", term: "mall of istanbul", display: "İstanbul / Başakşehir / Mall of İstanbul" },
+  { province: "İstanbul", term: "sabiha gökçen", display: "İstanbul / Pendik / Sabiha Gökçen" },
+  { province: "İstanbul", term: "sabiha gokcen", display: "İstanbul / Pendik / Sabiha Gökçen" },
+  { province: "İstanbul", term: "istanbul havalimanı", display: "İstanbul / Arnavutköy / İstanbul Havalimanı" },
+  { province: "İstanbul", term: "istanbul havalimani", display: "İstanbul / Arnavutköy / İstanbul Havalimanı" },
+  { province: "İstanbul", term: "atatürk havalimanı", display: "İstanbul / Bakırköy / Atatürk Havalimanı" },
+  { province: "İstanbul", term: "ataturk havalimani", display: "İstanbul / Bakırköy / Atatürk Havalimanı" },
+  { province: "İstanbul", term: "kuyumcukent", display: "İstanbul / Bahçelievler / Kuyumcukent" },
+  { province: "İstanbul", term: "tekstilkent", display: "İstanbul / Esenler / Tekstilkent" },
+  { province: "İstanbul", term: "istoç", display: "İstanbul / Bağcılar / İSTOÇ" },
+  { province: "İstanbul", term: "istoc", display: "İstanbul / Bağcılar / İSTOÇ" },
+  { province: "Kocaeli", term: "kocaeli", display: "Kocaeli" },
+  { province: "Kocaeli", term: "gosb", display: "Kocaeli / Gebze OSB" },
+  { province: "Kocaeli", term: "gebze osb", display: "Kocaeli / Gebze OSB" },
+  { province: "Kocaeli", term: "gebze organize sanayi bölgesi", display: "Kocaeli / Gebze OSB" },
+  { province: "Kocaeli", term: "tosb", display: "Kocaeli / TOSB" },
+  { province: "Kocaeli", term: "imes", display: "Kocaeli / Gebze / İMES" },
+  { province: "Kocaeli", term: "imes osb", display: "Kocaeli / Gebze / İMES OSB" },
+  { province: "Kocaeli", term: "gebkim", display: "Kocaeli / Gebkim" },
+  { province: "Kocaeli", term: "gebkim osb", display: "Kocaeli / Gebkim OSB" },
+  { province: "Kocaeli", term: "taysad", display: "Kocaeli / TAYSAD" },
+  { province: "Kocaeli", term: "şekerpınar", display: "Kocaeli / Çayırova / Şekerpınar" },
+  { province: "Kocaeli", term: "sekerpinar", display: "Kocaeli / Çayırova / Şekerpınar" },
+  { province: "Kocaeli", term: "dilovası osb", display: "Kocaeli / Dilovası OSB" },
+  { province: "Kocaeli", term: "dilovasi osb", display: "Kocaeli / Dilovası OSB" },
+  { province: "Kocaeli", term: "güzeller", display: "Kocaeli / Gebze / Güzeller" },
+  { province: "Kocaeli", term: "guzeller", display: "Kocaeli / Gebze / Güzeller" },
+  { province: "Kocaeli", term: "pelitli", display: "Kocaeli / Gebze / Pelitli" },
+  { province: "Kocaeli", term: "balçık", display: "Kocaeli / Gebze / Balçık" },
+  { province: "Kocaeli", term: "balcik", display: "Kocaeli / Gebze / Balçık" },
+  { province: "Kocaeli", term: "muallimköy", display: "Kocaeli / Gebze / Muallimköy" },
+  { province: "Kocaeli", term: "muallimkoy", display: "Kocaeli / Gebze / Muallimköy" },
+  { province: "Kocaeli", term: "ford otosan", display: "Kocaeli / Gölcük / Ford Otosan" },
+  { province: "Kocaeli", term: "safiport", display: "Kocaeli / Derince / Safiport" },
+  { province: "Kocaeli", term: "evyapport", display: "Kocaeli / Körfez / Evyapport" },
+];
+
+function normalizeCompare(value: string | null) {
+  if (!value) return "";
+  return value.toLocaleLowerCase("tr-TR").replace(/[^a-zçğıöşü0-9]/gi, "");
 }
 
 async function checkPublishPermission(userId: number, role: string): Promise<{ allowed: boolean; grantId?: number; shouldDecrement?: boolean }> {
@@ -36,6 +123,8 @@ function adminUserJson(u: typeof usersTable.$inferSelect) {
     bio: u.bio,
     nameColor: u.nameColor,
     nameAnimated: u.nameAnimated,
+    isVip: u.isVip && (!u.vipUntil || u.vipUntil > new Date()),
+    vipUntil: u.vipUntil?.toISOString() ?? null,
     isBanned: u.isBanned,
     banReason: u.banReason,
     banExpiresAt: u.banExpiresAt?.toISOString() ?? null,
@@ -269,6 +358,21 @@ router.patch("/admin/users/:id/name-color", authMiddleware, requireAdmin, async 
   res.json({ success: true, message: "İsim rengi güncellendi" });
 });
 
+router.patch("/admin/users/:id/vip", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  const { enabled, days } = req.body as { enabled?: boolean; days?: number };
+  const active = Boolean(enabled);
+  const vipUntil = active && days && days > 0 ? new Date(Date.now() + days * 24 * 3600 * 1000) : null;
+  await db.update(usersTable).set({
+    isVip: active,
+    vipUntil,
+    nameColor: active ? "#FACC15" : null,
+    nameAnimated: active,
+  }).where(eq(usersTable.id, id));
+  res.json({ success: true, isVip: active, vipUntil: vipUntil?.toISOString() ?? null });
+});
+
 function settingsJson(s: typeof adminSettingsTable.$inferSelect) {
   return {
     chatLocked: s.chatLocked, fakeOnlineBonus: s.fakeOnlineBonus,
@@ -276,6 +380,10 @@ function settingsJson(s: typeof adminSettingsTable.$inferSelect) {
     maintenanceMode: s.maintenanceMode, welcomeMessage: s.welcomeMessage,
     hasOpenaiKey: !!s.openaiApiKey, spamCooldown: s.spamCooldown ?? 3,
     chatAnnounceListings: s.chatAnnounceListings ?? true,
+    hiddenListingCities: parseHiddenListingCities(s.hiddenListingCities),
+    botGuvenlikEnabled: s.botGuvenlikEnabled ?? true,
+    botBilgiEnabled: s.botBilgiEnabled ?? true,
+    botFakeEnabled: s.botFakeEnabled ?? true,
   };
 }
 
@@ -290,7 +398,7 @@ router.get("/admin/settings", authMiddleware, requireAdmin, async (_req, res): P
 });
 
 router.patch("/admin/settings", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
-  const { chatLocked, fakeOnlineBonus, fakeOnlineMin, fakeOnlineMax, maintenanceMode, welcomeMessage, openaiApiKey, spamCooldown, chatAnnounceListings } = req.body as Record<string, unknown>;
+  const { chatLocked, fakeOnlineBonus, fakeOnlineMin, fakeOnlineMax, maintenanceMode, welcomeMessage, openaiApiKey, spamCooldown, chatAnnounceListings, hiddenListingCities, botGuvenlikEnabled, botBilgiEnabled, botFakeEnabled } = req.body as Record<string, unknown>;
   const updates: Partial<typeof adminSettingsTable.$inferInsert> = {};
   if (chatLocked !== undefined) updates.chatLocked = Boolean(chatLocked);
   if (fakeOnlineBonus !== undefined) updates.fakeOnlineBonus = parseInt(String(fakeOnlineBonus), 10);
@@ -301,6 +409,15 @@ router.patch("/admin/settings", authMiddleware, requireAdmin, async (req, res): 
   if (openaiApiKey !== undefined) updates.openaiApiKey = openaiApiKey == null || openaiApiKey === "" ? null : String(openaiApiKey);
   if (spamCooldown !== undefined) updates.spamCooldown = Math.max(0, parseInt(String(spamCooldown), 10) || 0);
   if (chatAnnounceListings !== undefined) updates.chatAnnounceListings = Boolean(chatAnnounceListings);
+  if (botGuvenlikEnabled !== undefined) updates.botGuvenlikEnabled = Boolean(botGuvenlikEnabled);
+  if (botBilgiEnabled !== undefined) updates.botBilgiEnabled = Boolean(botBilgiEnabled);
+  if (botFakeEnabled !== undefined) updates.botFakeEnabled = Boolean(botFakeEnabled);
+  if (hiddenListingCities !== undefined) {
+    const cities = Array.isArray(hiddenListingCities)
+      ? hiddenListingCities.map(c => normalizeCityName(String(c))).filter(Boolean)
+      : [];
+    updates.hiddenListingCities = JSON.stringify([...new Set(cities)]);
+  }
 
   const existing = await db.select().from(adminSettingsTable).limit(1);
   let result;
@@ -360,7 +477,6 @@ const DISTRICT_TO_CITY: Record<string, { city: string; district: string }> = {
   "bahcelievler":  {city:"İstanbul", district:"Bahçelievler"},
   "bakirkoy":      {city:"İstanbul", district:"Bakırköy"},
   "basaksehir":    {city:"İstanbul", district:"Başakşehir"},
-  "bayrampa a":    {city:"İstanbul", district:"Bayrampaşa"},
   "bayrampa":      {city:"İstanbul", district:"Bayrampaşa"},
   "bayrampaşa":    {city:"İstanbul", district:"Bayrampaşa"},
   "besiktas":      {city:"İstanbul", district:"Beşiktaş"},
@@ -375,6 +491,10 @@ const DISTRICT_TO_CITY: Record<string, { city: string; district: string }> = {
   "eyupsultan":    {city:"İstanbul", district:"Eyüpsultan"},
   "eyup":          {city:"İstanbul", district:"Eyüpsultan"},
   "fatih":         {city:"İstanbul", district:"Fatih"},
+  "unkapani":      {city:"İstanbul", district:"Unkapanı"},
+  "unkapanı":      {city:"İstanbul", district:"Unkapanı"},
+  "fatihunkapani": {city:"İstanbul", district:"Unkapanı"},
+  "fatihunkapanı": {city:"İstanbul", district:"Unkapanı"},
   "gaziosmanpasa": {city:"İstanbul", district:"Gaziosmanpaşa"},
   "gungoren":      {city:"İstanbul", district:"Güngören"},
   "kadikoy":       {city:"İstanbul", district:"Kadıköy"},
@@ -649,7 +769,6 @@ const DISTRICT_TO_CITY: Record<string, { city: string; district: string }> = {
   // ─── ŞANLIURFA ───
   "haliliye":      {city:"Şanlıurfa", district:"Haliliye"},
   "karakopru":     {city:"Şanlıurfa", district:"Karaköprü"},
-  "eyyubiye":      {city:"Şanlıurfa", district:"Eyyübiye"},
   "birecik":       {city:"Şanlıurfa", district:"Birecik"},
   "viransehir":    {city:"Şanlıurfa", district:"Viranşehir"},
   "siverek":       {city:"Şanlıurfa", district:"Siverek"},
@@ -797,8 +916,8 @@ function parseListingText(raw: string): Record<string, string> {
 
   // Tokenize: split on spaces, slashes, commas, dashes, dots, parens, apostrophes
   // Strip common Turkish case suffixes before lookup ('de, 'da, 'nde, 'nda, 'te, 'ta, 'e, 'a, 'in, 'ın etc.)
-  const TR_SUFFIX = /['''](?:de|da|te|ta|nde|nda|nte|nta|ye|ya|ne|na|in|ın|un|ün|e|a|i|ı|u|ü|deki|daki|nin|nın|nun|nün|ler|lar|den|dan|ten|tan)$/i;
-  const tokens = text.split(/[\s\/,\-\.\(\)''']+/)
+  const TR_SUFFIX = /(?:['’`])?(?:de|da|te|ta|nde|nda|nte|nta|inda|ında|unda|ünde|ye|ya|ne|na|in|ın|un|ün|e|a|i|ı|u|ü|deki|daki|nin|nın|nun|nün|ler|lar|den|dan|ten|tan)$/i;
+  const tokens = text.split(/[\s\/,\-\.\(\)'’`]+/)
     .filter(t => t.length >= 2)
     .map(t => t.replace(TR_SUFFIX, "").trim())
     .filter(t => t.length >= 3);
@@ -1110,10 +1229,23 @@ router.delete("/admin/banned-words/:id", authMiddleware, requireAdmin, async (re
 // ─── Admin Listings ────────────────────────────────────────────────
 router.get("/admin/listings", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   const page = Math.max(1, parseInt(String(req.query["page"] ?? "1"), 10));
-  const limit = 20;
+  const requestedLimit = req.query["limit"] === "all" ? 500 : parseInt(String(req.query["limit"] ?? "50"), 10);
+  const limit = Math.min(500, Math.max(1, requestedLimit || 50));
   const offset = (page - 1) * limit;
   const status = req.query["status"] as string | undefined;
+  const search = String(req.query["search"] ?? "").trim();
+  const city = String(req.query["city"] ?? "").trim();
   const conditions = status ? [eq(listingsTable.status, status)] : [];
+  if (city) conditions.push(ilike(listingsTable.city, `%${city}%`));
+  if (search) {
+    const numericId = Number(search.replace(/^#/, ""));
+    conditions.push(or(
+      Number.isInteger(numericId) && numericId > 0 ? eq(listingsTable.id, numericId) : sql`false`,
+      ilike(listingsTable.title, `%${search}%`),
+      ilike(listingsTable.company, `%${search}%`),
+      ilike(listingsTable.city, `%${search}%`)
+    )!);
+  }
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
   const [listings, countResult] = await Promise.all([
     db.select().from(listingsTable).where(whereClause).orderBy(desc(listingsTable.createdAt)).limit(limit).offset(offset),
@@ -1122,25 +1254,114 @@ router.get("/admin/listings", authMiddleware, requireAdminOrModerator, async (re
   res.json({
     listings: listings.map(l => ({
       id: l.id, title: l.title, company: l.company, city: l.city, salary: l.salary,
-      workType: l.workType, status: l.status, isFeatured: l.isFeatured, likeCount: l.likeCount,
+      workType: l.workType, description: l.description, requirements: l.requirements,
+      status: l.status, isFeatured: l.isFeatured, cardTheme: l.cardTheme, likeCount: l.likeCount,
+      applyUrl: l.applyUrl, sourceTag: l.sourceTag,
       expiresAt: l.expiresAt?.toISOString() ?? null, createdAt: l.createdAt.toISOString(),
     })),
     total: countResult[0]?.count ?? 0,
   });
 });
 
+router.get("/admin/listings/cities", authMiddleware, requireAdminOrModerator, async (_req, res): Promise<void> => {
+  const settings = await db.select({ hiddenListingCities: adminSettingsTable.hiddenListingCities }).from(adminSettingsTable).limit(1);
+  const hidden = parseHiddenListingCities(settings[0]?.hiddenListingCities);
+  const rows = await db.select({ city: listingsTable.city, count: sql<number>`count(*)::int` })
+    .from(listingsTable)
+    .groupBy(listingsTable.city)
+    .orderBy(sql`count(*) desc`, listingsTable.city);
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const province = provinceFromListingCity(row.city);
+    if (!province) continue;
+    counts.set(province, (counts.get(province) ?? 0) + row.count);
+  }
+  res.json({
+    cities: [...counts.entries()].map(([city, count]) => ({ city, count })).sort((a, b) => b.count - a.count || a.city.localeCompare(b.city, "tr-TR")),
+    hidden,
+  });
+});
+
+router.get("/admin/location-filter-terms", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db.select().from(locationFilterTermsTable).orderBy(asc(locationFilterTermsTable.province), asc(locationFilterTermsTable.term));
+  const seenBuiltin = new Set<string>();
+  const builtin = [
+    ...BUILTIN_LOCATION_FILTER_TERMS,
+    ...Object.entries(DISTRICT_TO_CITY).map(([term, value]) => ({
+      province: value.city,
+      term,
+      display: `${value.city} / ${value.district}`,
+    })),
+  ]
+    .filter(item => {
+      const key = `${item.province}|${item.term}`;
+      if (seenBuiltin.has(key)) return false;
+      seenBuiltin.add(key);
+      return true;
+    })
+    .sort((a, b) => a.province.localeCompare(b.province, "tr-TR") || a.term.localeCompare(b.term, "tr-TR"))
+    .map((value, index) => ({
+      id: -(index + 1),
+      province: value.province,
+      term: value.term,
+      display: value.display,
+      createdAt: null,
+      source: "builtin" as const,
+    }));
+  const custom = rows.map(row => ({
+    id: row.id,
+    province: row.province,
+    term: row.term,
+    display: row.display,
+    createdAt: row.createdAt.toISOString(),
+    source: "admin" as const,
+  }));
+  res.json([...custom, ...builtin]);
+});
+
+router.post("/admin/location-filter-terms", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const { province, term, display } = req.body as Record<string, unknown>;
+  const cleanProvince = normalizeLocationTerm(String(province ?? ""));
+  const cleanTerm = normalizeLocationTerm(String(term ?? ""));
+  const cleanDisplay = normalizeLocationTerm(String(display ?? ""));
+  if (!cleanProvince || !cleanTerm) {
+    res.status(400).json({ error: "İl ve eşleşme kelimesi zorunludur" });
+    return;
+  }
+  const [created] = await db.insert(locationFilterTermsTable).values({
+    province: cleanProvince,
+    term: cleanTerm,
+    display: cleanDisplay || cleanProvince,
+  }).returning();
+  res.status(201).json({
+    id: created!.id,
+    province: created!.province,
+    term: created!.term,
+    display: created!.display,
+    createdAt: created!.createdAt.toISOString(),
+  });
+});
+
+router.delete("/admin/location-filter-terms/:id", authMiddleware, requireAdmin, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  await db.delete(locationFilterTermsTable).where(eq(locationFilterTermsTable.id, id));
+  res.sendStatus(204);
+});
+
 router.post("/admin/listings", authMiddleware, async (req, res): Promise<void> => {
   if (!req.user) { res.status(401).json({ error: "Giriş yapmanız gerekiyor" }); return; }
   const perm = await checkPublishPermission(req.user.id, req.user.role);
   if (!perm.allowed) { res.status(403).json({ error: "İlan paylaşım yetkiniz bulunmuyor" }); return; }
-  const { title, company, city, workType, salary, description, requirements, applyUrl, isFeatured, expiresAt } = req.body as Record<string, unknown>;
+  const { title, company, city, workType, salary, description, requirements, applyUrl, isFeatured, expiresAt, cardTheme } = req.body as Record<string, unknown>;
   if (!title || !company || !city || !workType) { res.status(400).json({ error: "Başlık, şirket, şehir ve çalışma şekli zorunludur" }); return; }
   const [listing] = await db.insert(listingsTable).values({
     title: String(title), company: String(company), city: String(city), workType: String(workType),
     salary: salary ? String(salary) : null, description: description ? String(description) : null,
     requirements: requirements ? String(requirements) : null, applyUrl: applyUrl ? String(applyUrl) : null,
-    isFeatured: Boolean(isFeatured), status: "active",
-    expiresAt: expiresAt ? new Date(String(expiresAt)) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    isFeatured: Boolean(isFeatured), cardTheme: normalizeListingCardTheme(cardTheme), status: "active",
+    // Manuel admin ilanları varsayılan olarak süresiz; admin elle expiresAt verirse ona göre kalkar
+    expiresAt: expiresAt ? new Date(String(expiresAt)) : null,
     authorId: req.user.id,
   }).returning();
   if (perm.shouldDecrement && perm.grantId) {
@@ -1154,10 +1375,44 @@ router.post("/admin/listings", authMiddleware, async (req, res): Promise<void> =
 router.patch("/admin/listings/:id/status", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
   const id = safeId(req.params["id"]);
   if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
-  const { status, isFeatured } = req.body as { status?: string; isFeatured?: boolean };
+  const { status, isFeatured, cardTheme } = req.body as { status?: string; isFeatured?: boolean; cardTheme?: unknown };
   const updates: Partial<typeof listingsTable.$inferInsert> = {};
   if (status && ["active", "pending", "rejected"].includes(status)) updates.status = status;
   if (isFeatured !== undefined) updates.isFeatured = Boolean(isFeatured);
+  if (cardTheme !== undefined) updates.cardTheme = normalizeListingCardTheme(cardTheme);
+  await db.update(listingsTable).set(updates).where(eq(listingsTable.id, id));
+  res.json({ success: true });
+});
+
+router.patch("/admin/listings/:id", authMiddleware, requireAdminOrModerator, async (req, res): Promise<void> => {
+  const id = safeId(req.params["id"]);
+  if (!id) { res.status(400).json({ error: "Geçersiz ID" }); return; }
+  const { title, company, city, salary, workType, description, requirements, applyUrl, status, isFeatured, cardTheme, expiresAt } = req.body as Record<string, unknown>;
+  const updates: Partial<typeof listingsTable.$inferInsert> = {};
+  if (title !== undefined) {
+    const value = String(title).trim();
+    if (!value) { res.status(400).json({ error: "Başlık boş olamaz" }); return; }
+    updates.title = value;
+  }
+  if (company !== undefined) {
+    const value = String(company).trim();
+    if (!value) { res.status(400).json({ error: "Şirket boş olamaz" }); return; }
+    updates.company = value;
+  }
+  if (city !== undefined) {
+    const value = String(city).trim();
+    if (!value) { res.status(400).json({ error: "İl/ilçe boş olamaz" }); return; }
+    updates.city = value;
+  }
+  if (salary !== undefined) updates.salary = salary == null || String(salary).trim() === "" ? null : String(salary).trim();
+  if (workType !== undefined) updates.workType = String(workType || "Tam Zamanlı");
+  if (description !== undefined) updates.description = description == null || String(description).trim() === "" ? null : String(description);
+  if (requirements !== undefined) updates.requirements = requirements == null || String(requirements).trim() === "" ? null : String(requirements);
+  if (applyUrl !== undefined) updates.applyUrl = applyUrl == null || String(applyUrl).trim() === "" ? null : String(applyUrl).trim();
+  if (status !== undefined && ["active", "pending", "rejected"].includes(String(status))) updates.status = String(status);
+  if (isFeatured !== undefined) updates.isFeatured = Boolean(isFeatured);
+  if (cardTheme !== undefined) updates.cardTheme = normalizeListingCardTheme(cardTheme);
+  if (expiresAt !== undefined) updates.expiresAt = expiresAt ? new Date(String(expiresAt)) : null;
   await db.update(listingsTable).set(updates).where(eq(listingsTable.id, id));
   res.json({ success: true });
 });
@@ -1180,7 +1435,47 @@ router.post("/admin/listings/bulk-delete", authMiddleware, requireAdminOrModerat
 });
 
 // ─── Banners ─────────────────────────────────────────────────────
+const DEFAULT_BANNERS = [
+  {
+    title: "Türkiye geneli güncel özel güvenlik ilanlarını hemen incele",
+    imageUrl: "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1200&q=80",
+    linkUrl: "/ilanlar",
+    sortOrder: 1,
+  },
+  {
+    title: "Silahlı ve silahsız güvenlik fırsatları tek ekranda",
+    imageUrl: "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80",
+    linkUrl: "/ilanlar",
+    sortOrder: 2,
+  },
+  {
+    title: "Part-time güvenlik personeli ilanını ücretsiz oluştur",
+    imageUrl: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80",
+    linkUrl: "/part-time",
+    sortOrder: 3,
+  },
+  {
+    title: "Profilini tamamla, işverenlerin seni daha hızlı bulsun",
+    imageUrl: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80",
+    linkUrl: "/profil",
+    sortOrder: 4,
+  },
+  {
+    title: "Sohbete katıl, sektördeki duyuruları ve fırsatları kaçırma",
+    imageUrl: "https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1200&q=80",
+    linkUrl: "/sohbet",
+    sortOrder: 5,
+  },
+];
+
+async function ensureDefaultBanners(): Promise<void> {
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(bannersTable).where(eq(bannersTable.isActive, true));
+  if (count > 0) return;
+  await db.insert(bannersTable).values(DEFAULT_BANNERS.map(b => ({ ...b, isActive: true })));
+}
+
 router.get("/admin/banners", authMiddleware, requireAdmin, async (_req, res): Promise<void> => {
+  await ensureDefaultBanners();
   const banners = await db.select().from(bannersTable).orderBy(asc(bannersTable.sortOrder), desc(bannersTable.createdAt));
   res.json(banners.map(b => ({ id: b.id, title: b.title, imageUrl: b.imageUrl, linkUrl: b.linkUrl, isActive: b.isActive, sortOrder: b.sortOrder, createdAt: b.createdAt.toISOString() })));
 });
@@ -1214,6 +1509,7 @@ router.delete("/admin/banners/:id", authMiddleware, requireAdmin, async (req, re
 });
 
 router.get("/banners", async (_req, res): Promise<void> => {
+  await ensureDefaultBanners();
   const banners = await db.select().from(bannersTable).where(eq(bannersTable.isActive, true)).orderBy(asc(bannersTable.sortOrder), desc(bannersTable.createdAt));
   res.json(banners.map(b => ({ id: b.id, title: b.title, imageUrl: b.imageUrl, linkUrl: b.linkUrl })));
 });

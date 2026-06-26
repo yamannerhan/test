@@ -17,6 +17,9 @@ export interface ChatMessage {
   userNameColor?: string | null;
   userNameAnimated?: boolean;
   userRole?: string;
+  isVip?: boolean;
+  /** @nullable */
+  vipUntil?: string | null;
   /** @nullable */
   replyToId?: number | null;
   /** @nullable */

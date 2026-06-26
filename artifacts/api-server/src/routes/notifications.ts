@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, notificationsTable } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import { authMiddleware } from "../middlewares/auth";
 
 const router = Router();
@@ -26,6 +26,15 @@ router.post("/notifications/read-all", authMiddleware, async (req, res): Promise
   res.json({ success: true });
 });
 
+router.post("/notifications/:id/read", authMiddleware, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params["id"] ?? ""), 10);
+  if (Number.isNaN(id)) { res.status(400).json({ error: "Geçersiz bildirim" }); return; }
+  await db.update(notificationsTable)
+    .set({ isRead: true })
+    .where(and(eq(notificationsTable.id, id), eq(notificationsTable.userId, req.user!.id)));
+  res.json({ success: true });
+});
+
 router.delete("/notifications", authMiddleware, async (req, res): Promise<void> => {
   await db.delete(notificationsTable).where(eq(notificationsTable.userId, req.user!.id));
   res.json({ success: true });
@@ -35,7 +44,7 @@ router.get("/notifications/unread-count", authMiddleware, async (req, res): Prom
   const [result] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(notificationsTable)
-    .where(eq(notificationsTable.userId, req.user!.id));
+    .where(and(eq(notificationsTable.userId, req.user!.id), eq(notificationsTable.isRead, false)));
   res.json({ count: result?.count ?? 0 });
 });
 

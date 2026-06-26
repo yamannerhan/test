@@ -1,2 +1,3 @@
-#!/usr/bin/env bash
+#!/bin/sh
+set -e
 exec node scripts/start.mjs

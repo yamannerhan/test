@@ -1,5 +1,4 @@
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Switch, Route, Router as WouterRouter, Redirect, useRoute } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -19,14 +18,46 @@ import Favorites from "@/pages/favorites";
 import Destek from "@/pages/destek";
 import CvOlustur from "@/pages/cv-olustur";
 import PartTime from "@/pages/part-time";
+import { slugToCity } from "@/lib/seo-cities";
+import { SEO_CITY_CONTENTS } from "@/lib/seo-cities";
+import { useDocumentMeta } from "@/hooks/use-document-meta";
 
-const queryClient = new QueryClient();
+const BASE_URL = "https://ozelguvenlik.online";
 
 function RequireAuth({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
   if (!user) return <Redirect to="/kayit" />;
   return <Component />;
+}
+
+function CitySeoListings() {
+  const [match, params] = useRoute("/:slug-ozel-guvenlik-is-ilanlari");
+  const slug = params?.slug ?? "";
+  const city = slugToCity(slug);
+  const seo = city ? SEO_CITY_CONTENTS[city] : null;
+  const pageUrl = `${BASE_URL}/${slug}-ozel-guvenlik-is-ilanlari`;
+
+  useDocumentMeta({
+    title: seo?.title ?? "Özel Güvenlik İş İlanları",
+    description: seo?.description ?? "Türkiye genelinde özel güvenlik iş ilanları.",
+    keywords: seo?.keywords ?? "özel güvenlik iş ilanları, güvenlik görevlisi alımı",
+    canonical: pageUrl,
+    ogImage: `${BASE_URL}/og-image.jpg`,
+    ogType: "website",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Ana Sayfa", "item": BASE_URL },
+        { "@type": "ListItem", "position": 2, "name": "İlanlar", "item": `${BASE_URL}/ilanlar` },
+        { "@type": "ListItem", "position": 3, "name": city ?? "Şehir", "item": pageUrl },
+      ],
+    },
+  });
+
+  if (!city) return <NotFound />;
+  return <Listings initialCity={city} />;
 }
 
 function Router() {
@@ -47,6 +78,7 @@ function Router() {
       <Route path="/part-time" component={PartTime} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/moderator" component={ModeratorDashboard} />
+      <Route path="/:slug-ozel-guvenlik-is-ilanlari" component={CitySeoListings} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -54,16 +86,14 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <Router />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </AuthProvider>
   );
 }
 

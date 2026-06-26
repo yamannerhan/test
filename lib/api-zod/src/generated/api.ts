@@ -112,6 +112,7 @@ export const GetListingsResponse = zod.object({
   "viewCount": zod.number(),
   "likeCount": zod.number(),
   "isFeatured": zod.boolean().optional(),
+  "cardTheme": zod.string().nullish(),
   "applyUrl": zod.string().nullish(),
   "companyLogoUrl": zod.string().nullish(),
   "authorId": zod.number().nullish(),
@@ -138,7 +139,8 @@ export const CreateListingBody = zod.object({
   "description": zod.string().nullish(),
   "requirements": zod.string().nullish(),
   "applyUrl": zod.string().nullish(),
-  "companyLogoUrl": zod.string().nullish()
+  "companyLogoUrl": zod.string().nullish(),
+  "cardTheme": zod.string().nullish()
 })
 
 
@@ -162,6 +164,7 @@ export const GetListingResponse = zod.object({
   "viewCount": zod.number(),
   "likeCount": zod.number(),
   "isFeatured": zod.boolean().optional(),
+  "cardTheme": zod.string().nullish(),
   "applyUrl": zod.string().nullish(),
   "companyLogoUrl": zod.string().nullish(),
   "authorId": zod.number().nullish(),
@@ -189,7 +192,8 @@ export const UpdateListingBody = zod.object({
   "requirements": zod.string().nullish(),
   "status": zod.string().optional(),
   "applyUrl": zod.string().nullish(),
-  "isFeatured": zod.boolean().optional()
+  "isFeatured": zod.boolean().optional(),
+  "cardTheme": zod.string().nullish()
 })
 
 export const UpdateListingResponse = zod.object({
@@ -205,6 +209,7 @@ export const UpdateListingResponse = zod.object({
   "viewCount": zod.number(),
   "likeCount": zod.number(),
   "isFeatured": zod.boolean().optional(),
+  "cardTheme": zod.string().nullish(),
   "applyUrl": zod.string().nullish(),
   "companyLogoUrl": zod.string().nullish(),
   "authorId": zod.number().nullish(),
@@ -292,6 +297,8 @@ export const GetChatMessagesResponseItem = zod.object({
   "userNameColor": zod.string().nullish(),
   "userNameAnimated": zod.boolean().optional(),
   "userRole": zod.string().optional(),
+  "isVip": zod.boolean().optional(),
+  "vipUntil": zod.string().nullish(),
   "replyToId": zod.number().nullish(),
   "replyToUsername": zod.string().nullish(),
   "replyToContent": zod.string().nullish(),
@@ -359,6 +366,8 @@ export const GetUserProfileResponse = zod.object({
   "bio": zod.string().nullish(),
   "nameColor": zod.string().nullish(),
   "nameAnimated": zod.boolean().optional(),
+  "isVip": zod.boolean().optional(),
+  "vipUntil": zod.string().nullish(),
   "listingCount": zod.number().optional(),
   "createdAt": zod.string()
 })
@@ -381,6 +390,8 @@ export const UpdateMyProfileResponse = zod.object({
   "bio": zod.string().nullish(),
   "nameColor": zod.string().nullish(),
   "nameAnimated": zod.boolean().optional(),
+  "isVip": zod.boolean().optional(),
+  "vipUntil": zod.string().nullish(),
   "isBanned": zod.boolean().optional(),
   "banReason": zod.string().nullish(),
   "banExpiresAt": zod.string().nullish(),
@@ -404,6 +415,7 @@ export const GetMyFavoritesResponseItem = zod.object({
   "viewCount": zod.number(),
   "likeCount": zod.number(),
   "isFeatured": zod.boolean().optional(),
+  "cardTheme": zod.string().nullish(),
   "applyUrl": zod.string().nullish(),
   "companyLogoUrl": zod.string().nullish(),
   "authorId": zod.number().nullish(),

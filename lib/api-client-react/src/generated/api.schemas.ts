@@ -27,6 +27,9 @@ export interface User {
   /** @nullable */
   nameColor?: string | null;
   nameAnimated?: boolean;
+  isVip?: boolean;
+  /** @nullable */
+  vipUntil?: string | null;
   isBanned?: boolean;
   /** @nullable */
   banReason?: string | null;
@@ -46,6 +49,9 @@ export interface UserProfile {
   /** @nullable */
   nameColor?: string | null;
   nameAnimated?: boolean;
+  isVip?: boolean;
+  /** @nullable */
+  vipUntil?: string | null;
   listingCount?: number;
   createdAt: string;
 }
@@ -92,6 +98,8 @@ export interface Listing {
   likeCount: number;
   isFeatured?: boolean;
   /** @nullable */
+  cardTheme?: string | null;
+  /** @nullable */
   applyUrl?: string | null;
   /** @nullable */
   companyLogoUrl?: string | null;
@@ -119,6 +127,8 @@ export interface ListingInput {
   applyUrl?: string | null;
   /** @nullable */
   companyLogoUrl?: string | null;
+  /** @nullable */
+  cardTheme?: string | null;
 }
 
 export interface ListingUpdate {
@@ -136,6 +146,8 @@ export interface ListingUpdate {
   /** @nullable */
   applyUrl?: string | null;
   isFeatured?: boolean;
+  /** @nullable */
+  cardTheme?: string | null;
 }
 
 export interface ListingsResponse {
@@ -177,6 +189,9 @@ export interface ChatMessage {
   userNameColor?: string | null;
   userNameAnimated?: boolean;
   userRole?: string;
+  isVip?: boolean;
+  /** @nullable */
+  vipUntil?: string | null;
   /** @nullable */
   replyToId?: number | null;
   /** @nullable */

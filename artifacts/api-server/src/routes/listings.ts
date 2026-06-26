@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { db, listingsTable, listingLikesTable, listingFavoritesTable, usersTable, adminSettingsTable, chatMessagesTable, notificationsTable } from "@workspace/db";
-import { eq, desc, and, sql, ilike, inArray } from "drizzle-orm";
+import { db, listingsTable, listingLikesTable, listingFavoritesTable, usersTable, adminSettingsTable, chatMessagesTable, notificationsTable, locationFilterTermsTable } from "@workspace/db";
+import { eq, desc, and, sql, ilike, inArray, or } from "drizzle-orm";
 import { authMiddleware, optionalAuthMiddleware, requireAdmin } from "../middlewares/auth";
 import multer from "multer";
 import sharp from "sharp";
 import path from "path";
 import fs from "fs";
+import { buildListingRequirements, createSmartListingImage, extractBenefits, extractCompany, extractGender, extractLocation, extractSalary, extractTitle, extractWorkType } from "../lib/job-parsing";
 
 // ── Listing image upload setup ──────────────────────────────────────────────
 const LISTING_IMAGES_DIR = path.join(process.cwd(), "uploads", "listing-images");
@@ -33,6 +34,131 @@ const LISTING_AUTO_IMAGES: { keywords: string[]; url: string }[] = [
   { keywords: ["site","konut","apartman","residans","rezidans"], url: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&q=75&fit=crop" },
 ];
 const DEFAULT_LISTING_IMAGE = "https://images.unsplash.com/photo-1582139329536-e7284fece509?w=800&q=75&fit=crop";
+const LISTING_CARD_THEMES = new Set(["auto", "gold", "radar", "vip", "urgent", "glass", "stripe", "night", "map", "timeline", "holo", "light", "tactical"]);
+
+const PROVINCES = [
+  "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Ankara", "Antalya", "Artvin", "Aydın", "Balıkesir",
+  "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli",
+  "Diyarbakır", "Edirne", "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari",
+  "Hatay", "Isparta", "Mersin", "İstanbul", "İzmir", "Kars", "Kastamonu", "Kayseri", "Kırklareli", "Kırşehir",
+  "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Kahramanmaraş", "Mardin", "Muğla", "Muş", "Nevşehir",
+  "Niğde", "Ordu", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas", "Tekirdağ", "Tokat",
+  "Trabzon", "Tunceli", "Şanlıurfa", "Uşak", "Van", "Yozgat", "Zonguldak", "Aksaray", "Bayburt", "Karaman",
+  "Kırıkkale", "Batman", "Şırnak", "Bartın", "Ardahan", "Iğdır", "Yalova", "Karabük", "Kilis", "Osmaniye", "Düzce",
+];
+
+const DISTRICT_PROVINCES: Record<string, string> = {
+  gebze: "Kocaeli", darica: "Kocaeli", darıca: "Kocaeli", cayirova: "Kocaeli", çayırova: "Kocaeli", dilovasi: "Kocaeli", dilovası: "Kocaeli", izmit: "Kocaeli",
+  esenyurt: "İstanbul", avcilar: "İstanbul", avcılar: "İstanbul", beylikduzu: "İstanbul", beylikdüzü: "İstanbul", basaksehir: "İstanbul", başakşehir: "İstanbul",
+  arnavutkoy: "İstanbul", arnavutköy: "İstanbul", tuzla: "İstanbul", pendik: "İstanbul", kartal: "İstanbul", maltepe: "İstanbul", umraniye: "İstanbul", ümraniye: "İstanbul",
+  sancaktepe: "İstanbul", kirac: "İstanbul", kıraç: "İstanbul", hadimkoy: "İstanbul", hadımköy: "İstanbul", dudullu: "İstanbul", ikitelli: "İstanbul",
+  ostim: "Ankara", sincana: "Ankara", sincan: "Ankara", yenimahalle: "Ankara", mamak: "Ankara", çankaya: "Ankara", cankaya: "Ankara",
+};
+
+[
+  "adalar", "bayrampaşa", "bayrampasa", "beşiktaş", "besiktas", "beykoz", "beyoğlu", "beyoglu", "çatalca", "catalca", "esenler", "eyüpsultan", "eyupsultan",
+  "fatih", "gaziosmanpaşa", "gaziosmanpasa", "gop", "güngören", "gungoren", "kağıthane", "kagithane", "sultanbeyli", "sultangazi", "şile", "sile", "şişli", "sisli",
+  "üsküdar", "uskudar", "silivri", "ataköy", "atakoy", "incirli", "şirinevler", "sirinevler", "florya", "yeşilköy", "yesilkoy", "sefaköy", "sefakoy", "halkalı", "halkali",
+  "kanarya", "cennet", "güneşli", "gunesli", "mahmutbey", "kayaşehir", "kayasehir", "altınşehir", "altinsehir", "bahçeşehir", "bahcesehir", "esenkent", "gürpınar", "gurpinar",
+  "kavaklı", "kavakli", "mimaroba", "topkapı", "topkapi", "cevizlibağ", "cevizlibag", "merter", "zeytinburnu", "aksaray", "laleli", "eminönü", "eminonu", "sirkeci",
+  "unkapanı", "unkapani", "fatihunkapani", "fatihunkapanı", "fatih unkapanı", "fatih unkapani", "karaköy", "karakoy", "galata", "kabataş", "kabatas", "fındıklı", "findikli", "taksim", "cihangir", "kasımpaşa", "kasimpasa", "dolapdere", "okmeydanı", "okmeydani",
+  "halıcıoğlu", "halicioglu", "alibeyköy", "alibeykoy", "mecidiyeköy", "mecidiyekoy", "nişantaşı", "nisantasi", "bomonti", "fulya", "gayrettepe", "levent", "4.levent",
+  "etiler", "ulus", "ortaköy", "ortakoy", "bebek", "kuruçeşme", "kurucesme", "rumelihisarı", "rumelihisari", "istinye", "tarabya", "yeniköy", "yenikoy", "emirgan",
+  "maslak", "seyrantepe", "çağlayan", "caglayan", "gültepe", "gultepe", "altunizade", "acıbadem", "acibadem", "çengelköy", "cengelkoy", "beylerbeyi", "kısıklı", "kisikli",
+  "çamlıca", "camlica", "alemdağ", "alemdag", "taşdelen", "tasdelen", "samandıra", "samandira", "fikirtepe", "hasanpaşa", "hasanpasa", "kozyatağı", "kozyatagi", "göztepe",
+  "goztepe", "erenköy", "erenkoy", "suadiye", "bostancı", "bostanci", "feneryolu", "caddebostan", "cevizli", "dragos", "soğanlık", "soganlik", "yakacık", "yakacik",
+  "kurtköy", "kurtkoy", "yayalar", "aydınlı", "aydinli", "orhanlı", "orhanli", "tepeören", "tepeoren", "ataşehir", "atasehir", "içerenköy", "icerenkoy", "kayışdağı",
+  "kayisdagi", "ferhatpaşa", "ferhatpasa", "barbaros", "vadi istanbul", "vadistanbul", "istoç", "istoc", "ikitelli osb", "başakşehir osb", "basaksehir osb", "dudullu osb",
+  "hadımköy osb", "hadimkoy osb", "basın ekspres", "basin ekspres", "mall of istanbul", "212 avm", "perpa", "tekstilkent", "kuyumcukent", "atatürk havalimanı",
+  "ataturk havalimani", "istanbul havalimanı", "istanbul havalimani", "sabiha gökçen", "sabiha gokcen",
+].forEach(term => { DISTRICT_PROVINCES[term] = "İstanbul"; });
+
+[
+  "körfez", "korfez", "derince", "gölcük", "golcuk", "başiskele", "basiskele", "kandıra", "kandira", "kartepe", "değirmendere", "degirmendere",
+  "hereke", "yarımca", "yarimca", "tütünçiftlik", "tutunciftlik", "kirazlıyalı", "kirazliyali", "yenikent", "maşukiye", "masukiye", "uzuntarla",
+  "köseköy", "kosekoy", "bahçecik", "bahcecik", "yahyakaptan", "alikahya", "kuruçeşme", "kurucesme", "bekirdere", "karabaş", "karabas", "veliahmet",
+  "plajyolu", "esentepe", "tatlıkuyu", "tatlikuyu", "mustafapaşa", "mustafapasa", "osmangazi", "mimar sinan", "şekerpınar", "sekerpinar", "gosb",
+  "gebze osb", "gebze organize sanayi bölgesi", "tosb", "imes", "imes osb", "gebkim", "gebkim osb", "taysad", "güzeller", "guzeller", "dilovası osb",
+  "dilovasi osb", "kimya osb", "plastikçiler osb", "plastikciler osb", "makine ihtisas osb", "asım kibar osb", "asim kibar osb", "kobi osb",
+  "demirciler osb", "kömürcüler osb", "komurculer osb", "kartepe karma osb", "başiskele osb", "basiskele osb", "pelitli", "balçık", "balcik",
+  "tepecik", "muallimköy", "muallimkoy", "köseler", "koseler", "cumhuriyet mahallesi", "derince liman", "evyapport", "safiport", "ford otosan",
+  "hyundai assan", "assa abloy", "pirelli", "brisa", "gölcük tersane", "golcuk tersane", "ford yeniköy", "ford yenikoy",
+].forEach(term => { DISTRICT_PROVINCES[term] = "Kocaeli"; });
+
+function parseHiddenListingCities(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((c): c is string => typeof c === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeCityText(value: string) {
+  return value.toLocaleLowerCase("tr-TR")
+    .replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s")
+    .replace(/ı/g, "i").replace(/ö/g, "o").replace(/ç/g, "c")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function locationSearchVariants(value: string): string[] {
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  const normalized = normalizeCityText(trimmed);
+  return [...new Set([
+    trimmed,
+    trimmed.replace(/\s+/g, ""),
+    normalized,
+    normalized.replace(/\s+/g, ""),
+  ].filter(Boolean))];
+}
+
+function normalizedColumn(column: unknown) {
+  return sql`lower(translate(${column}, 'ÇĞİIÖŞÜçğıiöşü', 'CGIIOSUcgiiiosu'))`;
+}
+
+function locationTermCondition(pattern: string) {
+  const variants = locationSearchVariants(pattern);
+  return or(...variants.flatMap(variant => [
+    ilike(listingsTable.city, `%${variant}%`),
+    ilike(listingsTable.title, `%${variant}%`),
+    ilike(listingsTable.description, `%${variant}%`),
+    sql`${normalizedColumn(listingsTable.city)} like ${`%${normalizeCityText(variant)}%`}`,
+    sql`${normalizedColumn(listingsTable.title)} like ${`%${normalizeCityText(variant)}%`}`,
+    sql`${normalizedColumn(listingsTable.description)} like ${`%${normalizeCityText(variant)}%`}`,
+    sql`replace(${normalizedColumn(listingsTable.city)}, ' ', '') like ${`%${normalizeCityText(variant).replace(/\s+/g, "")}%`}`,
+    sql`replace(${normalizedColumn(listingsTable.title)}, ' ', '') like ${`%${normalizeCityText(variant).replace(/\s+/g, "")}%`}`,
+    sql`replace(${normalizedColumn(listingsTable.description)}, ' ', '') like ${`%${normalizeCityText(variant).replace(/\s+/g, "")}%`}`,
+  ]));
+}
+
+function extractProvinceName(value: string | null): string | null {
+  if (!value?.trim()) return null;
+  const normalized = normalizeCityText(value);
+  for (const province of PROVINCES) {
+    if (normalized.includes(normalizeCityText(province))) return province;
+  }
+  for (const [district, province] of Object.entries(DISTRICT_PROVINCES)) {
+    if (normalized.includes(normalizeCityText(district))) return province;
+  }
+  const firstPart = value.split(/[\/,|-]/)[0]?.trim();
+  return firstPart || null;
+}
+
+async function getLocationTermsForProvince(province: string): Promise<string[]> {
+  const rows = await db.select({ term: locationFilterTermsTable.term })
+    .from(locationFilterTermsTable)
+    .where(ilike(locationFilterTermsTable.province, province));
+  return rows.map(row => row.term);
+}
+
+async function cityFilterCondition(city: string) {
+  const province = extractProvinceName(city) ?? city;
+  const customTerms = await getLocationTermsForProvince(province);
+  const patterns = [province, ...Object.entries(DISTRICT_PROVINCES).filter(([, p]) => p === province).map(([d]) => d), ...customTerms];
+  return or(...patterns.map(locationTermCondition));
+}
 
 function pickAutoImage(title: string, description: string | null): string {
   const hay = (title + " " + (description ?? "")).toLowerCase();
@@ -40,6 +166,16 @@ function pickAutoImage(title: string, description: string | null): string {
     if (keywords.some(k => hay.includes(k))) return url;
   }
   return DEFAULT_LISTING_IMAGE;
+}
+
+function normalizeCardTheme(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const theme = value.trim().toLowerCase();
+  return LISTING_CARD_THEMES.has(theme) && theme !== "auto" ? theme : null;
+}
+
+function canUseCardTheme(user?: Express.Request["user"]) {
+  return !!user;
 }
 
 const router = Router();
@@ -102,6 +238,7 @@ function formatListing(listing: typeof listingsTable.$inferSelect, userId?: numb
     viewCount: listing.viewCount,
     likeCount: listing.likeCount,
     isFeatured: listing.isFeatured,
+    cardTheme: listing.cardTheme,
     applyUrl,
     contactInfoMasked: !isAuth && hasSensitiveInfo(rawDesc, rawApplyUrl),
     companyLogoUrl,
@@ -124,9 +261,21 @@ router.get("/listings", optionalAuthMiddleware, async (req, res): Promise<void> 
 
   const conditions = [];
   if (featured) conditions.push(eq(listingsTable.isFeatured, true));
-  if (city) conditions.push(ilike(listingsTable.city, `%${city}%`));
+  if (city) {
+    const condition = await cityFilterCondition(city);
+    if (condition) conditions.push(condition);
+  }
   if (search) conditions.push(ilike(listingsTable.title, `%${search}%`));
   conditions.push(eq(listingsTable.status, "active"));
+
+  const settings = await db.select({ hiddenListingCities: adminSettingsTable.hiddenListingCities }).from(adminSettingsTable).limit(1);
+  const hiddenCities = parseHiddenListingCities(settings[0]?.hiddenListingCities);
+  for (const hiddenCity of hiddenCities) {
+    const province = extractProvinceName(hiddenCity) ?? hiddenCity;
+    const customTerms = await getLocationTermsForProvince(province);
+    const patterns = [province, ...Object.entries(DISTRICT_PROVINCES).filter(([, p]) => p === province).map(([d]) => d), ...customTerms];
+    conditions.push(sql`not (${or(...patterns.map(locationTermCondition))})`);
+  }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -165,6 +314,29 @@ router.get("/listings", optionalAuthMiddleware, async (req, res): Promise<void> 
   });
 });
 
+router.get("/listings/cities", async (_req, res): Promise<void> => {
+  const settings = await db.select({ hiddenListingCities: adminSettingsTable.hiddenListingCities }).from(adminSettingsTable).limit(1);
+  const hiddenCities = new Set(parseHiddenListingCities(settings[0]?.hiddenListingCities).map(normalizeCityText));
+  const rows = await db
+    .select({ city: listingsTable.city, count: sql<number>`count(*)::int` })
+    .from(listingsTable)
+    .where(eq(listingsTable.status, "active"))
+    .groupBy(listingsTable.city)
+    .orderBy(sql`count(*) desc`, listingsTable.city);
+
+  const provinceCounts = new Map<string, number>();
+  for (const row of rows) {
+    const province = extractProvinceName(row.city);
+    if (!province) continue;
+    if (hiddenCities.has(normalizeCityText(province))) continue;
+    provinceCounts.set(province, (provinceCounts.get(province) ?? 0) + row.count);
+  }
+
+  res.json([...provinceCounts.entries()]
+    .map(([city, count]) => ({ city, count }))
+    .sort((a, b) => b.count - a.count || a.city.localeCompare(b.city, "tr-TR")));
+});
+
 // ── Listing image upload ────────────────────────────────────────────────────
 router.post("/listings/image-upload", authMiddleware, listingImageUpload.single("image"), async (req, res): Promise<void> => {
   if (!req.file) { res.status(400).json({ error: "Resim dosyası gerekli (jpg, png, webp)" }); return; }
@@ -178,6 +350,33 @@ router.post("/listings/image-upload", authMiddleware, listingImageUpload.single(
   res.json({ url });
 });
 
+router.post("/listings/parse", authMiddleware, async (req, res): Promise<void> => {
+  const { text } = req.body as { text?: string };
+  if (!text?.trim()) { res.status(400).json({ error: "Metin zorunludur" }); return; }
+  const location = extractLocation(text);
+  const gender = extractGender(text);
+  const benefits = extractBenefits(text);
+  const title = extractTitle(text);
+  const salary = extractSalary(text);
+  const phone = text.match(/(?:0|\+90)?5[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}[\s\-]?\d{2}/)?.[0]?.replace(/[\s\-]/g, "") ?? "";
+  res.json({
+    title,
+    company: extractCompany(text, "Belirtilmedi"),
+    city: location.city ?? "Türkiye",
+    district: location.district ?? location.neighborhood ?? "",
+    workType: extractWorkType(text),
+    salary: salary ?? "",
+    benefits: benefits.join(", "),
+    gender: gender ?? "",
+    description: text.trim(),
+    contactPhone: phone,
+    contactName: "",
+    applyUrl: phone ? `tel:${phone.startsWith("0") ? phone : `0${phone.replace(/^\+90/, "")}`}` : "",
+    requirements: buildListingRequirements({ gender, location, benefits, source: "Kullanıcı ilanı" }),
+    companyLogoUrl: createSmartListingImage(text, title),
+  });
+});
+
 // ── Serve listing images ───────────────────────────────────────────────────
 router.get("/listing-images/:filename", (req, res): void => {
   const filename = String(req.params["filename"]).replace(/[^a-zA-Z0-9_\-\.]/g, "");
@@ -187,7 +386,7 @@ router.get("/listing-images/:filename", (req, res): void => {
 });
 
 router.post("/listings", authMiddleware, async (req, res): Promise<void> => {
-  const { title, company, city, salary, workType, description, requirements, applyUrl, companyLogoUrl } = req.body as Record<string, string | undefined>;
+  const { title, company, city, salary, workType, description, requirements, applyUrl, companyLogoUrl, cardTheme } = req.body as Record<string, string | undefined>;
 
   if (!title || !company || !city) {
     res.status(400).json({ error: "Başlık, firma ve şehir zorunludur" });
@@ -219,9 +418,10 @@ router.post("/listings", authMiddleware, async (req, res): Promise<void> => {
     requirements: requirements ?? null,
     applyUrl: applyUrl ?? null,
     companyLogoUrl: companyLogoUrl ?? null,
+    cardTheme: canUseCardTheme(req.user) ? normalizeCardTheme(cardTheme) : null,
     authorId: req.user!.id,
     status: "active",
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
   }).returning();
 
   // Announce new listing in chat if enabled
@@ -263,10 +463,16 @@ router.post("/listings", authMiddleware, async (req, res): Promise<void> => {
   // Tüm kullanıcılara bildirim gönder (fire-and-forget)
   setImmediate(async () => {
     try {
-      const allUsers = await db
-        .select({ id: usersTable.id })
-        .from(usersTable)
-        .where(eq(usersTable.isBanned, false));
+      const [allUsers, admins] = await Promise.all([
+        db
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(eq(usersTable.isBanned, false)),
+        db
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(or(eq(usersTable.role, "admin"), eq(usersTable.role, "moderator"))),
+      ]);
       if (allUsers.length > 0) {
         const msg = `Yeni ilan: ${title} — ${company} (${city})`;
         const link = `/ilan/${listing!.id}`;
@@ -276,6 +482,19 @@ router.post("/listings", authMiddleware, async (req, res): Promise<void> => {
             type: "listing",
             message: msg,
             linkUrl: link,
+            isRead: false,
+          }))
+        );
+      }
+      if (admins.length > 0) {
+        await db.insert(notificationsTable).values(
+          admins.map(admin => ({
+            userId: admin.id,
+            type: "admin_listing",
+            title: "Yeni kullanıcı ilanı incele",
+            message: `#${listing!.id} numaralı ilan yayınlandı: ${title} — ${company} (${city})`,
+            relatedId: listing!.id,
+            linkUrl: `/ilan/${listing!.id}`,
             isRead: false,
           }))
         );
@@ -356,7 +575,7 @@ router.patch("/listings/:id", authMiddleware, async (req, res): Promise<void> =>
     return;
   }
 
-  const { title, company, city, salary, workType, description, requirements, status, applyUrl, isFeatured } = req.body as Record<string, unknown>;
+  const { title, company, city, salary, workType, description, requirements, status, applyUrl, isFeatured, cardTheme } = req.body as Record<string, unknown>;
   const updates: Partial<typeof listingsTable.$inferInsert> = {};
   if (title != null) updates.title = String(title);
   if (company != null) updates.company = String(company);
@@ -365,9 +584,21 @@ router.patch("/listings/:id", authMiddleware, async (req, res): Promise<void> =>
   if (workType != null) updates.workType = String(workType);
   if (description !== undefined) updates.description = description == null ? null : String(description);
   if (requirements !== undefined) updates.requirements = requirements == null ? null : String(requirements);
-  if (status != null && req.user!.role === "admin") updates.status = String(status);
+  if (status != null) {
+    const nextStatus = String(status);
+    if (req.user!.role === "admin" || listing.authorId === req.user!.id) {
+      if (["active", "inactive", "pending", "rejected"].includes(nextStatus)) updates.status = nextStatus;
+    }
+  }
   if (applyUrl !== undefined) updates.applyUrl = applyUrl == null ? null : String(applyUrl);
   if (isFeatured !== undefined && req.user!.role === "admin") updates.isFeatured = Boolean(isFeatured);
+  if (cardTheme !== undefined) {
+    if (!canUseCardTheme(req.user)) {
+      res.status(403).json({ error: "Kart rengi seçimi VIP üyelere özeldir" });
+      return;
+    }
+    updates.cardTheme = normalizeCardTheme(cardTheme);
+  }
 
   const [updated] = await db.update(listingsTable).set(updates).where(eq(listingsTable.id, id)).returning();
   res.json(formatListing(updated, req.user!.id, new Set(), new Set(), req.user!.username));
@@ -399,7 +630,7 @@ router.post("/listings/:id/republish", authMiddleware, async (req, res): Promise
   if (listing.authorId !== req.user!.id && req.user!.role !== "admin") {
     res.status(403).json({ error: "Bu ilanı yeniden yayınlama yetkiniz yok" }); return;
   }
-  const newExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const [updated] = await db.update(listingsTable)
     .set({ status: "active", expiresAt: newExpiry, createdAt: new Date() })
     .where(eq(listingsTable.id, id))

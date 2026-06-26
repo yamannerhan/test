@@ -115,15 +115,14 @@ export async function verifyCode(code: string): Promise<{ needs2FA: boolean }> {
 export async function verifyPassword(password: string): Promise<void> {
   if (!client) throw new Error("Oturum bulunamadı");
   const pwdInfo = await client.invoke(new Api.account.GetPassword());
-  const check = await (await import("telegram/Password")).computeCheck(pwdInfo, password);
-  await client.invoke(check as unknown as Parameters<typeof client.invoke>[0]);
+  await client.invoke(await (await import("telegram/Password")).computeCheck(pwdInfo, password));
   currentState = "connected";
   const sessionStr = (client.session as StringSession).save();
   await saveSession({ authState: "connected", sessionString: sessionStr });
 }
 
 export async function logout(): Promise<void> {
-  try { await client?.invoke(new Api.auth.LogOut({}) as unknown as Parameters<NonNullable<typeof client>["invoke"]>[0]); } catch { /* ignore */ }
+  try { await client?.invoke(new Api.auth.LogOut({})); } catch { /* ignore */ }
   client = null;
   currentState = "disconnected";
   currentPhone = null;

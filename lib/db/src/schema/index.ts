@@ -12,3 +12,4 @@ export * from "./sources";
 export * from "./imported-posts";
 export * from "./pending-jobs";
 export * from "./telegram-sessions";
+export * from "./location-filter-terms";

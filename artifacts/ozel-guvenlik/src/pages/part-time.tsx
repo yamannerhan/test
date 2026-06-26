@@ -4,8 +4,8 @@ import { Layout } from "@/components/layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  MapPin, Phone, Car, User, Clock, Star, Plus, Pencil, Trash2,
-  ChevronDown, ChevronUp, Check, X, Loader2, LogIn, UserPlus, Camera, Shield
+  MapPin, Phone, User, Clock, Star, Plus, Trash2, Check, X, Loader2, Camera,
+  ShieldCheck, Briefcase, Building2, Users, Flame, Newspaper, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,6 @@ import { Link } from "wouter";
 
 function getToken() { return localStorage.getItem("auth_token") ?? ""; }
 
-interface Banner { id: number; title: string | null; imageUrl: string; linkUrl: string | null; }
 interface Worker {
   id: number; userId: number; fullName: string; age: number; isRetired: boolean;
   gender: string; phone: string; city: string; district: string; hasVehicle: string;
@@ -23,146 +22,6 @@ interface Worker {
 }
 interface CityCount { city: string; count: number; }
 
-// ── Banner Carousel ─────────────────────────────────────────────────
-function BannerCarousel({ banners }: { banners: Banner[] }) {
-  const [current, setCurrent] = useState(0);
-  const next = useCallback(() => setCurrent(c => (c + 1) % banners.length), [banners.length]);
-  useEffect(() => {
-    if (banners.length < 2) return;
-    const id = setInterval(next, 4000);
-    return () => clearInterval(id);
-  }, [next, banners.length]);
-  if (banners.length === 0) return null;
-  return (
-    <div className="relative w-full overflow-hidden rounded-2xl" style={{ aspectRatio: "16/5" }}>
-      <AnimatePresence mode="wait">
-        <motion.div key={current} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.5 }} className="absolute inset-0">
-          {banners[current]!.linkUrl
-            ? <a href={banners[current]!.linkUrl!} target="_blank" rel="noopener noreferrer" className="block w-full h-full"><img src={banners[current]!.imageUrl} alt="" className="w-full h-full object-cover rounded-2xl" /></a>
-            : <img src={banners[current]!.imageUrl} alt="" className="w-full h-full object-cover rounded-2xl" />}
-          {banners[current]!.title && (
-            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent rounded-b-2xl px-4 py-2.5">
-              <p className="text-white text-xs font-semibold">{banners[current]!.title}</p>
-            </div>
-          )}
-        </motion.div>
-      </AnimatePresence>
-      {banners.length > 1 && (
-        <>
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
-            {banners.map((_, i) => <button key={i} onClick={() => setCurrent(i)} className={`h-1.5 rounded-full transition-all ${i === current ? "w-5 bg-white" : "w-1.5 bg-white/40"}`} />)}
-          </div>
-          <button onClick={() => setCurrent(c => (c - 1 + banners.length) % banners.length)} className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 text-white flex items-center justify-center z-10 text-base">‹</button>
-          <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/40 text-white flex items-center justify-center z-10 text-base">›</button>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── Worker Card ─────────────────────────────────────────────────────
-function WorkerCard({ w, isAdmin, onFeature, onBan, onDelete, isMine }: {
-  w: Worker; isAdmin?: boolean;
-  onFeature?: (id: number) => void;
-  onBan?: (id: number, ban: boolean) => void;
-  onDelete?: (id: number) => void;
-  isMine?: boolean;
-}) {
-  const [descExpanded, setDescExpanded] = useState(false);
-  const vehicleIcon = w.hasVehicle === "Yok" ? null : w.hasVehicle === "Motor" ? "🏍️" : "🚗";
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`relative glass-card rounded-2xl p-4 ${w.isFeatured
-        ? "border border-amber-400/70 animate-pt-glow"
-        : "border border-white/5"}`}
-    >
-      {w.isFeatured && (
-        <div className="absolute -top-2.5 left-4 bg-amber-500 text-amber-950 text-[9px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-          <Star className="w-2.5 h-2.5" /> ÖNE ÇIKAN
-        </div>
-      )}
-      <div className="flex items-start gap-3">
-        {w.photoUrl ? (
-          <img src={w.photoUrl} alt={w.fullName} className="w-14 h-14 rounded-xl object-cover shrink-0 ring-2 ring-white/10" />
-        ) : (
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/30 to-secondary/20 flex items-center justify-center shrink-0 text-2xl font-bold border border-white/10">
-            {w.gender === "Bayan" ? "👩" : "👨"}
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-sm">{w.fullName}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${w.gender === "Bayan" ? "bg-pink-500/20 text-pink-300" : "bg-blue-500/20 text-blue-300"}`}>{w.gender}</span>
-            {w.isRetired && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-semibold">Emekli</span>}
-          </div>
-          <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
-            <span className="flex items-center gap-1"><User className="w-3 h-3" />{w.age} yaş</span>
-            <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{w.city} / {w.district}</span>
-            {vehicleIcon && <span className="flex items-center gap-1">{vehicleIcon} {w.hasVehicle}</span>}
-          </div>
-          {w.description && (
-            <div className="mt-2">
-              <p
-                onClick={() => setDescExpanded(e => !e)}
-                className={`text-xs text-foreground/70 leading-relaxed cursor-pointer select-none transition-all ${descExpanded ? "" : "line-clamp-2"}`}
-              >
-                {w.description}
-              </p>
-              {!descExpanded && w.description.length > 80 && (
-                <button
-                  onClick={() => setDescExpanded(true)}
-                  className="text-[10px] text-primary/70 mt-0.5 hover:text-primary transition-colors"
-                >
-                  daha fazla
-                </button>
-              )}
-              {descExpanded && (
-                <button
-                  onClick={() => setDescExpanded(false)}
-                  className="text-[10px] text-primary/70 mt-0.5 hover:text-primary transition-colors"
-                >
-                  gizle
-                </button>
-              )}
-            </div>
-          )}
-          <div className="flex items-center justify-between mt-2.5">
-            <a href={`tel:${w.phone}`} className="flex items-center gap-1.5 text-xs font-semibold text-cyan-400 hover:text-cyan-300 transition-colors">
-              <Phone className="w-3.5 h-3.5" />{w.phone}
-            </a>
-            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {new Date(w.createdAt).toLocaleDateString("tr-TR")}
-            </span>
-          </div>
-        </div>
-      </div>
-      {(isAdmin || isMine) && (
-        <div className="flex gap-2 mt-3 pt-3 border-t border-white/5">
-          {isAdmin && (
-            <>
-              <button onClick={() => onFeature?.(w.id)} className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-colors ${w.isFeatured ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30" : "bg-white/5 text-muted-foreground hover:bg-white/10"}`}>
-                {w.isFeatured ? "Öne çıkan kaldır" : "Öne çıkar"}
-              </button>
-              <button onClick={() => onBan?.(w.id, !w.isBanned)} className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition-colors ${w.isBanned ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
-                {w.isBanned ? "Yasağı kaldır" : "Yasakla"}
-              </button>
-            </>
-          )}
-          {(isMine || isAdmin) && (
-            <button onClick={() => onDelete?.(w.id)} className="text-[11px] px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 font-semibold ml-auto transition-colors flex items-center gap-1">
-              <Trash2 className="w-3 h-3" /> Sil
-            </button>
-          )}
-        </div>
-      )}
-    </motion.div>
-  );
-}
-
-// ── İl listesi ─────────────────────────────────────────────────────
 const ILLER = [
   "Adana","Adıyaman","Afyonkarahisar","Ağrı","Amasya","Ankara","Antalya","Artvin",
   "Aydın","Balıkesir","Bilecik","Bingöl","Bitlis","Bolu","Burdur","Bursa","Çanakkale",
@@ -176,13 +35,154 @@ const ILLER = [
   "Ardahan","Iğdır","Yalova","Karabük","Kilis","Osmaniye","Düzce"
 ];
 
+function formatDate(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const h = Math.floor(diff / 3600000);
+  if (h < 1) return "Az önce";
+  if (h < 24) return `${h} saat önce`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d} gün önce`;
+  return new Date(iso).toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
+}
+
+function SafeAvatar({ photoUrl, gender, altName }: { photoUrl?: string | null; gender: string; altName: string }) {
+  const [failed, setFailed] = useState(false);
+  const isFemale = gender === "Bayan";
+
+  if (!photoUrl || failed) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+        <svg width="44" height="44" viewBox="0 0 44 44" fill="none" className="opacity-90">
+          <circle cx="22" cy="12" r="7" fill={isFemale ? "#f9a8d4" : "#93c5fd"} />
+          <path
+            d={isFemale
+              ? "M22 21c-6.5 0-12 4-12 9h24c0-5-5.5-9-12-9z"
+              : "M22 20c-5 0-9.5 3.5-10.5 7.5h21c-1-4-5.5-7.5-10.5-7.5z"}
+            fill={isFemale ? "#ec4899" : "#3b82f6"}
+          />
+          <circle cx="22" cy="12" r="12" stroke={isFemale ? "#f472b6" : "#60a5fa"} strokeWidth="1.5" opacity="0.25" />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={photoUrl}
+      alt={altName}
+      className="w-full h-full object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+// ── Worker Row Card ─────────────────────────────────────────────────
+function WorkerRow({ w, isAdmin, onFeature, onBan, onDelete, isMine }: {
+  w: Worker; isAdmin?: boolean;
+  onFeature?: (id: number) => void;
+  onBan?: (id: number, ban: boolean) => void;
+  onDelete?: (id: number) => void;
+  isMine?: boolean;
+}) {
+  const isMotor = w.hasVehicle === "Motor";
+  const isCar = w.hasVehicle === "Araba";
+  const vehicleEmoji = isMotor ? "🏍️" : isCar ? "🚗" : null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`og-pt-row ${w.isFeatured ? "og-pt-row-featured" : ""}`}
+    >
+      <div className="og-pt-img">
+        <SafeAvatar photoUrl={w.photoUrl} gender={w.gender} altName={w.fullName} />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+          {w.isFeatured && (
+            <span className="og-status og-status-featured">
+              <Star className="w-2.5 h-2.5 fill-current" /> Öne Çıkan
+            </span>
+          )}
+          <span className={`og-status ${w.gender === "Bayan" ? "og-gender-bayan" : "og-gender-bay"}`}>
+            {w.gender}
+          </span>
+          {w.isRetired && (
+            <span className="og-status" style={{ background: "rgba(168,85,247,0.18)", color: "#d8b4fe", border: "1px solid rgba(168,85,247,0.35)" }}>
+              Emekli
+            </span>
+          )}
+        </div>
+
+        <h3 className="og-list-title">{w.fullName}</h3>
+
+        <div className="flex items-center gap-2 text-[11px] og-text-muted mt-0.5 flex-wrap">
+          <span className="inline-flex items-center gap-1">
+            {isMotor ? <span>🏍</span> : <MapPin className="w-3 h-3 shrink-0" />}
+            <span className="truncate">{w.city} / {w.district}</span>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <User className="w-3 h-3" /> {w.age} yaş
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          <span className="og-mini-chip">Tam Zamanlı</span>
+          <span className="og-mini-chip">Günlük</span>
+          {vehicleEmoji && <span className="og-mini-chip">{vehicleEmoji} {w.hasVehicle}</span>}
+        </div>
+
+        {w.description && (
+          <p className="text-[11px] og-text-muted mt-1 line-clamp-2 leading-relaxed">
+            {w.description}
+          </p>
+        )}
+
+        <div className="og-list-foot">
+          <a
+            href={`tel:${w.phone}`}
+            onClick={e => e.stopPropagation()}
+            className="og-text-muted text-[10px] truncate inline-flex items-center gap-1 hover:text-amber-400 transition-colors"
+          >
+            <Phone className="w-3 h-3" />
+            {w.phone}
+          </a>
+          <button type="button" onClick={(e) => { e.stopPropagation(); window.location.href = `tel:${w.phone}`; }} className="og-pt-detail-btn">
+            Hemen Ara
+          </button>
+        </div>
+      </div>
+
+      {(isAdmin || isMine) && (
+        <div className="absolute -bottom-2 left-3 right-3 flex gap-1.5">
+          {isAdmin && (
+            <>
+              <button onClick={() => onFeature?.(w.id)} className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-colors ${w.isFeatured ? "bg-amber-400 text-slate-900" : "bg-slate-900 text-amber-400 border border-amber-400/40"}`}>
+                {w.isFeatured ? "★ Öne çıkan" : "★ Öne çıkar"}
+              </button>
+              <button onClick={() => onBan?.(w.id, !w.isBanned)} className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-colors ${w.isBanned ? "bg-emerald-500/90 text-white" : "bg-red-500/90 text-white"}`}>
+                {w.isBanned ? "Yasağı kaldır" : "Yasakla"}
+              </button>
+            </>
+          )}
+          {(isMine || isAdmin) && (
+            <button onClick={() => onDelete?.(w.id)} className="text-[10px] px-2 py-0.5 rounded-full bg-red-600 text-white font-bold ml-auto inline-flex items-center gap-1">
+              <Trash2 className="w-2.5 h-2.5" /> Sil
+            </button>
+          )}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 // ── Main Component ──────────────────────────────────────────────────
 export default function PartTime() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { data: announcementsData } = useGetAnnouncements();
   const announcements = announcementsData || [];
-  const [banners, setBanners] = useState<Banner[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [cities, setCities] = useState<CityCount[]>([]);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
@@ -200,7 +200,6 @@ export default function PartTime() {
 
   const isAdmin = user?.role === "admin" || user?.role === "moderator";
 
-  // ── Data fetching ─────────────────────────────────────────────────
   const fetchWorkers = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
@@ -215,10 +214,6 @@ export default function PartTime() {
   }, [selectedCity]);
 
   useEffect(() => { fetchWorkers(); }, [fetchWorkers]);
-
-  useEffect(() => {
-    fetch("/api/banners").then(r => r.json()).then(d => setBanners(Array.isArray(d) ? d : [])).catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -243,7 +238,6 @@ export default function PartTime() {
     }
   }, [myListing, user]);
 
-  // ── Submit ────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!form.fullName || !form.age || !form.phone || !form.city || !form.district) {
       toast({ title: "Zorunlu alanları doldurun", variant: "destructive" }); return;
@@ -318,7 +312,7 @@ export default function PartTime() {
     }
   };
 
-  // Öne çıkanlar her zaman üstte — sunucu sıralamasına ek frontend garantisi
+  // Sort: featured first, then newest
   const sortedWorkers = [...workers].sort((a, b) => {
     if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -326,219 +320,299 @@ export default function PartTime() {
   const featuredWorkers = sortedWorkers.filter(w => w.isFeatured);
   const regularWorkers = sortedWorkers.filter(w => !w.isFeatured);
 
+  // Stats
+  const totalActive = workers.length;
+  const distinctCompanies = cities.length;  // approx — distinct cities reflects spread
+  const totalRegistered = workers.length;
+  const dayAgo = Date.now() - 24 * 3600 * 1000;
+  const newToday = workers.filter(w => new Date(w.createdAt).getTime() > dayAgo).length;
+
+  // Latest announcement for ticker
+  const latestAnnouncement = announcements[0]?.content || "Sıraya gir, hızlı başvuru için profilini güncelle!";
+
   return (
     <Layout>
-      <div className="pb-28">
-        {/* ── Kayan duyurular ─────────────────────────────────────────── */}
-        {announcements.length > 0 && (
-          <div className="bg-primary/10 border-b border-primary/20 overflow-hidden relative h-9 flex items-center">
-            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-            <div className="flex animate-ticker whitespace-nowrap" style={{ animationDelay: `-${((Date.now() / 1000) % 60).toFixed(2)}s` }}>
-              {[...announcements, ...announcements].map((a, i) => (
-                <span key={i} className="inline-flex items-center gap-2 mx-8 text-xs font-medium text-primary/90">
-                  <span className="text-primary">●</span>{a.content}
-                </span>
-              ))}
+      <div className="p-4 space-y-5">
+
+        {/* ── Breaking News Ticker ─────────────────────────── */}
+        <section className="og-news-ticker">
+          <span className="og-news-ticker-label">
+            <Newspaper className="w-3 h-3" /> Son Dakika
+          </span>
+          <span className="og-news-ticker-text">{latestAnnouncement}</span>
+          <span className="og-news-ticker-badge">
+            <Flame className="w-2.5 h-2.5" /> Bugün
+          </span>
+        </section>
+
+        {/* ── Hero Banner ──────────────────────────────────── */}
+        <section className="og-pt-hero">
+          <div className="og-pt-hero-art">
+            <span className="og-pt-hero-flag">🇹🇷</span>
+            <div className="og-pt-hero-shield-bg">
+              <ShieldCheck />
             </div>
-            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+          </div>
+          <div className="og-pt-hero-eyebrow">ÖZELGÜVENLİK.ONLINE | DİJİTAL ÖZEL GÜVENLİK SİSTEMİ</div>
+          <h2 className="og-pt-hero-title">GÜVENLİK SEKTÖRÜNÜN DİJİTAL MERKEZİ</h2>
+          <p className="og-pt-hero-sub">
+            Binlerce güncel ilan, güvenlik firmaları ve hızlı başvuru sistemi ile kariyerinize güvenli bir adım atın!
+          </p>
+          <div className="og-pt-hero-links">
+            <Link href="/ilanlar" className="og-pt-hero-link">
+              <Newspaper className="w-3 h-3" /> GÜNCEL İLANLAR
+            </Link>
+            <Link href="/ilanlar" className="og-pt-hero-link">
+              <Building2 className="w-3 h-3" /> GÜVENLİK FİRMALAR
+            </Link>
+            <Link href="/cv-olustur" className="og-pt-hero-link">
+              <Zap className="w-3 h-3" /> HIZLI BAŞVURU
+            </Link>
+          </div>
+          <div className="og-pt-hero-dots">
+            <span className="og-pt-hero-dot og-pt-hero-dot-active" />
+            <span className="og-pt-hero-dot" />
+            <span className="og-pt-hero-dot" />
+          </div>
+        </section>
+
+        {/* ── Page Heading ─────────────────────────────────── */}
+        <section className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="og-page-title">Part Time</h1>
+            <p className="og-page-sub">Günlük & geçici güvenlik personeli</p>
+          </div>
+          {user ? (
+            <button
+              type="button"
+              onClick={() => setTab(tab === "basvur" ? "liste" : "basvur")}
+              className="og-filter-btn shrink-0"
+            >
+              {tab === "basvur" ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+              {tab === "basvur" ? "Kapat" : myListing ? "Düzenle" : "Sıraya Gir"}
+            </button>
+          ) : (
+            <Link href="/kayit" className="og-filter-btn shrink-0">
+              <Plus className="w-3.5 h-3.5" /> Sıraya Gir
+            </Link>
+          )}
+        </section>
+
+        {/* ── Stats Row ────────────────────────────────────── */}
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <div className="og-stat-card">
+            <div className="og-stat-icon"><User className="w-4 h-4" /></div>
+            <div className="og-stat-value">{totalActive}</div>
+            <div className="og-stat-label">Aktif İlan</div>
+          </div>
+          <div className="og-stat-card">
+            <div className="og-stat-icon"><Building2 className="w-4 h-4" /></div>
+            <div className="og-stat-value">{distinctCompanies}</div>
+            <div className="og-stat-label">Şehir</div>
+          </div>
+          <div className="og-stat-card">
+            <div className="og-stat-icon"><Users className="w-4 h-4" /></div>
+            <div className="og-stat-value">{totalRegistered}</div>
+            <div className="og-stat-label">Kayıtlı Personel</div>
+          </div>
+          <div className="og-stat-card">
+            <div className="og-stat-icon"><Clock className="w-4 h-4" /></div>
+            <div className="og-stat-value">{newToday}</div>
+            <div className="og-stat-label">Bugün Eklenen</div>
+          </div>
+        </section>
+
+        {/* ── Login CTA ────────────────────────────────────── */}
+        {!user && (
+          <div className="og-list-row" style={{ borderColor: "rgba(250,204,21,0.32)" }}>
+            <div className="og-setting-icon"><ShieldCheck className="w-5 h-5" /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold">Sıraya girmek ister misiniz?</p>
+              <p className="text-xs og-text-muted">Üye olun, part time listesine eklenin.</p>
+            </div>
+            <Link href="/kayit" className="og-pt-detail-btn">
+              Kayıt Ol
+            </Link>
           </div>
         )}
 
-        <div className="p-4 space-y-4">
-          {/* ── Banner ────────────────────────────────────────────────── */}
-          {banners.length > 0 && <BannerCarousel banners={banners} />}
+        {/* ── Application form ─────────────────────────────── */}
+        <AnimatePresence>
+          {tab === "basvur" && user && (
+            <motion.section
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="og-setting-row flex-col items-stretch gap-3 p-4">
+                <h2 className="og-section-title text-amber-400">{myListing ? "Kaydımı Düzenle" : "Part Time Listesine Katıl"}</h2>
 
-          {/* ── Başlık ────────────────────────────────────────────────── */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-extrabold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                Part Time
-              </h1>
-              <p className="text-xs text-muted-foreground mt-0.5">Günlük & geçici güvenlik personeli</p>
-            </div>
-            {user && (
-              <Button
-                size="sm"
-                onClick={() => setTab(tab === "basvur" ? "liste" : "basvur")}
-                className="bg-gradient-to-r from-primary to-secondary text-white rounded-xl gap-1.5 text-xs"
-              >
-                {tab === "basvur" ? <><X className="w-3.5 h-3.5" />Kapat</> : <><Plus className="w-3.5 h-3.5" />{myListing ? "Kaydımı Düzenle" : "Sıraya Gir"}</>}
-              </Button>
-            )}
-          </div>
-
-          {/* ── Giriş yapmayanlar için CTA ────────────────────────────── */}
-          {!user && (
-            <div className="glass-card rounded-2xl p-4 border border-primary/20 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-                <Shield className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">Sıraya girmek ister misiniz?</p>
-                <p className="text-xs text-muted-foreground">Üye olun, part time listesine eklenin</p>
-              </div>
-              <Link href="/kayit">
-                <Button size="sm" className="bg-primary text-white rounded-xl text-xs shrink-0">
-                  Kayıt Ol
-                </Button>
-              </Link>
-            </div>
-          )}
-
-          {/* ── Başvuru / Düzenleme Formu ─────────────────────────────── */}
-          <AnimatePresence>
-            {tab === "basvur" && user && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="glass-card rounded-2xl overflow-hidden border border-primary/20"
-              >
-                <div className="p-4 space-y-3">
-                  <h2 className="font-bold text-sm text-primary">{myListing ? "Kaydımı Güzenle" : "Part Time Listesine Katıl"}</h2>
-
-                  {/* Fotoğraf */}
-                  {myListing && (
-                    <div className="flex items-center gap-3">
-                      {myListing.photoUrl
-                        ? <img src={myListing.photoUrl} className="w-16 h-16 rounded-xl object-cover ring-2 ring-primary/30" alt="" />
-                        : <div className="w-16 h-16 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 text-2xl">{myListing.gender === "Bayan" ? "👩" : "👨"}</div>
-                      }
-                      <div>
-                        <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); }} />
-                        <Button size="sm" variant="outline" className="border-white/10 text-xs gap-1.5" onClick={() => photoInputRef.current?.click()}>
-                          <Camera className="w-3.5 h-3.5" />Fotoğraf Değiştir
-                        </Button>
-                        <p className="text-[10px] text-muted-foreground mt-1">İsteğe bağlı</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
-                      <label className="text-xs text-muted-foreground mb-1 block">Ad Soyad *</label>
-                      <Input value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="Ahmet Yılmaz" className="glass-card border-white/10" />
-                    </div>
+                {myListing && (
+                  <div className="flex items-center gap-3">
+                    {myListing.photoUrl
+                      ? (
+                        <div className="w-16 h-16 rounded-xl ring-2 ring-amber-400/30 overflow-hidden">
+                          <SafeAvatar photoUrl={myListing.photoUrl} gender={myListing.gender} altName={myListing.fullName} />
+                        </div>
+                      )
+                      : (
+                        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center border border-white/10">
+                          <SafeAvatar photoUrl={null} gender={myListing.gender} altName={myListing.fullName} />
+                        </div>
+                      )
+                    }
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Yaş *</label>
-                      <Input type="number" value={form.age} onChange={e => setForm(f => ({ ...f, age: e.target.value }))} placeholder="35" min={18} max={70} className="glass-card border-white/10" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Cinsiyet</label>
-                      <select value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))} className="w-full bg-card border border-white/10 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50">
-                        <option>Bay</option><option>Bayan</option>
-                      </select>
-                    </div>
-                    <div className="col-span-2 flex items-center gap-3 bg-white/5 rounded-xl px-3 py-2.5">
-                      <input type="checkbox" id="isRetired" checked={form.isRetired} onChange={e => setForm(f => ({ ...f, isRetired: e.target.checked }))} className="w-4 h-4 accent-primary" />
-                      <label htmlFor="isRetired" className="text-sm cursor-pointer select-none">Emekliyim</label>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">İl *</label>
-                      <select value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} className="w-full bg-card border border-white/10 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50">
-                        <option value="">Seçin</option>
-                        {ILLER.map(il => <option key={il}>{il}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">İlçe *</label>
-                      <Input value={form.district} onChange={e => setForm(f => ({ ...f, district: e.target.value }))} placeholder="İlçe adı" className="glass-card border-white/10" />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="text-xs text-muted-foreground mb-1 block">Telefon *</label>
-                      <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="0555 555 55 55" className="glass-card border-white/10" />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="text-xs text-muted-foreground mb-1 block">Araç / Vasıta</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {["Yok", "Motor", "Araba"].map(v => (
-                          <button key={v} onClick={() => setForm(f => ({ ...f, hasVehicle: v }))}
-                            className={`py-2 rounded-xl text-xs font-semibold border transition-colors ${form.hasVehicle === v ? "bg-primary/20 border-primary/50 text-primary" : "bg-white/5 border-white/10 text-muted-foreground"}`}>
-                            {v === "Motor" ? "🏍️ Motor" : v === "Araba" ? "🚗 Araba" : "✖ Yok"}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="col-span-2">
-                      <label className="text-xs text-muted-foreground mb-1 block">Açıklama</label>
-                      <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                        placeholder="Deneyimleriniz, çalışabileceğiniz saatler, özel beceriler..."
-                        rows={3} maxLength={300}
-                        className="w-full bg-card border border-white/10 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50 resize-none" />
+                      <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); }} />
+                      <Button size="sm" variant="outline" className="border-white/10 text-xs gap-1.5" onClick={() => photoInputRef.current?.click()}>
+                        <Camera className="w-3.5 h-3.5" />Fotoğraf Değiştir
+                      </Button>
+                      <p className="text-[10px] og-text-muted mt-1">İsteğe bağlı</p>
                     </div>
                   </div>
+                )}
 
-                  <Button onClick={handleSubmit} disabled={submitting} className="w-full bg-gradient-to-r from-primary to-secondary text-white">
-                    {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
-                    {myListing ? "Güncelle" : "Sıraya Gir"}
-                  </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="text-xs og-text-muted mb-1 block">Ad Soyad *</label>
+                    <Input value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="Ahmet Yılmaz" />
+                  </div>
+                  <div>
+                    <label className="text-xs og-text-muted mb-1 block">Yaş *</label>
+                    <Input type="number" value={form.age} onChange={e => setForm(f => ({ ...f, age: e.target.value }))} placeholder="35" min={18} max={70} />
+                  </div>
+                  <div>
+                    <label className="text-xs og-text-muted mb-1 block">Cinsiyet</label>
+                    <select value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))} className="w-full bg-card border border-white/10 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-amber-400/50">
+                      <option>Bay</option><option>Bayan</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2 flex items-center gap-3 bg-white/5 rounded-xl px-3 py-2.5">
+                    <input type="checkbox" id="isRetired" checked={form.isRetired} onChange={e => setForm(f => ({ ...f, isRetired: e.target.checked }))} className="w-4 h-4 accent-amber-400" />
+                    <label htmlFor="isRetired" className="text-sm cursor-pointer select-none">Emekliyim</label>
+                  </div>
+                  <div>
+                    <label className="text-xs og-text-muted mb-1 block">İl *</label>
+                    <select value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} className="w-full bg-card border border-white/10 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-amber-400/50">
+                      <option value="">Seçin</option>
+                      {ILLER.map(il => <option key={il}>{il}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs og-text-muted mb-1 block">İlçe *</label>
+                    <Input value={form.district} onChange={e => setForm(f => ({ ...f, district: e.target.value }))} placeholder="İlçe adı" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs og-text-muted mb-1 block">Telefon *</label>
+                    <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="0555 555 55 55" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs og-text-muted mb-1 block">Araç / Vasıta</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {["Yok", "Motor", "Araba"].map(v => (
+                        <button key={v} type="button" onClick={() => setForm(f => ({ ...f, hasVehicle: v }))}
+                          className={`py-2 rounded-xl text-xs font-bold border transition-colors ${form.hasVehicle === v ? "bg-amber-400 border-amber-400 text-slate-900" : "bg-white/5 border-white/10 text-muted-foreground"}`}>
+                          {v === "Motor" ? "🏍️ Motor" : v === "Araba" ? "🚗 Araba" : "✖ Yok"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs og-text-muted mb-1 block">Açıklama</label>
+                    <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="Deneyimleriniz, çalışabileceğiniz saatler, özel beceriler..."
+                      rows={3} maxLength={300}
+                      className="w-full bg-card border border-white/10 rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-amber-400/50 resize-none" />
+                  </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
-          {/* ── Şehir Filtreleri ──────────────────────────────────────── */}
-          {cities.length > 0 && (
-            <div>
-              <p className="text-[11px] text-muted-foreground mb-2 font-medium">Hızlı Şehir Filtresi</p>
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                <button
-                  onClick={() => setSelectedCity(null)}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${!selectedCity ? "bg-primary text-white border-primary" : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10"}`}
-                >
-                  Tümü ({workers.length})
-                </button>
-                {cities.map(c => (
-                  <button
-                    key={c.city}
-                    onClick={() => setSelectedCity(selectedCity === c.city ? null : c.city)}
-                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors whitespace-nowrap ${selectedCity === c.city ? "bg-primary text-white border-primary" : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10"}`}
-                  >
-                    {c.city} ({c.count})
-                  </button>
-                ))}
+                <Button onClick={handleSubmit} disabled={submitting} className="w-full bg-gradient-to-r from-amber-400 to-amber-600 text-slate-900 font-bold">
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+                  {myListing ? "Güncelle" : "Sıraya Gir"}
+                </Button>
               </div>
-            </div>
+            </motion.section>
           )}
+        </AnimatePresence>
 
-          {/* ── Liste ─────────────────────────────────────────────────── */}
-          {loading ? (
-            <div className="flex justify-center py-10">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : workers.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground glass-card rounded-2xl">
-              <p className="font-semibold">Henüz kayıt yok</p>
-              <p className="text-xs mt-1">{selectedCity ? `${selectedCity} ilinde kayıtlı personel bulunamadı` : "İlk sıraya giren siz olun!"}</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {/* Öne Çıkanlar — her zaman en üstte */}
-              {featuredWorkers.length > 0 && (
-                <>
-                  <p className="text-xs font-bold text-amber-400 flex items-center gap-1"><Star className="w-3.5 h-3.5" />Öne Çıkanlar</p>
+        {/* ── Hızlı Şehir Filtresi ─────────────────────────── */}
+        <section>
+          <p className="text-[11px] og-text-muted mb-2 font-semibold">Hızlı Şehir Filtresi</p>
+          <div className="og-pills hide-scrollbar">
+            <button
+              onClick={() => setSelectedCity(null)}
+              className={`og-pill ${!selectedCity ? "og-pill-active" : ""}`}
+            >
+              Tümü ({totalActive})
+            </button>
+            {cities.slice(0, 5).map(c => (
+              <button
+                key={c.city}
+                onClick={() => setSelectedCity(selectedCity === c.city ? null : c.city)}
+                className={`og-pill ${selectedCity === c.city ? "og-pill-active" : ""}`}
+              >
+                {c.city} ({c.count})
+              </button>
+            ))}
+            {cities.length > 5 && (
+              <button className="og-pill">
+                ··· Diğer
+              </button>
+            )}
+          </div>
+        </section>
+
+        {/* ── List ─────────────────────────────────────────── */}
+        {loading ? (
+          <div className="space-y-2.5">
+            {[1, 2, 3].map(i => <div key={i} className="og-list-skeleton" />)}
+          </div>
+        ) : workers.length === 0 ? (
+          <div className="og-empty">
+            <Users className="w-8 h-8 mb-2 opacity-40" />
+            <p className="text-sm font-semibold">Henüz kayıt yok</p>
+            <p className="text-xs mt-1">{selectedCity ? `${selectedCity} ilinde kayıtlı personel bulunamadı` : "İlk sıraya giren siz olun!"}</p>
+          </div>
+        ) : (
+          <>
+            {/* Featured */}
+            {featuredWorkers.length > 0 && (
+              <section>
+                <h2 className="og-section-title flex items-center gap-1.5 mb-3">
+                  <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                  Öne Çıkan İlanlar
+                </h2>
+                <div className="space-y-3">
                   {featuredWorkers.map(w => (
-                    <WorkerCard key={w.id} w={w} isAdmin={isAdmin} onFeature={handleFeature} onBan={handleBan} onDelete={handleDelete} isMine={w.userId === user?.id} />
+                    <WorkerRow key={w.id} w={w} isAdmin={isAdmin} onFeature={handleFeature} onBan={handleBan} onDelete={handleDelete} isMine={w.userId === user?.id} />
                   ))}
-                </>
-              )}
-              {/* Benim Kaydım — öne çıkan değilse öne çıkanlardan hemen sonra */}
-              {myListing && tab === "liste" && !myListing.isFeatured && (
-                <>
-                  <div className="border-t border-white/5 pt-1"><p className="text-xs text-primary/70 font-semibold">Benim Kaydım</p></div>
-                  <WorkerCard w={myListing} isMine onDelete={handleDelete} isAdmin={isAdmin} onFeature={handleFeature} onBan={handleBan} />
-                </>
-              )}
-              {/* Diğerleri */}
-              {(featuredWorkers.length > 0 || (myListing && !myListing.isFeatured)) && regularWorkers.filter(w => w.userId !== user?.id).length > 0 && (
-                <div className="border-t border-white/5 pt-1"><p className="text-xs text-muted-foreground font-medium">Diğerleri</p></div>
-              )}
-              {regularWorkers.filter(w => w.userId !== user?.id).map(w => (
-                <WorkerCard key={w.id} w={w} isAdmin={isAdmin} onFeature={handleFeature} onBan={handleBan} onDelete={handleDelete} isMine={false} />
-              ))}
-            </div>
-          )}
-        </div>
+                </div>
+              </section>
+            )}
+
+            {/* My listing */}
+            {myListing && tab === "liste" && !myListing.isFeatured && (
+              <section>
+                <p className="text-xs text-amber-400 font-bold mb-2">Benim Kaydım</p>
+                <WorkerRow w={myListing} isMine onDelete={handleDelete} isAdmin={isAdmin} onFeature={handleFeature} onBan={handleBan} />
+              </section>
+            )}
+
+            {/* Others */}
+            {regularWorkers.filter(w => w.userId !== user?.id).length > 0 && (
+              <section>
+                {(featuredWorkers.length > 0 || (myListing && !myListing.isFeatured)) && (
+                  <h2 className="og-section-title mb-3">Tüm Kayıtlar</h2>
+                )}
+                <div className="space-y-3">
+                  {regularWorkers.filter(w => w.userId !== user?.id).map(w => (
+                    <WorkerRow key={w.id} w={w} isAdmin={isAdmin} onFeature={handleFeature} onBan={handleBan} onDelete={handleDelete} isMine={false} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        )}
       </div>
     </Layout>
   );
