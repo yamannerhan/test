@@ -8,6 +8,7 @@
     "typecheck": "echo 'Type check skipped'"
   },
   "private": true,
+  "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=22"
   },

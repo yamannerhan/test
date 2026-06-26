@@ -1,14 +1,12 @@
 [phases.setup]
-nixPkgs = ["nodejs_22", "pnpm"]
+nixPkgs = ["nodejs_22"]
+cmds = ["corepack enable", "corepack prepare pnpm@9.15.0 --activate"]
 
 [phases.install]
-cmds = [
-  "pnpm install --no-frozen-lockfile",
-  "pnpm rebuild esbuild lightningcss @tailwindcss/oxide sharp bufferutil utf-8-validate || true"
-]
+cmds = ["pnpm install --no-frozen-lockfile"]
 
 [phases.build]
-cmds = ["pnpm run build:prod", "chmod +x start.sh"]
+cmds = ["pnpm -r --if-present run build"]
 
 [start]
 cmd = "node scripts/start.mjs"
@@ -16,4 +14,3 @@ cmd = "node scripts/start.mjs"
 [variables]
 BASE_PATH = "/"
 NODE_ENV = "production"
-NIXPACKS_NODE_VERSION = "22"
