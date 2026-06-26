@@ -2,8 +2,12 @@
 cmds = ["pnpm install --no-frozen-lockfile"]
 
 [phases.build]
-cmds = ["pnpm run build:prod"]
+cmds = ["pnpm run build:prod", "chmod +x start.sh"]
+
+[start]
+cmd = "node --enable-source-maps artifacts/api-server/dist/index.mjs"
 
 [variables]
 BASE_PATH = "/"
 NODE_ENV = "production"
+PORT = "8080"
