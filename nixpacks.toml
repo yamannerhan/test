@@ -11,10 +11,9 @@ cmds = [
 cmds = ["pnpm run build:prod", "chmod +x start.sh"]
 
 [start]
-cmd = "node --enable-source-maps artifacts/api-server/dist/index.mjs"
+cmd = "node scripts/start.mjs"
 
 [variables]
 BASE_PATH = "/"
 NODE_ENV = "production"
-PORT = "8080"
 NIXPACKS_NODE_VERSION = "22"

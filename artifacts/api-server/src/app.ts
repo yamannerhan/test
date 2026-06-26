@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import path from "path";
+import fs from "node:fs";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -37,10 +38,24 @@ app.use("/api", router);
 
 if (process.env.NODE_ENV === "production") {
   const staticDir = path.resolve(process.cwd(), "artifacts/ozel-guvenlik/dist/public");
-  app.use(express.static(staticDir));
-  app.get(/^(?!\/api).*/, (_req, res) => {
-    res.sendFile(path.join(staticDir, "index.html"));
-  });
+  const indexHtml = path.join(staticDir, "index.html");
+
+  if (fs.existsSync(indexHtml)) {
+    app.use(express.static(staticDir));
+    app.get(/^(?!\/api).*/, (_req, res) => {
+      res.sendFile(indexHtml);
+    });
+    logger.info({ staticDir }, "Serving frontend static files");
+  } else {
+    logger.warn({ staticDir }, "Frontend build missing; only /api routes available");
+    app.get("/", (_req, res) => {
+      res.status(200).json({
+        status: "ok",
+        message: "API calisiyor. Frontend build bulunamadi.",
+        health: "/api/healthz",
+      });
+    });
+  }
 }
 
 export default app;
