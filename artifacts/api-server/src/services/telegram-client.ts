@@ -5,9 +5,22 @@ import { db } from "@workspace/db";
 import { telegramSessionsTable } from "@workspace/db/schema";
 import { logger } from "../lib/logger";
 
-// NOTE: env vars are stored swapped — we read them in reverse intentionally
-const API_ID   = Number(process.env["TELEGRAM_API_HASH"]);  // stores the numeric ID
-const API_HASH = process.env["TELEGRAM_API_ID"] ?? "";       // stores the hash string
+// Accept standard or legacy swapped Railway variable names.
+function resolveTelegramCredentials(): { apiId: number; apiHash: string } {
+  const idRaw = process.env["TELEGRAM_API_ID"]?.trim() ?? "";
+  const hashRaw = process.env["TELEGRAM_API_HASH"]?.trim() ?? "";
+
+  if (/^\d+$/.test(idRaw) && hashRaw && !/^\d+$/.test(hashRaw)) {
+    return { apiId: Number(idRaw), apiHash: hashRaw };
+  }
+  if (/^\d+$/.test(hashRaw) && idRaw && !/^\d+$/.test(idRaw)) {
+    return { apiId: Number(hashRaw), apiHash: idRaw };
+  }
+
+  return { apiId: Number(idRaw) || 0, apiHash: hashRaw };
+}
+
+const { apiId: API_ID, apiHash: API_HASH } = resolveTelegramCredentials();
 
 export type AuthState = "disconnected" | "awaiting_code" | "awaiting_password" | "connected";
 
@@ -75,6 +88,11 @@ export async function initTelegramClient(): Promise<void> {
 }
 
 export async function startAuth(phone: string): Promise<void> {
+  if (!API_ID || !API_HASH) {
+    throw new Error(
+      "Telegram API bilgileri eksik. Railway Variables'a TELEGRAM_API_ID (sayı) ve TELEGRAM_API_HASH ekleyin. Alın: https://my.telegram.org/apps",
+    );
+  }
   client = buildClient();
   await client.connect();
   const result = await client.invoke(new Api.auth.SendCode({
